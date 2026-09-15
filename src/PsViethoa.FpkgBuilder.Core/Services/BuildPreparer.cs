@@ -43,36 +43,132 @@ public static class BuildPreparer
 
     /// <summary>
     /// Gợi ý thư mục tạm cùng ổ đĩa với thư mục xuất (tránh sao chép chéo ổ).
-    /// Với ổ hệ thống dùng thư mục cache của người dùng thay vì gốc ổ (macOS không cho ghi vào "/").
+    /// Gốc ổ thường không cho người dùng thường ghi (ví dụ /home trên Linux, "/" trên macOS), nên mỗi ứng viên đều
+    /// được thử ghi thật trước khi chọn; không nơi nào ghi được thì lùi về thư mục cache của người dùng.
     /// </summary>
     public static string SuggestTemporaryFolder(string outputFolder)
     {
+        foreach (var candidate in TemporaryFolderCandidates(outputFolder))
+        {
+            if (CanCreateDirectory(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return PlatformTemporaryFolder();
+    }
+
+    /// <summary>Ứng viên thư mục tạm, ưu tiên cùng ổ với thư mục xuất.</summary>
+    private static IEnumerable<string> TemporaryFolderCandidates(string outputFolder)
+    {
+        string? mount = null;
         try
         {
-            var mount = DiskSpaceAdvisor.ResolveMountPoint(outputFolder);
-            if (!string.IsNullOrEmpty(mount))
-            {
-                var isSystemVolume = OperatingSystem.IsWindows()
-                    ? string.Equals(mount, Path.GetPathRoot(Environment.SystemDirectory), StringComparison.OrdinalIgnoreCase)
-                    : mount == "/" || mount.StartsWith("/System/", StringComparison.Ordinal);
-
-                if (!isSystemVolume)
-                {
-                    return Path.Combine(mount, "fpkg-temp");
-                }
-            }
+            mount = DiskSpaceAdvisor.ResolveMountPoint(outputFolder);
         }
         catch (Exception)
         {
         }
 
+        if (!string.IsNullOrEmpty(mount))
+        {
+            var isSystemVolume = OperatingSystem.IsWindows()
+                ? string.Equals(mount, Path.GetPathRoot(Environment.SystemDirectory), StringComparison.OrdinalIgnoreCase)
+                : mount == "/" || mount.StartsWith("/System/", StringComparison.Ordinal);
+
+            if (!isSystemVolume)
+            {
+                yield return Path.Combine(mount, "fpkg-temp");
+            }
+        }
+
+        // Gốc ổ không ghi được (thường gặp: /home thuộc root): dùng thư mục cạnh thư mục xuất — vẫn cùng ổ đĩa.
+        if (!string.IsNullOrWhiteSpace(outputFolder))
+        {
+            var full = FullPathOrEmpty(outputFolder);
+            if (!string.IsNullOrEmpty(full))
+            {
+                var parent = Path.GetDirectoryName(full);
+                if (!string.IsNullOrEmpty(parent))
+                {
+                    yield return Path.Combine(parent, "fpkg-temp");
+                }
+            }
+        }
+
+        yield return PlatformTemporaryFolder();
+    }
+
+    /// <summary>Thư mục tạm mặc định theo nền tảng (không phụ thuộc thư mục xuất).</summary>
+    private static string PlatformTemporaryFolder()
+    {
         if (OperatingSystem.IsMacOS())
         {
             var caches = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Caches", "PSVIETHOA FPKG Builder");
             return Path.Combine(caches, "temp");
         }
 
+        if (OperatingSystem.IsLinux())
+        {
+            // Nhiều bản Linux gắn /tmp bằng tmpfs (nằm trong RAM): ảnh giải nén hàng chục GB sẽ ăn sạch bộ nhớ.
+            // Dùng thư mục cache theo chuẩn XDG nằm trên đĩa thật thay vì Path.GetTempPath().
+            var cacheHome = Environment.GetEnvironmentVariable("XDG_CACHE_HOME");
+            if (string.IsNullOrWhiteSpace(cacheHome))
+            {
+                var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                if (!string.IsNullOrWhiteSpace(home))
+                {
+                    cacheHome = Path.Combine(home, ".cache");
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(cacheHome))
+            {
+                return Path.Combine(cacheHome, "psviethoa-fpkg-builder", "temp");
+            }
+        }
+
         return Path.Combine(Path.TrimEndingDirectorySeparator(Path.GetTempPath()), "fpkg-temp");
+    }
+
+    /// <summary>Thử tạo (rồi dọn) thư mục để biết có ghi được thật không — quyền trên gốc ổ hay thay đổi.</summary>
+    private static bool CanCreateDirectory(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        try
+        {
+            var existed = Directory.Exists(path);
+            Directory.CreateDirectory(path);
+
+            var probe = Path.Combine(path, ".fpkg-write-probe-" + Guid.NewGuid().ToString("N")[..8]);
+            using (File.Create(probe))
+            {
+            }
+
+            File.Delete(probe);
+
+            if (!existed)
+            {
+                try
+                {
+                    Directory.Delete(path);
+                }
+                catch (Exception)
+                {
+                }
+            }
+
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     /// <summary>Trả về bản sao đã chuẩn hoá (đường dẫn đầy đủ, Content ID viết hoa, phiên bản chuẩn, thư mục tạm mặc định).</summary>

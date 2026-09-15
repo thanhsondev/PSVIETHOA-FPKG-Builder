@@ -111,7 +111,12 @@ public sealed class PfsContainerTests : IDisposable
         }, log.Add, null, CancellationToken.None);
         Assert.True(File.Exists(built.OutputPath));
         Assert.Contains(log, e => e.Message.Contains(".ffpfsc", StringComparison.Ordinal));
-        Assert.Empty(Directory.GetDirectories(Path.Combine(_root, "from-container-tmp"), "exfat-*")); // thư mục trích tạm phải được dọn
+        // Thư mục trích tạm phải được dọn; thư mục tạm rỗng do lần tạo gói sinh ra cũng bị xoá luôn.
+        var containerTemp = Path.Combine(_root, "from-container-tmp");
+        if (Directory.Exists(containerTemp))
+        {
+            Assert.Empty(Directory.GetDirectories(containerTemp, "exfat-*"));
+        }
     }
 
     [Fact]

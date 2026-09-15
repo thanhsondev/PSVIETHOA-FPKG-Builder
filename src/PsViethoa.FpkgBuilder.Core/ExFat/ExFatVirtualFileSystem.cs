@@ -1,23 +1,19 @@
-using System.Collections.Concurrent;
 using System.Security.AccessControl;
 using DokanNet;
-using PsViethoa.FpkgBuilder.Core.Services;
 using DokanFileAccess = DokanNet.FileAccess;
 
 namespace PsViethoa.FpkgBuilder.Core.ExFat;
 
 /// <summary>
-/// Hệ thống tệp ảo chỉ-đọc (Dokan, Windows) phơi thư mục ứng dụng trong ảnh exFAT (.exfat hoặc .ffpfsc) thành một ổ đĩa:
-/// thư viện đọc thẳng từ ảnh, không sao chép. Tệp rác hệ điều hành được ẩn, và có thể "đè" vài tệp bằng dữ liệu trong bộ nhớ
-/// (ép DRM trong sce_sys/param.json) mà không đụng vào ảnh gốc. Gốc ổ ảo chứa một thư mục bọc trỏ tới thư mục ứng dụng, nên
-/// thư mục nguồn đưa cho thư viện không bao giờ là gốc ổ đĩa. Lớp này thuần .NET nên kiểm thử được ở mọi hệ điều hành; chỉ
-/// việc gắn ổ (<see cref="DokanImageMounter"/>) cần driver Dokan.
+/// Lớp vỏ Dokan (Windows) phơi <see cref="ExFatReadModel"/> thành một ổ đĩa chỉ đọc: thư viện đọc thẳng từ ảnh, không
+/// sao chép. Mọi ngữ nghĩa (đường dẫn, ẩn tệp rác, tệp đè, đọc) nằm trong mô hình đọc; lớp này chỉ ánh xạ callback
+/// của Dokan sang mô hình và đổi <see cref="ExFatReadStatus"/> thành <see cref="NtStatus"/>. Lớp này thuần .NET nên
+/// kiểm thử được ở mọi hệ điều hành; chỉ việc gắn ổ (<see cref="DokanImageMounter"/>) cần driver Dokan.
 /// </summary>
 public sealed class ExFatVirtualFileSystem : IDokanOperations
 {
-    public const string FileSystemName = "exFAT";
+    public const string FileSystemName = ExFatReadModel.FileSystemName;
 
-    private const int MaxLabelLength = 32;
     private const uint MaxComponentLength = 255;
 
     /// <summary>STATUS_FILE_IS_A_DIRECTORY — không có tên trong enum NtStatus của DokanNet 2.3.</summary>
@@ -28,24 +24,14 @@ public sealed class ExFatVirtualFileSystem : IDokanOperations
         DokanFileAccess.WriteExtendedAttributes | DokanFileAccess.ChangePermissions | DokanFileAccess.SetOwnership |
         DokanFileAccess.GenericWrite | DokanFileAccess.GenericAll;
 
-    private readonly ExFatImage _image;
-    private readonly ExFatEntry _appRoot;
-    private readonly string? _wrapper;
-    private readonly bool _hideJunk;
-    private readonly Dictionary<string, byte[]> _overlays;
-    private readonly HashSet<string> _hidden;
-    private readonly ConcurrentDictionary<string, Listing> _listings = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ConcurrentDictionary<string, Node?> _nodes = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Node _root;
-    private readonly DateTime _fallbackTime;
-    private readonly string _label;
+    private readonly ExFatReadModel _model;
     private readonly ManualResetEventSlim _mounted = new(false);
 
     /// <param name="image">Ảnh exFAT đã mở (không thuộc sở hữu của lớp này).</param>
     /// <param name="appRoot">Thư mục ứng dụng trong ảnh (chứa sce_sys/).</param>
     /// <param name="wrapperName">Tên thư mục bọc ở gốc ổ ảo; null/rỗng = phơi thẳng thư mục ứng dụng ở gốc.</param>
     /// <param name="hideJunk">Ẩn tệp/thư mục rác hệ điều hành (.DS_Store, ._*, Thumbs.db…).</param>
-    /// <param name="overlays">Tệp đè: khoá là đường dẫn tương đối so với thư mục ứng dụng ("sce_sys/param.json"), giá trị là nội dung.</param>
+    /// <param name="overlays">Tệp đè: khoá là đường dẫn tương đối so với thư mục ứng dụng ("sce_sys/param.json").</param>
     /// <param name="volumeLabel">Nhãn ổ ảo.</param>
     /// <param name="hiddenPaths">Đường dẫn (tương đối thư mục ứng dụng) bị ẩn hẳn khỏi ổ ảo, ví dụ tàn dư AMPR emu.</param>
     public ExFatVirtualFileSystem(
@@ -56,245 +42,44 @@ public sealed class ExFatVirtualFileSystem : IDokanOperations
         IReadOnlyDictionary<string, byte[]>? overlays,
         string? volumeLabel,
         IReadOnlyCollection<string>? hiddenPaths = null)
+        : this(new ExFatReadModel(image, appRoot, wrapperName, hideJunk, overlays, volumeLabel, hiddenPaths))
     {
-        _image = image;
-        _appRoot = appRoot;
-        _wrapper = string.IsNullOrWhiteSpace(wrapperName) ? null : wrapperName.Trim().Trim('/', '\\');
-        _hideJunk = hideJunk;
-        _overlays = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
-        if (overlays != null)
-        {
-            foreach (var (key, bytes) in overlays)
-            {
-                var normalized = NormalizePath(key);
-                if (normalized.Length > 0)
-                {
-                    _overlays[normalized] = bytes;
-                }
-            }
-        }
-
-        _hidden = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (hiddenPaths != null)
-        {
-            foreach (var path in hiddenPaths)
-            {
-                var normalized = NormalizePath(path);
-                if (normalized.Length > 0)
-                {
-                    _hidden.Add(normalized);
-                }
-            }
-        }
-
-        _fallbackTime = ReadImageTime(image.Path);
-        var label = string.IsNullOrWhiteSpace(volumeLabel) ? "EXFAT" : volumeLabel.Trim();
-        _label = label.Length > MaxLabelLength ? label[..MaxLabelLength] : label;
-        _root = new Node
-        {
-            Name = string.Empty,
-            VirtualPath = string.Empty,
-            IsDirectory = true,
-            Entry = _wrapper == null ? appRoot : null,
-            Modified = appRoot.Modified,
-        };
     }
 
+    public ExFatVirtualFileSystem(ExFatReadModel model)
+    {
+        _model = model;
+    }
+
+    /// <summary>Mô hình đọc bên dưới (dùng chung với lớp vỏ FUSE).</summary>
+    public ExFatReadModel Model => _model;
+
     /// <summary>Tên thư mục bọc (null khi thư mục ứng dụng nằm ngay gốc ổ ảo).</summary>
-    public string? WrapperName => _wrapper;
+    public string? WrapperName => _model.WrapperName;
 
     /// <summary>Đường dẫn (trong ổ ảo) tới thư mục ứng dụng: tên thư mục bọc, hoặc rỗng.</summary>
-    public string SourceRelativePath => _wrapper ?? string.Empty;
+    public string SourceRelativePath => _model.SourceRelativePath;
 
     public bool IsMounted => _mounted.IsSet;
 
     public bool WaitForMount(TimeSpan timeout, CancellationToken cancellationToken) => _mounted.Wait(timeout, cancellationToken);
 
-    // ===================== Đường dẫn =====================
-
     /// <summary>Chuẩn hoá đường dẫn Dokan ("\a\b" hoặc "a/b") thành "a/b"; gốc = chuỗi rỗng.</summary>
-    public static string NormalizePath(string path)
+    public static string NormalizePath(string path) => ExFatReadModel.NormalizePath(path);
+
+    private static NtStatus ToNtStatus(ExFatReadStatus status) => status switch
     {
-        if (string.IsNullOrEmpty(path))
-        {
-            return string.Empty;
-        }
+        ExFatReadStatus.Success => NtStatus.Success,
+        ExFatReadStatus.NotFound => NtStatus.ObjectNameNotFound,
+        ExFatReadStatus.IsDirectory => FileIsADirectoryStatus,
+        ExFatReadStatus.NotADirectory => NtStatus.NotADirectory,
+        ExFatReadStatus.InvalidParameter => NtStatus.InvalidParameter,
+        _ => NtStatus.Unsuccessful,
+    };
 
-        var unified = path.Replace('\\', '/');
-        var parts = unified.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        return parts.Length == 0 ? string.Empty : string.Join('/', parts);
-    }
-
-    private static string ParentOf(string normalized)
+    private FileInformation ToFileInformation(ExFatNode node)
     {
-        var slash = normalized.LastIndexOf('/');
-        return slash < 0 ? string.Empty : normalized[..slash];
-    }
-
-    private static string NameOf(string normalized)
-    {
-        var slash = normalized.LastIndexOf('/');
-        return slash < 0 ? normalized : normalized[(slash + 1)..];
-    }
-
-    private static string Join(string parent, string name) => parent.Length == 0 ? name : parent + "/" + name;
-
-    /// <summary>Đường dẫn tương đối so với thư mục ứng dụng (bỏ thư mục bọc).</summary>
-    private string ToAppRelative(string virtualPath)
-    {
-        if (_wrapper == null)
-        {
-            return virtualPath;
-        }
-
-        if (virtualPath.Length == _wrapper.Length)
-        {
-            return string.Empty;
-        }
-
-        return virtualPath.Length > _wrapper.Length ? virtualPath[(_wrapper.Length + 1)..] : virtualPath;
-    }
-
-    // ===================== Cây thư mục =====================
-
-    private sealed class Node
-    {
-        public required string Name { get; init; }
-
-        public required string VirtualPath { get; init; }
-
-        public required bool IsDirectory { get; init; }
-
-        public long Length { get; init; }
-
-        public DateTime? Modified { get; init; }
-
-        /// <summary>Mục trong ảnh (null với thư mục bọc hoặc tệp đè chưa có trong ảnh).</summary>
-        public ExFatEntry? Entry { get; init; }
-
-        /// <summary>Nội dung đè (null = đọc từ ảnh).</summary>
-        public byte[]? Overlay { get; init; }
-    }
-
-    private sealed class Listing
-    {
-        public required Dictionary<string, Node> ByName { get; init; }
-
-        public required List<Node> Ordered { get; init; }
-    }
-
-    private Node? Lookup(string virtualPath)
-    {
-        if (virtualPath.Length == 0)
-        {
-            return _root;
-        }
-
-        return _nodes.GetOrAdd(virtualPath, path =>
-        {
-            var parent = Lookup(ParentOf(path));
-            if (parent == null || !parent.IsDirectory)
-            {
-                return null;
-            }
-
-            return GetListing(parent).ByName.TryGetValue(NameOf(path), out var node) ? node : null;
-        });
-    }
-
-    private Listing GetListing(Node directory) => _listings.GetOrAdd(directory.VirtualPath, _ => BuildListing(directory));
-
-    private Listing BuildListing(Node directory)
-    {
-        var byName = new Dictionary<string, Node>(StringComparer.OrdinalIgnoreCase);
-        var ordered = new List<Node>();
-
-        if (directory.VirtualPath.Length == 0 && _wrapper != null)
-        {
-            var wrapper = new Node
-            {
-                Name = _wrapper,
-                VirtualPath = _wrapper,
-                IsDirectory = true,
-                Entry = _appRoot,
-                Modified = _appRoot.Modified ?? _fallbackTime,
-            };
-            byName[wrapper.Name] = wrapper;
-            ordered.Add(wrapper);
-            return new Listing { ByName = byName, Ordered = ordered };
-        }
-
-        if (directory.Entry == null)
-        {
-            return new Listing { ByName = byName, Ordered = ordered };
-        }
-
-        var appRelative = ToAppRelative(directory.VirtualPath);
-        foreach (var child in _image.Enumerate(directory.Entry))
-        {
-            if (_hideJunk && (child.IsDirectory ? JunkFileFinder.IsJunkDirectoryName(child.Name) : JunkFileFinder.IsJunkFileName(child.Name)))
-            {
-                continue;
-            }
-
-            if (_hidden.Count > 0 && _hidden.Contains(Join(appRelative, child.Name)))
-            {
-                continue;
-            }
-
-            var virtualPath = Join(directory.VirtualPath, child.Name);
-            var overlay = !child.IsDirectory && _overlays.TryGetValue(Join(appRelative, child.Name), out var bytes) ? bytes : null;
-            var node = new Node
-            {
-                Name = child.Name,
-                VirtualPath = virtualPath,
-                IsDirectory = child.IsDirectory,
-                Length = child.IsDirectory ? 0 : overlay?.Length ?? child.Length,
-                Modified = child.Modified ?? _fallbackTime,
-                Entry = child,
-                Overlay = overlay,
-            };
-
-            // exFAT không phân biệt hoa/thường; nếu ảnh hỏng chứa hai tên chỉ khác hoa/thường thì giữ mục đầu.
-            if (byName.TryAdd(node.Name, node))
-            {
-                ordered.Add(node);
-            }
-        }
-
-        // Tệp đè chưa tồn tại trong thư mục này (ví dụ param.json thiếu) — thêm như tệp mới.
-        foreach (var (key, bytes) in _overlays)
-        {
-            if (!string.Equals(ParentOf(key), appRelative, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var name = NameOf(key);
-            if (byName.ContainsKey(name))
-            {
-                continue;
-            }
-
-            var node = new Node
-            {
-                Name = name,
-                VirtualPath = Join(directory.VirtualPath, name),
-                IsDirectory = false,
-                Length = bytes.Length,
-                Modified = _fallbackTime,
-                Overlay = bytes,
-            };
-            byName[name] = node;
-            ordered.Add(node);
-        }
-
-        return new Listing { ByName = byName, Ordered = ordered };
-    }
-
-    private FileInformation ToFileInformation(Node node)
-    {
-        var time = node.Modified ?? _fallbackTime;
+        var time = node.Modified ?? _model.FallbackTime;
         return new FileInformation
         {
             FileName = node.Name,
@@ -304,104 +89,6 @@ public sealed class ExFatVirtualFileSystem : IDokanOperations
             LastAccessTime = time,
             LastWriteTime = time,
         };
-    }
-
-    private static DateTime ReadImageTime(string path)
-    {
-        try
-        {
-            return File.GetLastWriteTimeUtc(path);
-        }
-        catch (Exception)
-        {
-            return DateTime.UtcNow;
-        }
-    }
-
-    // ===================== Tệp đang mở =====================
-
-    private sealed class OpenFile : IDisposable
-    {
-        public OpenFile(Node node)
-        {
-            Node = node;
-        }
-
-        public Node Node { get; }
-
-        public object Gate { get; } = new();
-
-        public Stream? Stream { get; set; }
-
-        public void Dispose()
-        {
-            lock (Gate)
-            {
-                Stream?.Dispose();
-                Stream = null;
-            }
-        }
-    }
-
-    private NtStatus Read(OpenFile open, byte[] buffer, long offset, out int bytesRead)
-    {
-        bytesRead = 0;
-        if (offset < 0)
-        {
-            return NtStatus.InvalidParameter;
-        }
-
-        var node = open.Node;
-        if (node.Overlay is { } bytes)
-        {
-            if (offset >= bytes.Length)
-            {
-                return NtStatus.Success;
-            }
-
-            bytesRead = (int)Math.Min(buffer.Length, bytes.Length - offset);
-            Buffer.BlockCopy(bytes, (int)offset, buffer, 0, bytesRead);
-            return NtStatus.Success;
-        }
-
-        if (node.Entry == null || node.IsDirectory)
-        {
-            return FileIsADirectoryStatus;
-        }
-
-        if (offset >= node.Length)
-        {
-            return NtStatus.Success;
-        }
-
-        try
-        {
-            lock (open.Gate)
-            {
-                open.Stream ??= _image.OpenRead(node.Entry);
-                open.Stream.Position = offset;
-                var total = 0;
-                while (total < buffer.Length)
-                {
-                    var read = open.Stream.Read(buffer, total, buffer.Length - total);
-                    if (read <= 0)
-                    {
-                        break;
-                    }
-
-                    total += read;
-                }
-
-                bytesRead = total;
-            }
-
-            return NtStatus.Success;
-        }
-        catch (Exception)
-        {
-            bytesRead = 0;
-            return NtStatus.Unsuccessful;
-        }
     }
 
     // ===================== IDokanOperations =====================
@@ -415,7 +102,7 @@ public sealed class ExFatVirtualFileSystem : IDokanOperations
         FileAttributes attributes,
         IDokanFileInfo info)
     {
-        var node = Lookup(NormalizePath(fileName));
+        var node = _model.LookupPath(fileName);
         if (node == null)
         {
             // Ổ chỉ đọc: không tạo mới được; mở tệp không tồn tại thì báo thiếu.
@@ -453,23 +140,23 @@ public sealed class ExFatVirtualFileSystem : IDokanOperations
             return NtStatus.AccessDenied;
         }
 
-        info.Context = new OpenFile(node);
+        info.Context = _model.OpenHandle(node);
         return NtStatus.Success;
     }
 
     public void Cleanup(string fileName, IDokanFileInfo info)
     {
-        if (info.Context is OpenFile open)
+        if (info.Context is ExFatFileHandle handle)
         {
-            open.Dispose();
+            handle.Dispose();
         }
     }
 
     public void CloseFile(string fileName, IDokanFileInfo info)
     {
-        if (info.Context is OpenFile open)
+        if (info.Context is ExFatFileHandle handle)
         {
-            open.Dispose();
+            handle.Dispose();
         }
 
         info.Context = null;
@@ -477,13 +164,13 @@ public sealed class ExFatVirtualFileSystem : IDokanOperations
 
     public NtStatus ReadFile(string fileName, byte[] buffer, out int bytesRead, long offset, IDokanFileInfo info)
     {
-        if (info.Context is OpenFile open)
+        if (info.Context is ExFatFileHandle handle)
         {
-            return Read(open, buffer, offset, out bytesRead);
+            return ToNtStatus(_model.Read(handle, buffer, offset, out bytesRead));
         }
 
         bytesRead = 0;
-        var node = Lookup(NormalizePath(fileName));
+        var node = _model.LookupPath(fileName);
         if (node == null)
         {
             return NtStatus.ObjectNameNotFound;
@@ -494,8 +181,8 @@ public sealed class ExFatVirtualFileSystem : IDokanOperations
             return FileIsADirectoryStatus;
         }
 
-        using var temporary = new OpenFile(node);
-        return Read(temporary, buffer, offset, out bytesRead);
+        using var temporary = _model.OpenHandle(node);
+        return ToNtStatus(_model.Read(temporary, buffer, offset, out bytesRead));
     }
 
     public NtStatus WriteFile(string fileName, byte[] buffer, out int bytesWritten, long offset, IDokanFileInfo info)
@@ -508,7 +195,7 @@ public sealed class ExFatVirtualFileSystem : IDokanOperations
 
     public NtStatus GetFileInformation(string fileName, out FileInformation fileInfo, IDokanFileInfo info)
     {
-        var node = (info.Context as OpenFile)?.Node ?? Lookup(NormalizePath(fileName));
+        var node = (info.Context as ExFatFileHandle)?.Node ?? _model.LookupPath(fileName);
         if (node == null)
         {
             fileInfo = default;
@@ -525,7 +212,7 @@ public sealed class ExFatVirtualFileSystem : IDokanOperations
     public NtStatus FindFilesWithPattern(string fileName, string searchPattern, out IList<FileInformation> files, IDokanFileInfo info)
     {
         files = new List<FileInformation>();
-        var node = Lookup(NormalizePath(fileName));
+        var node = _model.LookupPath(fileName);
         if (node == null)
         {
             return NtStatus.ObjectPathNotFound;
@@ -537,7 +224,7 @@ public sealed class ExFatVirtualFileSystem : IDokanOperations
         }
 
         var all = string.IsNullOrEmpty(searchPattern) || searchPattern == "*";
-        foreach (var child in GetListing(node).Ordered)
+        foreach (var child in _model.ListChildren(node))
         {
             if (all || DokanHelper.DokanIsNameInExpression(searchPattern, child.Name, true))
             {
@@ -570,7 +257,7 @@ public sealed class ExFatVirtualFileSystem : IDokanOperations
     public NtStatus GetDiskFreeSpace(out long freeBytesAvailable, out long totalNumberOfBytes, out long totalNumberOfFreeBytes, IDokanFileInfo info)
     {
         freeBytesAvailable = 0;
-        totalNumberOfBytes = Math.Max(_image.VolumeLengthBytes, 0);
+        totalNumberOfBytes = _model.VolumeLengthBytes;
         totalNumberOfFreeBytes = 0;
         return NtStatus.Success;
     }
@@ -582,7 +269,7 @@ public sealed class ExFatVirtualFileSystem : IDokanOperations
         out uint maximumComponentLength,
         IDokanFileInfo info)
     {
-        volumeLabel = _label;
+        volumeLabel = _model.VolumeLabel;
         features = FileSystemFeatures.CasePreservedNames | FileSystemFeatures.UnicodeOnDisk | FileSystemFeatures.ReadOnlyVolume;
         fileSystemName = FileSystemName;
         maximumComponentLength = MaxComponentLength;

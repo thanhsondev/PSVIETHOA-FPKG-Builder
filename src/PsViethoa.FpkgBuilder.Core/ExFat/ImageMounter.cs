@@ -12,6 +12,9 @@ public enum MountBackend
 
     /// <summary>Ổ ảo Dokan trên Windows: bộ đọc exFAT của ứng dụng phơi ảnh (.exfat lẫn .ffpfsc) thành ổ đĩa, ẩn được tệp rác và đè được tệp.</summary>
     Dokan,
+
+    /// <summary>FUSE trên Linux: cùng bộ đọc exFAT managed như Dokan, nên cũng gắn được .ffpfsc, ẩn tệp rác và đè tệp.</summary>
+    Fuse,
 }
 
 /// <summary>Yêu cầu khi gắn: ẩn tệp rác hệ điều hành và/hoặc đè tệp bằng dữ liệu trong bộ nhớ (chỉ ổ ảo Dokan làm được).</summary>
@@ -59,18 +62,19 @@ public static class ImageMounter
     public static MountBackend Backend =>
         ExFatMounter.IsAvailable ? MountBackend.Hdiutil
         : DokanImageMounter.IsSupportedPlatform && DokanImageMounter.IsDriverInstalled ? MountBackend.Dokan
+        : FuseImageMounter.IsAvailable ? MountBackend.Fuse
         : MountBackend.None;
 
     public static bool IsAvailable => Backend != MountBackend.None;
 
     /// <summary>Gắn được cả container .ffpfsc (bộ đọc exFAT của ứng dụng nằm trên lớp giải nén PFS).</summary>
-    public static bool CanMountContainers => Backend == MountBackend.Dokan;
+    public static bool CanMountContainers => Backend is MountBackend.Dokan or MountBackend.Fuse;
 
     /// <summary>Ẩn được tệp rác ngay trên ổ gắn (không cần giải nén để lọc).</summary>
-    public static bool CanHideJunk => Backend == MountBackend.Dokan;
+    public static bool CanHideJunk => Backend is MountBackend.Dokan or MountBackend.Fuse;
 
     /// <summary>Đè được tệp (param.json ép DRM) ngay trên ổ gắn mà không đụng ảnh gốc.</summary>
-    public static bool CanOverlayFiles => Backend == MountBackend.Dokan;
+    public static bool CanOverlayFiles => Backend is MountBackend.Dokan or MountBackend.Fuse;
 
     /// <summary>Windows chưa cài driver Dokan — có thể gắn nếu người dùng cài.</summary>
     public static bool DokanMissingOnWindows => DokanImageMounter.IsSupportedPlatform && !DokanImageMounter.IsDriverInstalled;
@@ -83,6 +87,7 @@ public static class ImageMounter
         switch (Backend)
         {
             case MountBackend.Dokan:
+            case MountBackend.Fuse:
                 return true;
             case MountBackend.Hdiutil:
                 return !SourceLocator.HasPfsContainerExtension(path) && !PfsContainer.IsContainer(path);
@@ -96,6 +101,7 @@ public static class ImageMounter
     {
         MountBackend.Hdiutil => "hdiutil (macOS)",
         MountBackend.Dokan => "Dokan" + (DokanImageMounter.DriverVersion is { } version ? " " + version : string.Empty) + " (Windows)",
+        MountBackend.Fuse => "libfuse" + (FuseImageMounter.LibraryVersion is { } fuseVersion ? " " + fuseVersion : string.Empty) + " (Linux)",
         _ => "—",
     };
 
@@ -142,8 +148,50 @@ public static class ImageMounter
                 }
             }
 
+            case MountBackend.Fuse:
+            {
+                var image = ExFatImage.Open(source.Path);
+                try
+                {
+                    var appRoot = SourceLocator.ResolveAppRoot(image, source);
+                    var wrapper = WrapperNameFor(source);
+                    var mount = FuseImageMounter.Mount(image, appRoot, wrapper, request.HideJunk, request.Overlays, request.HiddenPaths, image.VolumeLabel ?? wrapper, cancellationToken);
+                    return new ImageMount(mount.MountPoint, mount.SourceFolder, MountBackend.Fuse, new FuseMountHandle(mount, image));
+                }
+                catch
+                {
+                    image.Dispose();
+                    throw;
+                }
+            }
+
             default:
                 throw new PlatformNotSupportedException("No image mount backend is available on this system.");
+        }
+    }
+
+    /// <summary>Tháo ổ FUSE rồi mới đóng ảnh (vòng lặp FUSE còn đọc ảnh cho tới khi tháo xong).</summary>
+    private sealed class FuseMountHandle : IDisposable
+    {
+        private readonly FuseMount _mount;
+        private readonly ExFatImage _image;
+
+        internal FuseMountHandle(FuseMount mount, ExFatImage image)
+        {
+            _mount = mount;
+            _image = image;
+        }
+
+        public void Dispose()
+        {
+            try
+            {
+                _mount.Dispose();
+            }
+            finally
+            {
+                _image.Dispose();
+            }
         }
     }
 

@@ -44,12 +44,17 @@ public static class UpdateChecker
             return RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "macOS-AppleSilicon" : "macOS-Intel";
         }
 
+        if (OperatingSystem.IsLinux())
+        {
+            return RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "linux-arm64" : "linux-x64";
+        }
+
         return OperatingSystem.IsWindows() ? "Windows-x64" : string.Empty;
     }
 
     /// <summary>
     /// Đoạn tên tệp ưu tiên trong số các tệp khớp nền tảng: bản cài bằng Setup.exe (có Uninstall.exe cạnh ứng dụng) thì lấy
-    /// "-Setup.exe" để cập nhật cũng qua bộ cài; bản portable/macOS lấy ".zip".
+    /// "-Setup.exe" để cập nhật cũng qua bộ cài; bản portable/macOS lấy ".zip"; Linux lấy AppImage nếu đang chạy từ AppImage.
     /// </summary>
     public static string PreferredAssetToken()
     {
@@ -58,7 +63,28 @@ public static class UpdateChecker
             return "Setup";
         }
 
+        if (OperatingSystem.IsLinux())
+        {
+            return IsRunningFromAppImage ? ".AppImage" : ".tar.gz";
+        }
+
         return ".zip";
+    }
+
+    /// <summary>Ứng dụng đang chạy từ một AppImage (biến môi trường do AppImage runtime đặt).</summary>
+    public static bool IsRunningFromAppImage
+    {
+        get
+        {
+            try
+            {
+                return OperatingSystem.IsLinux() && !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("APPIMAGE"));
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
     }
 
     /// <summary>Ứng dụng được cài bằng bộ cài Windows (Uninstall.exe nằm cạnh tệp thực thi).</summary>
