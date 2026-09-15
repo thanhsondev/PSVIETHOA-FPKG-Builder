@@ -589,7 +589,7 @@ public sealed class PackageExtractionTests : IClassFixture<PackageExtractionFixt
     }
 }
 
-/// <summary>vi.json và en.json phải có đúng cùng một tập khoá.</summary>
+/// <summary>vi.json, en.json và ko.json phải có đúng cùng một tập khoá.</summary>
 public class ExtractionLocalizationTests
 {
     [Fact]
@@ -597,9 +597,12 @@ public class ExtractionLocalizationTests
     {
         var vi = LoadKeys("vi");
         var en = LoadKeys("en");
+        var ko = LoadKeys("ko");
         Assert.NotEmpty(vi);
         Assert.Empty(vi.Except(en));
         Assert.Empty(en.Except(vi));
+        Assert.Empty(ko.Except(en));
+        Assert.Empty(en.Except(ko));
     }
 
     private static HashSet<string> LoadKeys(string code)

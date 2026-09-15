@@ -325,22 +325,14 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ===================== Ngôn ngữ =====================
 
-    [ObservableProperty] private bool _languageVi = true;
-    [ObservableProperty] private bool _languageEn;
+    [ObservableProperty] private IReadOnlyList<string> _languageOptions = Loc.Languages.Select(l => l.Name).ToArray();
+    [ObservableProperty] private int _languageIndex;
 
-    partial void OnLanguageViChanged(bool value)
+    partial void OnLanguageIndexChanged(int value)
     {
-        if (value)
+        if (value >= 0 && value < Loc.Languages.Count)
         {
-            SetLanguage(Loc.Vietnamese);
-        }
-    }
-
-    partial void OnLanguageEnChanged(bool value)
-    {
-        if (value)
-        {
-            SetLanguage(Loc.English);
+            SetLanguage(Loc.Languages[value].Code);
         }
     }
 
@@ -356,13 +348,25 @@ public sealed partial class MainViewModel : ObservableObject
         SettingsService.Save(_settings);
     }
 
+    private static int LanguageIndexOf(string code)
+    {
+        for (var i = 0; i < Loc.Languages.Count; i++)
+        {
+            if (Loc.Languages[i].Code == code)
+            {
+                return i;
+            }
+        }
+
+        return 0;
+    }
+
     private void OnLanguageChanged()
     {
         _syncingLanguage = true;
         try
         {
-            LanguageVi = Loc.Current.Language == Loc.Vietnamese;
-            LanguageEn = Loc.Current.Language == Loc.English;
+            LanguageIndex = LanguageIndexOf(Loc.Current.Language);
         }
         finally
         {
@@ -1170,8 +1174,7 @@ public sealed partial class MainViewModel : ObservableObject
         _syncingLanguage = true;
         try
         {
-            LanguageVi = Loc.Normalize(s.Language) == Loc.Vietnamese;
-            LanguageEn = !LanguageVi;
+            LanguageIndex = LanguageIndexOf(Loc.Normalize(s.Language));
 
             SourcePath = s.SourcePath;
             OutputFolder = s.OutputFolder;

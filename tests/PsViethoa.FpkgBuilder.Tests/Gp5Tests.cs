@@ -244,8 +244,11 @@ public sealed class Gp5Tests : IDisposable
 
         var vi = Keys(Loc.Vietnamese);
         var en = Keys(Loc.English);
+        var ko = Keys(Loc.Korean);
         Assert.Empty(vi.Except(en));
         Assert.Empty(en.Except(vi));
+        Assert.Empty(ko.Except(en));
+        Assert.Empty(en.Except(ko));
 
         foreach (var key in new[]
                  {

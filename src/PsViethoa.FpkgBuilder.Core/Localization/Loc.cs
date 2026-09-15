@@ -14,11 +14,13 @@ public sealed class Loc : INotifyPropertyChanged
 {
     public const string Vietnamese = "vi";
     public const string English = "en";
+    public const string Korean = "ko";
 
     public static IReadOnlyList<LanguageOption> Languages { get; } =
     [
         new(Vietnamese, "Tiếng Việt"),
         new(English, "English"),
+        new(Korean, "한국어"),
     ];
 
     public static Loc Current { get; } = new();
@@ -68,13 +70,41 @@ public sealed class Loc : INotifyPropertyChanged
         }
     }
 
-    public static string Normalize(string? code) =>
-        code != null && code.StartsWith("en", StringComparison.OrdinalIgnoreCase) ? English : Vietnamese;
+    public static string Normalize(string? code)
+    {
+        if (code == null)
+        {
+            return Vietnamese;
+        }
 
-    public static string DetectSystemLanguage() =>
-        string.Equals(CultureInfo.CurrentUICulture.TwoLetterISOLanguageName, "vi", StringComparison.OrdinalIgnoreCase)
-            ? Vietnamese
-            : English;
+        if (code.StartsWith("en", StringComparison.OrdinalIgnoreCase))
+        {
+            return English;
+        }
+
+        if (code.StartsWith("ko", StringComparison.OrdinalIgnoreCase))
+        {
+            return Korean;
+        }
+
+        return Vietnamese;
+    }
+
+    public static string DetectSystemLanguage()
+    {
+        var twoLetter = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+        if (string.Equals(twoLetter, "vi", StringComparison.OrdinalIgnoreCase))
+        {
+            return Vietnamese;
+        }
+
+        if (string.Equals(twoLetter, "ko", StringComparison.OrdinalIgnoreCase))
+        {
+            return Korean;
+        }
+
+        return English;
+    }
 
     public void SetLanguage(string? code)
     {

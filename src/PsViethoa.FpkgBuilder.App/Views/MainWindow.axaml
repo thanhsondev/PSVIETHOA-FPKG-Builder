@@ -117,12 +117,9 @@
                                 <TextBlock Text="{l:T Header.KeysMissing}" />
                             </StackPanel>
                         </Border>
-                        <Border Background="#1AFFFFFF" BorderBrush="#2EFFFFFF" BorderThickness="1" CornerRadius="8" Padding="3" ToolTip.Tip="{l:T Header.LanguageTip}">
-                            <StackPanel Orientation="Horizontal" Spacing="2">
-                                <RadioButton Classes="lang" Theme="{StaticResource SegmentRadio}" GroupName="lang" Content="VI" IsChecked="{Binding LanguageVi, Mode=TwoWay}" />
-                                <RadioButton Classes="lang" Theme="{StaticResource SegmentRadio}" GroupName="lang" Content="EN" IsChecked="{Binding LanguageEn, Mode=TwoWay}" />
-                            </StackPanel>
-                        </Border>
+                        <ComboBox MinWidth="116" MaxWidth="140" MinHeight="32" Padding="10,0,6,0" FontSize="12.5" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                  ItemsSource="{Binding LanguageOptions}" SelectedIndex="{Binding LanguageIndex, Mode=TwoWay}"
+                                  ToolTip.Tip="{l:T Header.LanguageTip}" AutomationProperties.Name="{l:T Header.LanguageTip}" />
                         <Button Classes="header icon" Command="{Binding CheckUpdateCommand}" IsEnabled="{Binding !IsCheckingUpdate}" ToolTip.Tip="{l:T Update.Tip}" AutomationProperties.Name="{l:T Update.Tip}">
                             <Panel>
                                 <PathIcon Data="{StaticResource IconUpdate}" />

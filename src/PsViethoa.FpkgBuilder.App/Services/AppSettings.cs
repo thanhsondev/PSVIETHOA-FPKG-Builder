@@ -14,7 +14,7 @@ public sealed class AppSettings
     /// <summary>Cách đọc thư mục nguồn: tự dùng .gp5 ở cấp trên cùng (Auto) hay chỉ thư mục (Folder). Nguồn .gp5 luôn dùng Gp5Project.</summary>
     public SourceMode SourceMode { get; set; } = SourceMode.Auto;
 
-    /// <summary>Ngôn ngữ giao diện: "vi" hoặc "en".</summary>
+    /// <summary>Ngôn ngữ giao diện: "vi", "en" hoặc "ko".</summary>
     public string Language { get; set; } = "vi";
 
     public string OutputFolder { get; set; } = string.Empty;

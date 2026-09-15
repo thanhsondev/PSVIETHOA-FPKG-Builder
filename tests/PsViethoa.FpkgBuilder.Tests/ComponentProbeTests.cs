@@ -53,7 +53,7 @@ public sealed class ComponentProbeTests
         };
 
         var report = ComponentProbe.Report(rows, "Header 1.0");
-        var lines = report.Split('\n');
+        var lines = report.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
         Assert.Equal("Header 1.0", lines[0]);
         Assert.Equal("[OK] Alpha: fine", lines[1]);
         Assert.Equal("[!!] Beta: hmm", lines[2]);

@@ -70,21 +70,24 @@ public partial class MainWindow : Window
             _ = CaptureAndExitAsync(screenshotPath);
         }
 
-        // Đổi ngôn ngữ lúc chạy trước khi chụp (kiểm thử binding {l:T}): PSVIETHOA_SWITCH_LANG=en|vi
+        // Đổi ngôn ngữ lúc chạy trước khi chụp (kiểm thử binding {l:T}): PSVIETHOA_SWITCH_LANG=en|vi|ko
         var switchLanguage = Environment.GetEnvironmentVariable("PSVIETHOA_SWITCH_LANG");
         if (!string.IsNullOrWhiteSpace(switchLanguage) && ViewModel != null)
         {
             var target = switchLanguage.Trim().ToLowerInvariant();
             Avalonia.Threading.DispatcherTimer.RunOnce(() =>
             {
-                if (target == "en")
+                var index = 0;
+                for (var i = 0; i < Core.Localization.Loc.Languages.Count; i++)
                 {
-                    ViewModel.LanguageEn = true;
+                    if (Core.Localization.Loc.Languages[i].Code == target)
+                    {
+                        index = i;
+                        break;
+                    }
                 }
-                else
-                {
-                    ViewModel.LanguageVi = true;
-                }
+
+                ViewModel.LanguageIndex = index;
             }, TimeSpan.FromSeconds(1));
         }
 
