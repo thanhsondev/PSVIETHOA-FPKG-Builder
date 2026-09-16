@@ -685,7 +685,7 @@
                                         </StackPanel>
                                         <StackPanel Grid.Column="2" Classes="field">
                                             <TextBlock Classes="label" Text="{l:T Advanced.PlayGo}" />
-                                            <NumericUpDown Name="PlayGoBox" Minimum="1" Maximum="64" Increment="1" FormatString="0" Value="{Binding PlayGoChunks, Mode=TwoWay}" />
+                                            <NumericUpDown Name="PlayGoBox" Minimum="1" Maximum="255" Increment="1" FormatString="0" Value="{Binding PlayGoChunks, Mode=TwoWay}" />
                                             <TextBlock Classes="hint" Text="{l:T Advanced.PlayGoHint}" />
                                             <TextBlock Classes="error" Text="{Binding PlayGoError}" IsVisible="{Binding PlayGoError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
                                         </StackPanel>
@@ -702,6 +702,13 @@
                                         </Grid>
                                         <TextBlock Classes="hint" Text="{l:T Advanced.SdkHint}" />
                                         <TextBlock Classes="error" Text="{Binding SdkError}" IsVisible="{Binding SdkError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
+                                        <Grid ColumnDefinitions="Auto,12,*" Margin="0,6,0,0" IsEnabled="{Binding !OverrideSdk}">
+                                            <ToggleSwitch IsChecked="{Binding LowerRequiredFirmware, Mode=TwoWay}" VerticalAlignment="Top" />
+                                            <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{l:T Advanced.LowerRequiredFw}" />
+                                                <TextBlock Classes="xs muted" Text="{l:T Advanced.LowerRequiredFwHint}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Grid>
                                     </StackPanel>
 
                                     <StackPanel Classes="field">
@@ -733,6 +740,13 @@
                                             <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
                                                 <TextBlock Text="{l:T Advanced.Sha256}" />
                                                 <TextBlock Classes="xs muted" Text="{l:T Advanced.Sha256Hint}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <Grid ColumnDefinitions="Auto,12,*">
+                                            <ToggleSwitch IsChecked="{Binding FullVerify, Mode=TwoWay}" VerticalAlignment="Top" />
+                                            <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{l:T Advanced.FullVerify}" />
+                                                <TextBlock Classes="xs muted" Text="{l:T Advanced.FullVerifyHint}" TextWrapping="Wrap" />
                                             </StackPanel>
                                         </Grid>
                                         <Grid ColumnDefinitions="Auto,12,*">
@@ -829,7 +843,10 @@
                             <Grid ColumnDefinitions="*,12,Auto">
                                 <WrapPanel VerticalAlignment="Center">
                                     <CheckBox IsChecked="{Binding ForceStandardDrm, Mode=TwoWay}" Content="{l:T Build.ForceDrm}" FontSize="12.5" MinHeight="0" Margin="0,0,16,0" IsEnabled="{Binding !IsBuilding}" ToolTip.Tip="{l:T Advanced.ForceDrmHint}" />
-                                    <CheckBox IsChecked="{Binding RemovePlayGoFiles, Mode=TwoWay}" Content="{l:T Build.RemovePlayGo}" FontSize="12.5" MinHeight="0" IsEnabled="{Binding !IsBuilding}" ToolTip.Tip="{l:T Advanced.RemovePlayGoHint}" />
+                                    <!-- Nội dung là TextBlock: chuỗi thẳng trong Content coi "_" là phím tắt nên "sce_sys" hiện thành "scesys". -->
+                                    <CheckBox IsChecked="{Binding RemovePlayGoFiles, Mode=TwoWay}" FontSize="12.5" MinHeight="0" IsEnabled="{Binding !IsBuilding}" ToolTip.Tip="{l:T Advanced.RemovePlayGoHint}">
+                                        <TextBlock Text="{l:T Build.RemovePlayGo}" />
+                                    </CheckBox>
                                 </WrapPanel>
                                 <Button Grid.Column="2" Classes="link" Padding="0" VerticalAlignment="Center" Command="{Binding ResetSettingsCommand}" IsEnabled="{Binding !IsBuilding}" ToolTip.Tip="{l:T Build.ResetDefaultsTip}">
                                     <StackPanel Orientation="Horizontal" Spacing="5">

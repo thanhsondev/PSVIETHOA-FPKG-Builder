@@ -52,10 +52,22 @@ public sealed class AppSettings
 
     public bool LayoutOptimization { get; set; } = true;
 
-    /// <summary>Ép applicationDrmType = "standard" khi tạo gói (mặc định bật, theo fpkg-gui 0.6.5).</summary>
+    /// <summary>Ép applicationDrmType = "standard" khi tạo gói (mặc định bật; engine 0.6.8 làm trong bộ nhớ).</summary>
     public bool ForceStandardDrm { get; set; } = true;
 
-    public int PlayGoChunks { get; set; } = BuildRequest.MaxPlayGoChunks;
+    public int PlayGoChunks { get; set; } = BuildRequest.DefaultPlayGoChunks;
+
+    /// <summary>
+    /// Đánh dấu đã chuyển số khối PlayGo sang mặc định của engine 0.6.8. Bản cũ lưu 64 (vừa là mặc định vừa là tối đa cũ); cấu
+    /// hình chưa có dấu này mà vẫn giữ 64 thì được đưa về 100.
+    /// </summary>
+    public int PlayGoDefaultsRevision { get; set; }
+
+    /// <summary>Hạ requiredSystemSoftwareVersion về SDK của game khi tạo gói (mặc định bật, theo fpkg-gui 0.6.8).</summary>
+    public bool LowerRequiredFirmware { get; set; } = true;
+
+    /// <summary>Kiểm tra đầy đủ gói sau khi tạo (giải nén thử toàn bộ trong bộ nhớ).</summary>
+    public bool FullVerify { get; set; }
 
     public bool Deterministic { get; set; } = true;
 

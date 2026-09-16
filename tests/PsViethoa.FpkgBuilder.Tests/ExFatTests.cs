@@ -241,6 +241,10 @@ public sealed class ExFatTests : IDisposable
         Assert.Contains(progress, p => p.Phase == PhaseCatalog.Extract.Name);
         Assert.Empty(Directory.GetDirectories(Path.Combine(_root, "tmp"), "exfat-*"));
         Assert.Contains(log, e => e.Message.Contains("skipped", StringComparison.OrdinalIgnoreCase) || e.Message.Contains("bỏ qua", StringComparison.OrdinalIgnoreCase));
+
+        // Bản giải nén là của công cụ: sửa thẳng trên đó, không dựng gương bằng liên kết (chạy được cả khi thư mục tạm ở ổ
+        // exFAT/FAT32 không tạo được liên kết). Trước đây mọi lượt tạo gói từ bản giải nén đều dựng gương.
+        Assert.DoesNotContain(log, e => e.Message.Contains("mirror-", StringComparison.Ordinal));
     }
 
     [Fact]

@@ -140,15 +140,20 @@ public partial class MainWindow : Window
     private void Capture(string path)
     {
         var scrollHook = Environment.GetEnvironmentVariable("PSVIETHOA_SCROLL");
+
+        // Chế độ giải nén cuộn cột thông tin gói; chế độ tạo gói cuộn cột tuỳ chọn.
+        var scroll = ViewModel?.IsExtractMode == true
+            ? Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(this).OfType<ScrollViewer>().FirstOrDefault(viewer => viewer.Name == "InfoScroll") ?? SettingsScroll
+            : SettingsScroll;
         if (scrollHook == "end")
         {
-            SettingsScroll.ScrollToEnd();
-            SettingsScroll.UpdateLayout();
+            scroll.ScrollToEnd();
+            scroll.UpdateLayout();
         }
         else if (double.TryParse(scrollHook, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var offset))
         {
-            SettingsScroll.Offset = new Avalonia.Vector(0, offset);
-            SettingsScroll.UpdateLayout();
+            scroll.Offset = new Avalonia.Vector(0, offset);
+            scroll.UpdateLayout();
         }
 
         var scale = RenderScaling <= 0 ? 1 : RenderScaling;

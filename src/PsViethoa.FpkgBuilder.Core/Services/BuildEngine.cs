@@ -69,7 +69,7 @@ public sealed class BuildEngine
             : source.IsUfs ? PhaseCatalog.Extract : null;
 
         var stopwatch = Stopwatch.StartNew();
-        var tracker = new ProgressTracker(stopwatch, PhaseCatalog.Sequence(normalized.ComputeSha256, exFatPhase));
+        var tracker = new ProgressTracker(stopwatch, PhaseCatalog.Sequence(normalized.ComputeSha256, exFatPhase, normalized.FullVerify));
         LogPlan(normalized, source, project, backend, publishingToolsPath, log);
         progress?.Report(tracker.Current);
 
@@ -176,7 +176,7 @@ public sealed class BuildEngine
             // Ổ ảo Dokan đã tự ẩn tệp và đè param.json khi gắn nên bỏ qua để khỏi làm hai lần.
             var mirrorRequired = false;
             using var mirror = mount is null or { Backend: not MountBackend.Dokan }
-                ? BuildSourceMirror(normalized, source, project, sourceFolder, log, out mirrorRequired)
+                ? BuildSourceMirror(normalized, source, project, sourceFolder, ownsFolder: staging != null, log, out mirrorRequired)
                 : null;
             if (mirror != null)
             {
@@ -247,6 +247,40 @@ public sealed class BuildEngine
                     }),
                 cancellationToken).ConfigureAwait(false);
 
+            // Kiểm tra nội dung bằng engine 0.6.8: bản nhanh luôn chạy (chữ ký CNT, bố cục PlayGo, NAPS, inode — chỉ đọc metadata),
+            // bản đầy đủ giải nén thử mọi tệp khi người dùng bật. Gói hỏng thì dừng ở đây thay vì báo "thành công".
+            if (normalized.FullVerify)
+            {
+                log(new LogEntry(LogLevel.Info, Loc.T("Plan.VerifyingFull")));
+                progress?.Report(tracker.EnterPhase(PhaseCatalog.VerifyFull));
+            }
+
+            var contents = await Task.Run(
+                () => PackageVerifier.VerifyContents(
+                    result.OutputPath,
+                    normalized.Passcode,
+                    normalized.FullVerify,
+                    cancellationToken,
+                    normalized.FullVerify ? percent => progress?.Report(tracker.UpdatePhasePercent(percent)) : null),
+                cancellationToken).ConfigureAwait(false);
+            foreach (var check in contents.Checks)
+            {
+                log(new LogEntry(LogLevel.Info, Loc.F("Plan.VerifyCheck", check)));
+            }
+
+            if (!contents.IsValid)
+            {
+                foreach (var issue in contents.Issues)
+                {
+                    log(new LogEntry(LogLevel.Error, Loc.F("Plan.VerifyIssue", issue.Stage, issue.Message)));
+                }
+
+                throw new InvalidDataException(Loc.F("Verify.ContentFailed", string.Join("; ", contents.Issues)));
+            }
+
+            log(new LogEntry(LogLevel.Success, Loc.F(contents.IsFull ? "Plan.VerifiedFull" : "Plan.VerifiedQuick", contents.Checks.Count, Formatters.Duration(contents.Elapsed))));
+            verification = verification with { Contents = contents };
+
             stopwatch.Stop();
             progress?.Report(tracker.Complete());
 
@@ -306,7 +340,7 @@ public sealed class BuildEngine
     /// Dựng thư mục gương cho lượt tạo gói: bỏ những tệp không được vào gói và thay param.json bằng bản đã sửa, tất cả nằm trong
     /// thư mục tạm. Thư mục nguồn của người dùng chỉ được đọc. Trả về null khi không phải bỏ hay sửa gì.
     /// </summary>
-    private static SourceMirror? BuildSourceMirror(BuildRequest request, SourceInfo source, Gp5ProjectInfo? project, string sourceFolder, Action<LogEntry> log, out bool required)
+    private static SourceMirror? BuildSourceMirror(BuildRequest request, SourceInfo source, Gp5ProjectInfo? project, string sourceFolder, bool ownsFolder, Action<LogEntry> log, out bool required)
     {
         required = false;
         // Dự án GP5: thư mục ứng dụng thật nằm ở rootdir của dự án, không phải thư mục chứa tệp .gp5.
@@ -317,6 +351,14 @@ public sealed class BuildEngine
         }
 
         var skip = FolderCleanupPaths(request, appFolder).ToList();
+
+        // Giữ bộ playgo*: engine 0.6.8 đọc số khối từ playgo-chunk.dat và dừng cả lượt tạo gói nếu tệp hỏng — bỏ riêng tệp hỏng.
+        var invalidPlayGo = request.RemovePlayGoFiles ? Array.Empty<string>() : PlayGoCleanup.CheckFolder(appFolder).Invalid;
+        if (invalidPlayGo.Count > 0)
+        {
+            skip.AddRange(invalidPlayGo);
+            log(new LogEntry(LogLevel.Warning, Loc.F("Plan.PlayGoInvalid", PlayGoCleanup.Describe(invalidPlayGo))));
+        }
 
         // Tệp rác hệ điều hành (.DS_Store, ._*, Thumbs.db…): bỏ qua ngay trong gương. Trước đây chỉ bộ giải nén và ổ ảo Dokan
         // làm được việc này, nên ảnh gắn bằng hdiutil trên macOS buộc phải giải nén chỉ vì mấy tệp đó.
@@ -338,11 +380,13 @@ public sealed class BuildEngine
         }
         var replace = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         var paramJson = System.IO.Path.Combine(appFolder, "sce_sys", "param.json");
-        if (request.ParamPatch.Any && File.Exists(paramJson))
+        if ((request.ParamPatch.Any || request.ForceStandardDrm) && File.Exists(paramJson))
         {
             try
             {
-                if (ParamJsonPatch.Rewrite(File.ReadAllBytes(paramJson), request.ParamPatch, out var changes) is { } patched)
+                var original = File.ReadAllBytes(paramJson);
+                LogDrmOverride(request, original, log);
+                if (request.ParamPatch.Any && ParamJsonPatch.Rewrite(original, request.ParamPatch, out var changes) is { } patched)
                 {
                     replace["sce_sys/param.json"] = patched;
                     foreach (var change in changes)
@@ -369,6 +413,28 @@ public sealed class BuildEngine
         // sce_sys luôn là bản sao thật: thư viện tự ghi vào đó (param.json thiếu, gợi ý vùng nén), mà liên kết thì ghi
         // xuyên thẳng vào thư mục nguồn. Thư mục này nhỏ nên sao chép không đáng kể.
         var plan = new MirrorPlan(skip, replace, new Dictionary<string, string>(), new[] { "sce_sys" });
+        var cleanup = skip.Except(junkPaths, StringComparer.OrdinalIgnoreCase).Except(invalidPlayGo, StringComparer.OrdinalIgnoreCase).ToList();
+
+        // Bản giải nén ảnh nằm trong thư mục tạm là của công cụ, không phải nguồn của người dùng: sửa thẳng trên đó, khỏi cần
+        // liên kết — nên chạy được cả khi thư mục tạm ở ổ exFAT/FAT32 hay ổ mạng không tạo được liên kết.
+        if (ownsFolder)
+        {
+            if (skip.Count > 0 || replace.Count > 0)
+            {
+                LogCleanup(cleanup, Array.Empty<string>(), log);
+                SourceMirror.ApplyInPlace(appFolder, plan with { Copy = Array.Empty<string>() });
+                log(new LogEntry(LogLevel.Info, Loc.F("Plan.AppliedInPlace", appFolder)));
+            }
+
+            // Giải nén/sửa trên ổ exFAT/FAT của macOS sinh "._tên" cho từng tệp — dọn trước khi thư viện đóng gói chúng.
+            if (SourceMirror.RemoveAppleDoubleArtifacts(appFolder) is var artifacts and > 0)
+            {
+                log(new LogEntry(LogLevel.Info, Loc.F("Plan.AppleDoubleRemoved", artifacts, appFolder)));
+            }
+
+            return null;
+        }
+
         if (!plan.Any && !libraryWrites)
         {
             return null;
@@ -380,8 +446,32 @@ public sealed class BuildEngine
             log(new LogEntry(LogLevel.Info, Loc.T("Plan.MirrorForWrites")));
         }
 
-        LogCleanup(skip.Except(junkPaths, StringComparer.OrdinalIgnoreCase).ToList(), Array.Empty<string>(), log);
-        return SourceMirror.Create(appFolder, request.TemporaryFolder, plan, log, force: true);
+        LogCleanup(cleanup, Array.Empty<string>(), log);
+        return SourceMirror.CreateInAny(appFolder, MirrorWorkFolders(request.TemporaryFolder), plan, log, force: true);
+    }
+
+    /// <summary>
+    /// Chỗ dựng gương theo thứ tự thử: thư mục tạm người dùng chọn, rồi thư mục tạm của hệ thống nếu nằm ở ổ khác (ổ hệ thống luôn
+    /// là NTFS/APFS nên tạo được liên kết). Gương chỉ gồm liên kết cộng sce_sys nên nhỏ.
+    /// </summary>
+    public static IReadOnlyList<string> MirrorWorkFolders(string temporaryFolder)
+    {
+        var folders = new List<string> { temporaryFolder };
+        try
+        {
+            var system = OperatingSystem.IsMacOS()
+                ? System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Caches", "PSVIETHOA FPKG Builder", "mirror")
+                : System.IO.Path.Combine(System.IO.Path.GetTempPath(), "psviethoa-mirror");
+            if (!DiskSpaceAdvisor.IsSameVolume(system, temporaryFolder))
+            {
+                folders.Add(system);
+            }
+        }
+        catch (Exception)
+        {
+        }
+
+        return folders;
     }
 
     private static void LogCleanup(IReadOnlyCollection<string> hidden, IReadOnlyCollection<string> emptyFolders, Action<LogEntry> log)
@@ -474,6 +564,7 @@ public sealed class BuildEngine
     {
         var paths = new List<string>();
         var present = new List<string>();
+        var invalidPlayGo = new List<string>();
         var emptyFolders = new List<string>();
         try
         {
@@ -494,6 +585,13 @@ public sealed class BuildEngine
                 var playgo = PlayGoCleanup.ListImage(image, appRoot);
                 paths.AddRange(playgo);
                 present.AddRange(playgo);
+            }
+            else if (PlayGoCleanup.CheckImage(image, appRoot).Invalid is { Count: > 0 } invalid)
+            {
+                // Giữ bộ playgo* nhưng có tệp hỏng: ẩn riêng tệp đó, engine 0.6.8 dừng khi đọc phải nó.
+                paths.AddRange(invalid);
+                invalidPlayGo.AddRange(invalid);
+                log(new LogEntry(LogLevel.Warning, Loc.F("Plan.PlayGoInvalid", PlayGoCleanup.Describe(invalid))));
             }
 
             var removed = new HashSet<string>(present, StringComparer.OrdinalIgnoreCase);
@@ -518,13 +616,24 @@ public sealed class BuildEngine
             // Không đọc được ảnh ở đây thì vẫn ẩn theo tên tĩnh; playgo* cần tên thật trong ảnh nên bỏ qua.
             paths.Clear();
             present.Clear();
+            invalidPlayGo.Clear();
             emptyFolders.Clear();
             paths.AddRange(StaticCleanupPaths(request));
         }
 
         LogCleanup(present, emptyFolders, log);
-        anyPresent = present.Count > 0 || emptyFolders.Count > 0;
+        anyPresent = present.Count > 0 || invalidPlayGo.Count > 0 || emptyFolders.Count > 0;
         return paths.Count == 0 ? null : paths.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    /// <summary>Ghi nhật ký khi engine sẽ đổi applicationDrmType của nguồn sang "standard" (việc đổi do engine làm trong bộ nhớ).</summary>
+    private static void LogDrmOverride(BuildRequest request, byte[] paramJson, Action<LogEntry> log)
+    {
+        if (request.ForceStandardDrm && request.Kind == PackageKind.Application &&
+            ParamJsonPatch.ReadDrmType(paramJson) is { } drm && ParamJsonPatch.NeedsDrmRewrite(drm))
+        {
+            log(new LogEntry(LogLevel.Info, Loc.F("Plan.PatchDrm", drm, ParamJsonPatch.StandardDrm)));
+        }
     }
 
     /// <summary>Nội dung sce_sys/param.json bên trong ảnh exFAT (null khi không đọc được).</summary>
@@ -542,7 +651,7 @@ public sealed class BuildEngine
     /// </summary>
     private static IReadOnlyDictionary<string, byte[]>? BuildParamOverlay(BuildRequest request, SourceInfo source, Action<LogEntry> log)
     {
-        if (!request.ParamPatch.Any)
+        if (!request.ParamPatch.Any && !request.ForceStandardDrm)
         {
             return null;
         }
@@ -550,6 +659,12 @@ public sealed class BuildEngine
         try
         {
             if (ReadImageParamJson(source) is not { } paramJson)
+            {
+                return null;
+            }
+
+            LogDrmOverride(request, paramJson, log);
+            if (!request.ParamPatch.Any)
             {
                 return null;
             }
@@ -650,6 +765,9 @@ public sealed class BuildEngine
                 : ProsperoPublisherImageMode.PlaintextNoAuth,
             DeterministicBuild = request.Deterministic,
             GenerateParamJsonIfMissing = true,
+
+            // Engine 0.6.8 tự đặt applicationDrmType = "standard" trong bộ nhớ (chỉ gói ứng dụng), không cần sửa param.json.
+            ForceStandardApplicationDrm = request.ForceStandardDrm,
             CancellationToken = cancellationToken,
             PfsCompressionFormat = request.PfsFormat == PfsFormat.V3 ? ProsperoPfsCompressionFormat.Version3 : ProsperoPfsCompressionFormat.Version2,
             KrakenCompressionBlockSize = Math.Clamp(request.KrakenBlockKiB, BuildRequest.MinKrakenBlockKiB, BuildRequest.MaxKrakenBlockKiB) * 1024,
@@ -668,6 +786,9 @@ public sealed class BuildEngine
             ProjectFilePath = request.SourceMode == SourceMode.Gp5Project ? request.ProjectFilePath : null,
         };
     }
+
+    private static string FileSystemLabel(string folder) =>
+        (DiskSpaceAdvisor.ResolveMountPoint(folder) ?? folder) + " (" + (DiskSpaceAdvisor.FileSystemOf(folder) ?? "?") + ")";
 
     private static ProsperoPfsShufflePattern MapShuffle(ShufflePatternKind pattern) =>
         Enum.TryParse<ProsperoPfsShufflePattern>(pattern.ToString(), out var value) ? value : ProsperoPfsShufflePattern.None;
@@ -693,6 +814,18 @@ public sealed class BuildEngine
                     : Loc.F("Plan.Source", source.Path)));
         log(new LogEntry(LogLevel.Info, Loc.F("Plan.Output", request.OutputFolder)));
         log(new LogEntry(LogLevel.Info, Loc.F("Plan.Temp", request.TemporaryFolder)));
+        if (!DiskSpaceAdvisor.IsSameVolume(request.TemporaryFolder, request.OutputFolder))
+        {
+            log(new LogEntry(LogLevel.Info, Loc.F("Plan.SplitDrives", FileSystemLabel(request.TemporaryFolder), FileSystemLabel(request.OutputFolder))));
+        }
+
+        foreach (var folder in new[] { request.TemporaryFolder, request.OutputFolder }.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (DiskSpaceAdvisor.IsFat(folder))
+            {
+                log(new LogEntry(LogLevel.Warning, Loc.F("Plan.FatVolume", folder)));
+            }
+        }
         log(new LogEntry(LogLevel.Info, Loc.F("Plan.ContentId", request.ContentId)));
         log(new LogEntry(LogLevel.Info, Loc.F("Plan.Version", request.Version)));
         log(new LogEntry(LogLevel.Info, Loc.F("Plan.Kind", request.Kind, request.ImageMode)));
@@ -738,11 +871,15 @@ public sealed class BuildEngine
         if (request.SdkMajorOverride is { } major && SdkVersions.Get(major) is { } generation)
         {
             log(new LogEntry(LogLevel.Info, Loc.F("Plan.SdkOverride", generation.Release, generation.ExecutableVersion.ToString("X16"))));
+            log(new LogEntry(LogLevel.Info, Loc.F("Plan.RequiredFwSdk", generation.Major)));
         }
         else
         {
             log(new LogEntry(LogLevel.Info, Loc.T("Plan.SdkKeep")));
+            log(new LogEntry(LogLevel.Info, Loc.T(request.LowerRequiredFirmware ? "Plan.RequiredFwLower" : "Plan.RequiredFwKeep")));
         }
+
+        log(new LogEntry(LogLevel.Info, Loc.T(request.FullVerify ? "Plan.VerifyPolicyFull" : "Plan.VerifyPolicyQuick")));
 
         log(new LogEntry(LogLevel.Info, Loc.T(request.Deterministic ? "Plan.DeterministicOn" : "Plan.DeterministicOff")));
         log(new LogEntry(LogLevel.Info, Loc.T(request.ComputeSha256 ? "Plan.ShaOn" : "Plan.ShaOff")));
@@ -773,6 +910,19 @@ public sealed class BuildEngine
             }
             catch (Exception)
             {
+                try
+                {
+                    // Ổ exFAT/FAT trên macOS: tên có dấu không xoá được bằng tên liệt kê — xoá từng mục có thử dạng chuẩn hoá khác.
+                    RobustDelete.Tree(path);
+                    if (!Directory.Exists(path))
+                    {
+                        return;
+                    }
+                }
+                catch (Exception)
+                {
+                }
+
                 Thread.Sleep(300);
             }
         }

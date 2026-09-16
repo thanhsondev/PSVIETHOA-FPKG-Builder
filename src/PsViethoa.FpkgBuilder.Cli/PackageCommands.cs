@@ -36,6 +36,26 @@ internal static class PackageCommands
         return 0;
     }
 
+    /// <summary>pkg-dlc-template &lt;tệp.pkg&gt; [--output dir] [--passcode X] — xuất mẫu DLC (sce_sys + dự án .gp5) từ gói DLC có dữ liệu.</summary>
+    public static int DlcTemplate(Arguments arguments)
+    {
+        if (!TryGetPackage(arguments, out var path))
+        {
+            return 1;
+        }
+
+        var output = arguments.Get("output", "o") ?? PackageReader.SuggestDlcTemplateFolder(path);
+        var files = PackageReader.ExportDlcTemplate(path, output, arguments.Get("passcode") ?? DefaultPasscode, CancellationToken.None);
+        foreach (var file in files)
+        {
+            Console.WriteLine("  " + file);
+        }
+
+        var gp5 = files.FirstOrDefault(file => file.EndsWith(".gp5", StringComparison.OrdinalIgnoreCase)) ?? "—";
+        Console.WriteLine(Loc.F("DlcTemplate.Done", files.Count, gp5) + " " + Path.GetFullPath(output));
+        return 0;
+    }
+
     /// <summary>pkg-list &lt;tệp.pkg&gt; [--passcode X] [--temp dir] [--include glob]…</summary>
     public static int List(Arguments arguments)
     {

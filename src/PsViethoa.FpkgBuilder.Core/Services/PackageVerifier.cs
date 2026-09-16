@@ -132,6 +132,39 @@ public static class PackageVerifier
             isOfficial);
     }
 
+    /// <summary>
+    /// Kiểm tra nội dung gói bằng engine: <paramref name="full"/> = false chỉ đọc metadata (nhanh, vài mili giây tới vài giây);
+    /// true giải mã và giải nén thử toàn bộ trong bộ nhớ (lâu ngang một lượt đọc hết gói). Không ghi gì ra đĩa.
+    /// </summary>
+    public static ContentVerification VerifyContents(
+        string packagePath,
+        string passcode,
+        bool full,
+        CancellationToken cancellationToken,
+        Action<int>? progress = null,
+        Action<string>? report = null)
+    {
+        if (!File.Exists(packagePath))
+        {
+            throw new FileNotFoundException(Localization.Loc.T("Verify.NotFound"), packagePath);
+        }
+
+        var result = full
+            ? ProsperoPackageArchive.VerifyPackageFull(packagePath, passcode, cancellationToken, progress, report)
+            : ProsperoPackageArchive.VerifyPackageQuick(packagePath, passcode, cancellationToken, progress, report);
+        cancellationToken.ThrowIfCancellationRequested();
+        return new ContentVerification(
+            result.IsFull,
+            result.Elapsed,
+            result.Checks.ToArray(),
+            result.Issues.Select(issue => new ContentVerificationIssue(issue.Stage, issue.Message)).ToArray(),
+            result.FileCount,
+            result.FilesDecoded,
+            result.OuterBlockCount,
+            result.OuterBlocksVerified,
+            result.UnpackedBytes);
+    }
+
     /// <summary>Tính SHA-256 của toàn bộ tệp với bộ đệm lớn, báo tiến độ 0..100.</summary>
     public static string ComputeSha256(Stream stream, CancellationToken cancellationToken, Action<double>? progress = null)
     {

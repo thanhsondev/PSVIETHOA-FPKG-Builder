@@ -315,6 +315,119 @@ public sealed class SourceUntouchedTests : IDisposable
     }
 
     [Fact]
+    public void WhenTheTemporaryFolderCannotHoldTheMirrorTheNextFolderIsUsed()
+    {
+        var source = MakeSource("mirror-fallback");
+        var before = Snapshot(source);
+
+        // Chỗ thứ nhất không dùng được (một đường dẫn nằm dưới một TỆP — giống ổ không tạo được liên kết/thư mục).
+        var blocker = Path.Combine(_root, "not-a-folder");
+        File.WriteAllText(blocker, "x");
+        var unusable = Path.Combine(blocker, "tmp");
+        var fallback = Path.Combine(_root, "mirror-fallback-work");
+        var log = new List<LogEntry>();
+        var plan = new MirrorPlan(new[] { "ampr_emu.index" }, new Dictionary<string, byte[]>(), new Dictionary<string, string>(), new[] { "sce_sys" });
+
+        using (var mirror = SourceMirror.CreateInAny(source, new[] { unusable, fallback }, plan, log.Add))
+        {
+            Assert.NotNull(mirror);
+            Assert.StartsWith(fallback, mirror!.Path, StringComparison.Ordinal);
+            Assert.False(File.Exists(Path.Combine(mirror.Path, "ampr_emu.index")));
+            Assert.True(File.Exists(Path.Combine(mirror.Path, "eboot.bin")));
+        }
+
+        Assert.Contains(log, e => e.Level == LogLevel.Warning && e.Message.Contains(unusable, StringComparison.Ordinal));
+        Assert.Null(SourceMirror.CreateInAny(source, new[] { unusable }, plan, _ => { }));
+        AssertUnchanged(before, source);
+    }
+
+    [Fact]
+    public void AnExtractedCopyIsPatchedInPlaceWithoutLinks()
+    {
+        // Bản giải nén thuộc về công cụ: bỏ/sửa thẳng trên đó (không cần liên kết), thư mục chỉ rỗng vì dọn thì bỏ luôn.
+        var owned = MakeSource("owned-copy");
+        Directory.CreateDirectory(Path.Combine(owned, "onlyemu"));
+        File.WriteAllBytes(Path.Combine(owned, "onlyemu", "libSceAmpr.sprx"), new byte[16]);
+        var plan = new MirrorPlan(
+            new[] { "sce_sys/playgo-chunk.dat", "ampr_emu.index", "onlyemu/libSceAmpr.sprx", "does/not/exist.bin" },
+            new Dictionary<string, byte[]> { ["sce_sys/param.json"] = "{\"patched\":true}"u8.ToArray() },
+            new Dictionary<string, string>(),
+            Array.Empty<string>());
+
+        SourceMirror.ApplyInPlace(owned, plan);
+
+        Assert.False(File.Exists(Path.Combine(owned, "sce_sys", "playgo-chunk.dat")));
+        Assert.False(File.Exists(Path.Combine(owned, "ampr_emu.index")));
+        Assert.False(Directory.Exists(Path.Combine(owned, "onlyemu")));
+        Assert.Equal("{\"patched\":true}", File.ReadAllText(Path.Combine(owned, "sce_sys", "param.json")));
+        Assert.True(File.Exists(Path.Combine(owned, "sce_sys", "playgo-scenario.json")));
+        Assert.True(File.Exists(Path.Combine(owned, "eboot.bin")));
+        Assert.True(Directory.Exists(owned));
+    }
+
+    [Fact]
+    public void AppleDoubleArtifactsAreRemovedOnlyFromToolFolders()
+    {
+        if (!OperatingSystem.IsMacOS())
+        {
+            Assert.Equal(0, SourceMirror.RemoveAppleDoubleArtifacts(_root));
+            return;
+        }
+
+        // Nguồn có sẵn một "._" của người dùng; gương có "._" do hệ điều hành sinh cho tệp đã sao chép và một thư mục liên kết.
+        var source = MakeSource("appledouble-src");
+        var appleDouble = new byte[4096];
+        new byte[] { 0x00, 0x05, 0x16, 0x07 }.CopyTo(appleDouble, 0);
+        File.WriteAllBytes(Path.Combine(source, "sce_sys", "._keystone"), appleDouble);
+        File.WriteAllBytes(Path.Combine(source, "cache_ps5", "._atsu"), appleDouble);
+        var before = Snapshot(source);
+
+        var mirror = Path.Combine(_root, "appledouble-mirror");
+        Directory.CreateDirectory(Path.Combine(mirror, "sce_sys"));
+        File.WriteAllText(Path.Combine(mirror, "sce_sys", "param.json"), "{}");
+        File.WriteAllBytes(Path.Combine(mirror, "sce_sys", "._param.json"), appleDouble);
+        File.WriteAllText(Path.Combine(mirror, "sce_sys", "keystone"), "k");
+        File.WriteAllBytes(Path.Combine(mirror, "sce_sys", "._keystone"), appleDouble);
+        File.WriteAllBytes(Path.Combine(mirror, "sce_sys", "._orphan"), appleDouble);
+        File.WriteAllText(Path.Combine(mirror, "sce_sys", "._notappledouble"), "plain");
+        File.WriteAllText(Path.Combine(mirror, "sce_sys", "notappledouble"), "plain");
+        Directory.CreateSymbolicLink(Path.Combine(mirror, "cache_ps5"), Path.Combine(source, "cache_ps5"));
+
+        Assert.Equal(1, SourceMirror.RemoveAppleDoubleArtifacts(mirror, source));
+        Assert.False(File.Exists(Path.Combine(mirror, "sce_sys", "._param.json")));
+        Assert.True(File.Exists(Path.Combine(mirror, "sce_sys", "._keystone")));      // có trong nguồn
+        Assert.True(File.Exists(Path.Combine(mirror, "sce_sys", "._orphan")));        // không có tệp chính
+        Assert.True(File.Exists(Path.Combine(mirror, "sce_sys", "._notappledouble"))); // không phải AppleDouble
+        AssertUnchanged(before, source);                                                // không đi xuyên liên kết
+    }
+
+    [Fact]
+    public void RobustDeleteRemovesTreesWithAccentedNamesButOnlyUnlinksLinks()
+    {
+        var source = MakeSource("robust-src");
+        var before = Snapshot(source);
+        var tree = Path.Combine(_root, "robust-tree");
+        Directory.CreateDirectory(Path.Combine(tree, "Thư mục có dấu"));
+        File.WriteAllText(Path.Combine(tree, "Thư mục có dấu", "Tệp tên rất dài có dấu.txt".Normalize(System.Text.NormalizationForm.FormD)), "x");
+        File.WriteAllText(Path.Combine(tree, "Tệp.txt"), "y");
+        Directory.CreateSymbolicLink(Path.Combine(tree, "link"), source);
+
+        Assert.True(RobustDelete.File(Path.Combine(tree, "Tệp.txt")));
+        RobustDelete.Tree(tree);
+
+        Assert.False(Directory.Exists(tree));
+        AssertUnchanged(before, source);
+    }
+
+    [Fact]
+    public void MirrorWorkFoldersStartWithTheChosenTemporaryFolder()
+    {
+        var folders = BuildEngine.MirrorWorkFolders(Path.Combine(_root, "tmp-order"));
+        Assert.Equal(Path.Combine(_root, "tmp-order"), folders[0]);
+        Assert.Equal(folders.Count, folders.Distinct().Count());
+    }
+
+    [Fact]
     public void AnEmptyPlanNeedsNoMirror() =>
         Assert.Null(SourceMirror.Create(MakeSource("mirror-empty"), _root, MirrorPlan.Empty, _ => { }));
 

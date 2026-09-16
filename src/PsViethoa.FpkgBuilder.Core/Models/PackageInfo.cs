@@ -163,6 +163,9 @@ public sealed class PackageInfo
     /// <summary>Gói DLC "chỉ quyền sở hữu" (content type 0x22): không có ảnh trong là đúng thiết kế, vẫn cài được.</summary>
     public bool IsDlcWithoutData => Cnt?.ContentType == 0x22;
 
+    /// <summary>Gói DLC có dữ liệu (content type 0x21) — xuất được mẫu DLC (sce_sys + dự án GP5) để đóng gói lại.</summary>
+    public bool IsDlcWithData => Cnt?.ContentType == 0x21;
+
     public string? Title => Params?.Title;
 
     /// <summary>Chỉ ảnh FIH debug mới giải nén được.</summary>

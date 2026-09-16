@@ -108,6 +108,80 @@ download_status=NO_EXTRA_DATA
     }
 
     [Fact]
+    public async Task ExportDlcTemplate_WritesSceSysAndAGp5ThatRebuildsTheDlc()
+    {
+        if (!BuildEngine.KeysAvailable)
+        {
+            return;
+        }
+
+        var entries = DlcEmuIni.Parse(RealIni);
+        var built = DlcPackageBuilder.BuildAll(entries.Take(1).ToList(), Path.Combine(_root, "tpl-dlc"), Path.Combine(_root, "tpl-tmp"), "Stellar Blade", null, CancellationToken.None);
+        var package = Assert.Single(built).OutputPath!;
+        var passcode = new string('0', 32);
+        Assert.True(PackageInspector.Inspect(package, passcode, CancellationToken.None).IsDlcWithData);
+
+        var folder = PackageReader.SuggestDlcTemplateFolder(package);
+        Assert.EndsWith("-dlc-template", folder, StringComparison.Ordinal);
+        var files = PackageReader.ExportDlcTemplate(package, folder, passcode, CancellationToken.None);
+
+        var contentId = entries[0].ContentId;
+        Assert.Contains("sce_sys/param.json", files);
+        Assert.Contains(contentId + ".gp5", files);
+        var project = File.ReadAllText(Path.Combine(folder, contentId + ".gp5"));
+        Assert.Contains("prospero_ac", project, StringComparison.Ordinal);
+        Assert.Contains(contentId, project, StringComparison.Ordinal);
+
+        // Thư mục đã có nội dung: không ghi đè, gợi ý thư mục kế tiếp.
+        Assert.Throws<IOException>(() => PackageReader.ExportDlcTemplate(package, folder, passcode, CancellationToken.None));
+        Assert.EndsWith("-dlc-template (2)", PackageReader.SuggestDlcTemplateFolder(package), StringComparison.Ordinal);
+
+        // Mẫu dùng được ngay: thêm dữ liệu rồi đóng gói lại từ tệp .gp5.
+        File.WriteAllBytes(Path.Combine(folder, "extra.bin"), new byte[300_000]);
+        var rebuilt = await new BuildEngine().BuildAsync(new BuildRequest
+        {
+            SourcePath = Path.Combine(folder, contentId + ".gp5"),
+            OutputFolder = Path.Combine(_root, "tpl-rebuilt"),
+            TemporaryFolder = Path.Combine(_root, "tpl-rebuilt-tmp"),
+            ContentId = contentId,
+            Title = "Stellar Blade DLC",
+            Kind = PackageKind.DlcWithData,
+            KrakenBackend = KrakenBackendKind.BuiltIn,
+            KrakenLevel = -4,
+            PreventSleep = false,
+        }, _ => { }, null, CancellationToken.None);
+        Assert.True(rebuilt.Verification.Contents!.IsValid);
+        Assert.Equal(contentId, PackageInspector.Inspect(rebuilt.OutputPath, passcode, CancellationToken.None).ContentId);
+    }
+
+    [Fact]
+    public void ExportDlcTemplate_RefusesAGamePackage()
+    {
+        if (!BuildEngine.KeysAvailable)
+        {
+            return;
+        }
+
+        var app = Path.Combine(_root, "tpl-app");
+        Directory.CreateDirectory(Path.Combine(app, "sce_sys"));
+        File.WriteAllText(Path.Combine(app, "sce_sys", "param.json"), "{\"contentId\":\"UP9000-PPSA26344_00-PSVIETHOATPLAPP1\",\"contentVersion\":\"01.000.000\",\"sdkVersion\":\"0x0450000000000000\",\"localizedParameters\":{\"defaultLanguage\":\"en-US\",\"en-US\":{\"titleName\":\"A\"}}}");
+        File.WriteAllBytes(Path.Combine(app, "eboot.bin"), new byte[4096]);
+        var outcome = new BuildEngine().BuildAsync(new BuildRequest
+        {
+            SourcePath = app,
+            OutputFolder = Path.Combine(_root, "tpl-app-out"),
+            TemporaryFolder = Path.Combine(_root, "tpl-app-tmp"),
+            ContentId = "UP9000-PPSA26344_00-PSVIETHOATPLAPP1",
+            KrakenBackend = KrakenBackendKind.BuiltIn,
+            KrakenLevel = -4,
+            PreventSleep = false,
+        }, _ => { }, null, CancellationToken.None).GetAwaiter().GetResult();
+
+        Assert.False(PackageInspector.Inspect(outcome.OutputPath, new string('0', 32), CancellationToken.None).IsDlcWithData);
+        Assert.Throws<InvalidOperationException>(() => PackageReader.ExportDlcTemplate(outcome.OutputPath, Path.Combine(_root, "tpl-app-template"), new string('0', 32), CancellationToken.None));
+    }
+
+    [Fact]
     public void BuildRequest_KeepsTheEmulatorByDefault() => Assert.True(new BuildRequest().KeepDlcEmu);
 
     [Fact]

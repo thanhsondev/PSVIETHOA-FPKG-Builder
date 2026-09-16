@@ -9,7 +9,10 @@ public sealed class BuildRequest
     public const int DefaultKrakenLevel = 4;
     public const int MaxThreads = 256;
     public const int MinPlayGoChunks = 1;
-    public const int MaxPlayGoChunks = 64;
+    public const int MaxPlayGoChunks = 255;
+
+    /// <summary>Số khối PlayGo dự phòng mặc định của engine 0.6.8 (dùng khi nguồn không có playgo-chunk.dat).</summary>
+    public const int DefaultPlayGoChunks = 100;
     public const int MinSdkMajor = 1;
     public const int MaxSdkMajor = 11;
     public const int MinKrakenBlockKiB = 128;
@@ -68,7 +71,10 @@ public sealed class BuildRequest
     /// <summary>Gộp khối và điều chỉnh canh lề bố cục vật lý như Publishing Tools (khuyên bật).</summary>
     public bool LayoutOptimization { get; set; } = true;
 
-    /// <summary>Ép applicationDrmType = "standard" trong lúc tạo gói (tránh game bị khoá trên PS5); tệp nguồn được khôi phục sau đó.</summary>
+    /// <summary>
+    /// Ép applicationDrmType = "standard" trong gói (tránh game bị khoá trên PS5). Từ engine 0.6.8 việc này do chính thư viện làm
+    /// trong bộ nhớ (ForceStandardApplicationDrm), nên không cần sửa hay sao chép param.json.
+    /// </summary>
     public bool ForceStandardDrm { get; set; } = true;
 
     /// <summary>
@@ -103,8 +109,25 @@ public sealed class BuildRequest
     /// </summary>
     public bool ClearPlayGoAttributes { get; set; } = true;
 
-    /// <summary>Các sửa đổi param.json sẽ áp dụng trong lúc tạo gói.</summary>
-    public Services.ParamJsonPatchOptions ParamPatch => new(ForceStandardDrm, ClearVersionFileUri, ClearPlayGoAttributes);
+    /// <summary>
+    /// Hạ requiredSystemSoftwareVersion về đúng SDK của game khi nó đang cao hơn (fpkg-gui 0.6.8: "Automatic downgrading of the
+    /// required software version to the SDK-specified version"). Khi chọn SDK riêng, engine tự đặt cả hai trường theo SDK đó
+    /// nên tuỳ chọn này chỉ có tác dụng khi giữ SDK của game. Mặc định bật.
+    /// </summary>
+    public bool LowerRequiredFirmware { get; set; } = true;
+
+    /// <summary>
+    /// Các sửa đổi param.json công cụ tự làm trong lúc tạo gói. DRM không nằm ở đây vì engine đã làm; hạ phiên bản hệ thống chỉ
+    /// cần khi không chọn SDK riêng.
+    /// </summary>
+    public Services.ParamJsonPatchOptions ParamPatch =>
+        new(false, ClearVersionFileUri, ClearPlayGoAttributes, LowerRequiredFirmware && SdkMajorOverride is null);
+
+    /// <summary>
+    /// Sau khi tạo gói, giải mã và giải nén thử toàn bộ nội dung trong bộ nhớ để đối chiếu (VerifyPackageFull của engine). Kiểm tra
+    /// nhanh (cấu trúc, chữ ký CNT, bố cục PlayGo, NAPS, inode) luôn chạy; kiểm tra đầy đủ chậm ngang một lượt đọc hết gói.
+    /// </summary>
+    public bool FullVerify { get; set; }
 
     /// <summary>Cách đọc nguồn (thư mục rời / GP5).</summary>
     public SourceMode SourceMode { get; set; } = SourceMode.Auto;
@@ -112,7 +135,8 @@ public sealed class BuildRequest
     /// <summary>Tệp dự án GP5 khi SourceMode = Gp5Project.</summary>
     public string? ProjectFilePath { get; set; }
 
-    public int PlayGoChunks { get; set; } = MaxPlayGoChunks;
+    /// <summary>Số khối PlayGo dự phòng (1..255). Nguồn còn playgo-chunk.dat thì engine lấy số khối/kịch bản từ tệp đó.</summary>
+    public int PlayGoChunks { get; set; } = DefaultPlayGoChunks;
 
     public bool Deterministic { get; set; } = true;
 
