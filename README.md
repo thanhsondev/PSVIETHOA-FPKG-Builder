@@ -4,7 +4,7 @@
 
 🇻🇳 Tiếng Việt: [docs/README.vi.md](docs/README.vi.md)
 
-**Build PS5 FPKG (FIH debug) packages from an app folder, an `.exfat` / `.ffpfsc` disk image or a GP5 project — and extract existing packages — on macOS and Windows.**
+**Build PS5 FPKG (FIH debug) packages from an app folder, an `.exfat` / `.ffpfsc` disk image or a GP5 project — and extract existing packages — on macOS, Windows and Linux.**
 
 Bilingual UI (Vietnamese / English) · Speed presets · PFS v2 / v3 · `.exfat` / `.ffpfsc` images · GP5 projects · Package extraction · Update check · Free‑space & junk checks · ETA & throughput · Built‑in verification · CLI
 
@@ -12,6 +12,7 @@ Bilingual UI (Vietnamese / English) · Speed presets · PFS v2 / v3 · `.exfat` 
 
 ![Platform](https://img.shields.io/badge/macOS-Apple%20Silicon%20%2B%20Intel-0F172A?logo=apple)
 ![Platform](https://img.shields.io/badge/Windows-x64-0F172A?logo=windows)
+![Platform](https://img.shields.io/badge/Linux-x64%20%2B%20arm64-0F172A?logo=linux&logoColor=white)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
 ![UI](https://img.shields.io/badge/UI-Avalonia%2011-8B5CF6)
 ![Languages](https://img.shields.io/badge/UI-VI%20%2F%20EN-22C55E)
@@ -36,7 +37,7 @@ Bilingual UI (Vietnamese / English) · Speed presets · PFS v2 / v3 · `.exfat` 
 
 ## Why?
 
-Existing FPKG tooling for PS5 (`LibProsperoPkg.Gui`) is **Windows‑only WPF**. PSVIETHOA FPKG Builder is a full rewrite in **C# / .NET 10 + Avalonia UI** that runs natively on **macOS (Apple Silicon & Intel) and Windows**, adds a **bilingual interface**, accepts **`.exfat` / `.ffpfsc` disk images and GP5 projects** as sources, can **extract existing packages**, checks GitHub for **updates**, and focuses on being **smooth and fast when building very large game folders** (tens of GB). The package engine is **LibProsperoPkg** by **Drakmor** (the September 2026 build shipped with fpkg‑gui 0.6.8), so the packages it produces are byte‑for‑byte correct.
+Existing FPKG tooling for PS5 (`LibProsperoPkg.Gui`) is **Windows‑only WPF**. PSVIETHOA FPKG Builder is a full rewrite in **C# / .NET 10 + Avalonia UI** that runs natively on **macOS (Apple Silicon & Intel), Windows and Linux**, adds a **bilingual interface**, accepts **`.exfat` / `.ffpfsc` disk images and GP5 projects** as sources, can **extract existing packages**, checks GitHub for **updates**, and focuses on being **smooth and fast when building very large game folders** (tens of GB). The package engine is **LibProsperoPkg** by **Drakmor** (the September 2026 build shipped with fpkg‑gui 0.6.8), so the packages it produces are byte‑for‑byte correct.
 
 > The result is a **debug FPKG** (FIH image, signed byte `0x00`) — it installs only on a **PS5 with debug mode enabled**.
 
@@ -81,6 +82,7 @@ Grab the archive for your platform from the [**Releases**](https://github.com/th
 
 - **macOS** — unzip, then right‑click `PSVIETHOA FPKG Builder.app` → **Open** the first time (the app is ad‑hoc signed).
 - **Windows** — unzip and run `PSVIETHOA FPKG Builder.exe`. SmartScreen may prompt → **Run anyway**.
+- **Linux** — either the **AppImage** (`chmod +x`, then run it; `--cli` switches to the command line, e.g. `./PSVIETHOA*.AppImage --cli info`) or the **`.tar.gz`** (extract, run `./psviethoa-fpkg-builder`, or `./install.sh` to add a menu entry). Optional: install `fuse3` for copy-free image mounting — without it images are extracted instead, which is slower and needs disk space but produces an identical package. Run `fpkg-cli info` to see what was detected.
 
 Each archive also contains the `fpkg-cli` command‑line tool.
 
@@ -118,9 +120,10 @@ Exit codes: `0` success · `1` invalid arguments · `2` build failed · `3` canc
 - The app folder is located up to 3 levels deep inside the image (root first, e.g. dumps with `sce_sys` at the root).
 - **macOS:** `hdiutil attach -readonly -imagekey diskimage-class=CRawDiskImage` → build straight from the mount point, unmount when done. *Automatic* only mounts a clean image; if junk files are present it extracts so they can be skipped.
 - **Windows:** the app's own exFAT reader is exposed as a read‑only virtual drive through the [Dokan](https://github.com/dokan-dev/dokany) driver (`Z:\<image name>\…`), so the packager reads straight from the image — `.exfat` and `.ffpfsc` alike, junk files hidden, `param.json` DRM fix applied on the drive, nothing written to the image. The unmodified `Dokan_x64.msi` (2.3.1.1000, LGPL/MIT) ships in `app/redist/`: the **Setup.exe** installs it together with the app, the portable zip installs it by itself on first launch (only the Windows UAC prompt; declining leaves **Enable direct mounting** in the advanced options and `fpkg-cli install-dokan`). Without the driver the image is extracted to the temp folder as before.
-- **Windows / Linux:** extracted with the pure‑.NET reader (3 workers, 4 MB buffers) to `<temp>/exfat-<name>-<hash>/`, needing extra free space ≈ the data in the image; removed after the build (even on cancel).
-- **Validated:** the same image built two ways — hdiutil mount vs. pure‑.NET extraction — produces **byte‑identical** packages (same SHA‑256), i.e. the reader matches the macOS driver exactly.
-- **`.ffpfsc` containers:** a PS5 PFS image (superblock v2, 64 KiB blocks) that holds one PFSC‑compressed file — the exFAT dump of the game. The app detects it by its header (any extension) or the `.ffpfsc` extension, layers the exFAT reader on the library's PFSC decompression (~900 MB/s, no temporary image); on Windows with Dokan it is **mounted** like an `.exfat` image, on macOS (where `hdiutil` cannot open a container) the app folder is **extracted** to the temp folder before building. Measured: 1.2 GB container (4.29 GB exFAT, 2.9 GB of game data) → info in 0.15 s, full build in 31 s.
+- **Linux:** the app's own exFAT reader is exposed as a read‑only FUSE mount (`$XDG_RUNTIME_DIR/psviethoa-fpkg-…`), the same managed reader the Dokan drive uses on Windows — so `.exfat` and `.ffpfsc` alike are read straight from the image, junk files hidden, `param.json` DRM fix applied on the mount, nothing written to the image. Needs `libfuse3` + `fusermount3` (package `fuse3` on most distros) and **no root** — libfuse mounts through the setuid `fusermount3` helper. Without them the image is extracted to the temp folder as before.
+- **Windows / Linux:** extracted with the pure‑.NET reader (3 workers, 4 MB buffers) to `<temp>/exfat-<name>-<hash>/`, needing extra free space ≈ the data in the image; removed after the build (even on cancel). On Linux the default temp folder is the XDG cache dir on real disk, **not** `/tmp` — that is usually `tmpfs` (RAM) and a multi‑GB image would exhaust memory.
+- **Validated:** the same image built two ways — mounted vs. pure‑.NET extraction — produces **byte‑identical** packages (same SHA‑256), i.e. the reader matches the macOS driver exactly. The Linux FUSE backend is held to the same bar: mount‑path and extract‑path builds of each test fixture must yield the same SHA‑256, with and without `--keep-drm`.
+- **`.ffpfsc` containers:** a PS5 PFS image (superblock v2, 64 KiB blocks) that holds one PFSC‑compressed file — the exFAT dump of the game. The app detects it by its header (any extension) or the `.ffpfsc` extension, layers the exFAT reader on the library's PFSC decompression (~900 MB/s, no temporary image); on Windows with Dokan and on Linux with FUSE it is **mounted** like an `.exfat` image, on macOS (where `hdiutil` cannot open a container) the app folder is **extracted** to the temp folder before building. Measured: 1.2 GB container (4.29 GB exFAT, 2.9 GB of game data) → info in 0.15 s, full build in 31 s.
 
 ## Performance
 
@@ -143,11 +146,12 @@ For comparison, the LibProsperoPkg build shipped with 2.0.0 built the same 21.3 
 
 ## Build from source
 
-Requires the [.NET SDK 10](https://dotnet.microsoft.com/download) (`brew install dotnet` on macOS).
+Requires the [.NET SDK 10](https://dotnet.microsoft.com/download) (`brew install dotnet` on macOS; `dotnet-sdk-10.0` on Arch, `dotnet-sdk-10.0` from the Microsoft repo on Debian/Ubuntu). On Linux, `fuse3` is an optional runtime dependency for copy-free mounting.
 
 ```bash
 dotnet build PsViethoa.FpkgBuilder.slnx -c Release   # build everything
 scripts/run-dev.sh                                   # run the GUI (macOS/Linux)
+scripts/publish-linux.sh linux-x64                   # Linux tarball + AppImage
 dotnet test                                          # run the test suite
 
 scripts/publish-macos.sh osx-arm64 osx-x64           # dist/: .app + fpkg-cli + zip

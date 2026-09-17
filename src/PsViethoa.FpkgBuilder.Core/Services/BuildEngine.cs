@@ -52,6 +52,10 @@ public sealed class BuildEngine
             : null;
 
         Directory.CreateDirectory(normalized.OutputFolder);
+
+        // Nhớ thư mục tạm đã có sẵn chưa: nếu do lần tạo gói này sinh ra và cuối cùng vẫn rỗng thì dọn luôn,
+        // đừng để lại thư mục "fpkg-temp" rỗng cạnh thư mục xuất.
+        var temporaryFolderExisted = Directory.Exists(normalized.TemporaryFolder);
         Directory.CreateDirectory(normalized.TemporaryFolder);
 
         // Thư viện luôn ghi đè tệp trùng tên — hỏi trước để người dùng giữ được bản cũ.
@@ -99,7 +103,7 @@ public sealed class BuildEngine
                         mount = await Task.Run(() => ImageMounter.Mount(source, mountRequest, cancellationToken), cancellationToken).ConfigureAwait(false);
                         sourceFolder = mount.SourceFolder;
                         log(new LogEntry(LogLevel.Info, Loc.F("Plan.MountedVia", mount.MountPoint, ImageMounter.BackendLabel)));
-                        if (mount.Backend == MountBackend.Dokan)
+                        if (mount.Backend is MountBackend.Dokan or MountBackend.Fuse)
                         {
                             log(new LogEntry(LogLevel.Info, Loc.T("Plan.MountJunkHidden")));
                         }
@@ -300,6 +304,35 @@ public sealed class BuildEngine
                 await Task.Run(() => TryDeleteDirectory(staging)).ConfigureAwait(false);
                 log(new LogEntry(LogLevel.Info, Loc.T("Plan.StagingRemoved")));
             }
+
+            // Thư mục tạm do lần tạo gói này sinh ra: xoá nếu vẫn rỗng. Không đụng tới thư mục người dùng đã có
+            // từ trước, cũng không xoá khi còn tệp bên trong (có thể là tệp của tiến trình khác hoặc còn dở).
+            if (!temporaryFolderExisted)
+            {
+                await Task.Run(() => TryDeleteEmptyDirectory(normalized.TemporaryFolder)).ConfigureAwait(false);
+            }
+        }
+    }
+
+    /// <summary>Xoá thư mục nếu tồn tại và hoàn toàn rỗng; im lặng bỏ qua trong mọi trường hợp khác.</summary>
+    public static void TryDeleteEmptyDirectory(string path)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
+            {
+                return;
+            }
+
+            if (Directory.EnumerateFileSystemEntries(path).Any())
+            {
+                return;
+            }
+
+            Directory.Delete(path, recursive: false);
+        }
+        catch (Exception)
+        {
         }
     }
 

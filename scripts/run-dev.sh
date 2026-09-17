@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 # Chạy ứng dụng ở chế độ phát triển trên macOS/Linux.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

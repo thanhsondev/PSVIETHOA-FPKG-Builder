@@ -356,16 +356,24 @@ public sealed class ExFatVirtualFileSystemTests : IDisposable
     [Fact]
     public void MountBackend_IsConsistentOnThisPlatform()
     {
+        var capable = ImageMounter.Backend is MountBackend.Dokan or MountBackend.Fuse;
         Assert.Equal(ImageMounter.Backend != MountBackend.None, ImageMounter.IsAvailable);
-        Assert.Equal(ImageMounter.Backend == MountBackend.Dokan, ImageMounter.CanMountContainers);
-        Assert.Equal(ImageMounter.Backend == MountBackend.Dokan, ImageMounter.CanHideJunk);
-        Assert.Equal(ImageMounter.Backend == MountBackend.Dokan, ImageMounter.CanOverlayFiles);
+        Assert.Equal(capable, ImageMounter.CanMountContainers);
+        Assert.Equal(capable, ImageMounter.CanHideJunk);
+        Assert.Equal(capable, ImageMounter.CanOverlayFiles);
         Assert.Equal(OperatingSystem.IsWindows(), DokanImageMounter.IsSupportedPlatform);
         if (!OperatingSystem.IsWindows())
         {
             Assert.False(DokanImageMounter.IsDriverInstalled);
             Assert.False(ImageMounter.DokanMissingOnWindows);
             Assert.Null(DokanImageMounter.DriverVersion);
+        }
+
+        // FUSE chỉ có trên Linux; nền tảng khác không bao giờ chọn backend này.
+        Assert.False(FuseImageMounter.IsAvailable && !OperatingSystem.IsLinux());
+        if (!OperatingSystem.IsLinux())
+        {
+            Assert.NotEqual(MountBackend.Fuse, ImageMounter.Backend);
         }
 
         var container = new SourceInfo(SourceKind.ExFatImage, "x.ffpfsc", "/", null, IsPfsContainer: true);

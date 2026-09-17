@@ -239,7 +239,8 @@ public sealed class ExFatTests : IDisposable
         Assert.Equal("FullDebug", outcome.Verification.ContainerType);
         Assert.Equal("UP9000-PPSA00002_00-PSVIETHOAEXFAT01", outcome.Verification.ContentId);
         Assert.Contains(progress, p => p.Phase == PhaseCatalog.Extract.Name);
-        Assert.Empty(Directory.GetDirectories(Path.Combine(_root, "tmp"), "exfat-*"));
+        // Thư mục trích tạm phải được dọn — và nếu thư mục tạm do lần tạo gói này sinh ra thì nó cũng bị xoá luôn.
+        AssertNoStagingLeftBehind(Path.Combine(_root, "tmp"));
         Assert.Contains(log, e => e.Message.Contains("skipped", StringComparison.OrdinalIgnoreCase) || e.Message.Contains("bỏ qua", StringComparison.OrdinalIgnoreCase));
 
         // Bản giải nén là của công cụ: sửa thẳng trên đó, không dựng gương bằng liên kết (chạy được cả khi thư mục tạm ở ổ
@@ -393,5 +394,19 @@ public sealed class ExFatTests : IDisposable
         }
 
         public void Report(BuildProgress value) => _handler(value);
+    }
+
+    /// <summary>
+    /// Sau khi tạo gói xong không được còn thư mục trích tạm "exfat-*". Thư mục tạm do lần tạo gói sinh ra và cuối
+    /// cùng vẫn rỗng thì bị xoá hẳn, nên "thư mục tạm không tồn tại" cũng là đạt (còn chặt hơn).
+    /// </summary>
+    private static void AssertNoStagingLeftBehind(string temporaryFolder)
+    {
+        if (!Directory.Exists(temporaryFolder))
+        {
+            return;
+        }
+
+        Assert.Empty(Directory.GetDirectories(temporaryFolder, "exfat-*"));
     }
 }

@@ -255,7 +255,11 @@ public sealed class PlayGoCleanupTests : IDisposable
         Assert.Equal(originalChunk, File.ReadAllBytes(Path.Combine(folder, "sce_sys", "playgo-chunk.dat")));
         Assert.Equal(4, PlayGoCleanup.ListFolder(folder).Count);
         Assert.True(File.Exists(Path.Combine(folder, "fakelib", "libScePlayGo.sprx")));
-        Assert.Empty(Directory.GetDirectories(request.TemporaryFolder, "hidden-*"));
+        // Thư mục trích tạm phải được dọn; thư mục tạm rỗng do lần tạo gói sinh ra cũng bị xoá luôn.
+        if (Directory.Exists(request.TemporaryFolder))
+        {
+            Assert.Empty(Directory.GetDirectories(request.TemporaryFolder, "hidden-*"));
+        }
     }
 
     [Fact]

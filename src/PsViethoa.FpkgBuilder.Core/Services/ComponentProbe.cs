@@ -110,6 +110,20 @@ public static class ComponentProbe
                 : new ComponentStatus("mount", Loc.T("Comp.Mount"), ComponentState.Warning, Loc.F("Comp.MountDokanNotRunning", DokanImageMounter.DriverVersion ?? "?", probe.Error ?? string.Empty).Trim());
         }
 
+        if (OperatingSystem.IsLinux())
+        {
+            if (FuseImageMounter.IsAvailable)
+            {
+                return new ComponentStatus("mount", Loc.T("Comp.Mount"), ComponentState.Ok, Loc.F("Comp.MountFuseOk", FuseImageMounter.LibraryVersion ?? "3"));
+            }
+
+            return new ComponentStatus(
+                "mount",
+                Loc.T("Comp.Mount"),
+                ComponentState.Missing,
+                Loc.T(FuseImageMounter.FindFusermount() == null ? "Comp.MountFusermountMissing" : "Comp.MountFuseMissing"));
+        }
+
         return new ComponentStatus("mount", Loc.T("Comp.Mount"), ComponentState.NotApplicable, Loc.T("Comp.MountNone"));
     }
 
@@ -122,8 +136,18 @@ public static class ComponentProbe
                 : new ComponentStatus("sleep", Loc.T("Comp.Sleep"), ComponentState.Warning, Loc.T("Comp.SleepMissing"));
         }
 
-        return OperatingSystem.IsWindows()
-            ? new ComponentStatus("sleep", Loc.T("Comp.Sleep"), ComponentState.Ok, Loc.T("Comp.SleepWindows"))
-            : new ComponentStatus("sleep", Loc.T("Comp.Sleep"), ComponentState.NotApplicable, Loc.T("Comp.SleepMissing"));
+        if (OperatingSystem.IsWindows())
+        {
+            return new ComponentStatus("sleep", Loc.T("Comp.Sleep"), ComponentState.Ok, Loc.T("Comp.SleepWindows"));
+        }
+
+        if (OperatingSystem.IsLinux())
+        {
+            return SleepInhibitor.FindSystemdInhibit() != null
+                ? new ComponentStatus("sleep", Loc.T("Comp.Sleep"), ComponentState.Ok, Loc.T("Comp.SleepSystemd"))
+                : new ComponentStatus("sleep", Loc.T("Comp.Sleep"), ComponentState.Warning, Loc.T("Comp.SleepMissing"));
+        }
+
+        return new ComponentStatus("sleep", Loc.T("Comp.Sleep"), ComponentState.NotApplicable, Loc.T("Comp.SleepMissing"));
     }
 }

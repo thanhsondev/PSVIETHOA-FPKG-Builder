@@ -32,9 +32,21 @@ public sealed class ComponentProbeTests
             Assert.Equal(ExFatMounter.IsAvailable ? ComponentState.Ok : ComponentState.Missing, mount.State);
             Assert.False(mount.CanFix);
         }
+        else if (OperatingSystem.IsLinux())
+        {
+            // Linux gắn ảnh bằng FUSE khi có libfuse3 + fusermount3; thiếu thì báo Missing (vẫn giải nén được).
+            Assert.Equal(FuseImageMounter.IsAvailable ? ComponentState.Ok : ComponentState.Missing, mount.State);
+            Assert.False(mount.CanFix);
+        }
         else if (!OperatingSystem.IsWindows())
         {
             Assert.Equal(ComponentState.NotApplicable, mount.State);
+        }
+
+        var sleep = rows.Single(r => r.Id == "sleep");
+        if (OperatingSystem.IsLinux())
+        {
+            Assert.Equal(SleepInhibitor.FindSystemdInhibit() != null ? ComponentState.Ok : ComponentState.Warning, sleep.State);
         }
 
         var oodle = rows.Single(r => r.Id == "oodle");
