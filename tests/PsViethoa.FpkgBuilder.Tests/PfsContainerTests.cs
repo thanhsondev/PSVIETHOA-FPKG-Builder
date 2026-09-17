@@ -68,6 +68,7 @@ public sealed class PfsContainerTests : IDisposable
 
         var outcome = await new BuildEngine().BuildAsync(new BuildRequest
         {
+            UseSonySdk = false,
             SourcePath = app,
             OutputFolder = Path.Combine(_root, "wrap-out"),
             TemporaryFolder = Path.Combine(_root, "wrap-tmp"),
@@ -101,6 +102,7 @@ public sealed class PfsContainerTests : IDisposable
         var log = new List<LogEntry>();
         var built = await new BuildEngine().BuildAsync(new BuildRequest
         {
+            UseSonySdk = false,
             SourcePath = container,
             OutputFolder = Path.Combine(_root, "from-container"),
             TemporaryFolder = Path.Combine(_root, "from-container-tmp"),

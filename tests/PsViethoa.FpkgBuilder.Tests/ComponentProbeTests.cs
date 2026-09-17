@@ -10,7 +10,7 @@ public sealed class ComponentProbeTests
     public void Run_ReportsEveryComponentWithLocalizedText()
     {
         var rows = ComponentProbe.Run();
-        Assert.Equal(new[] { "engine", "keys", "kraken", "oodle", "mount", "sleep" }, rows.Select(r => r.Id).ToArray());
+        Assert.Equal(new[] { "engine", "keys", "kraken", "sony-sdk", "oodle", "mount", "sleep" }, rows.Select(r => r.Id).ToArray());
         Assert.All(rows, r =>
         {
             Assert.False(string.IsNullOrWhiteSpace(r.Name));
@@ -53,7 +53,7 @@ public sealed class ComponentProbeTests
         };
 
         var report = ComponentProbe.Report(rows, "Header 1.0");
-        var lines = report.Split('\n');
+        var lines = report.Split(Environment.NewLine);
         Assert.Equal("Header 1.0", lines[0]);
         Assert.Equal("[OK] Alpha: fine", lines[1]);
         Assert.Equal("[!!] Beta: hmm", lines[2]);

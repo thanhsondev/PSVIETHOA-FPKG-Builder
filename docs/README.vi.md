@@ -40,6 +40,10 @@ Công cụ tạo FPKG cho PS5 hiện có (`LibProsperoPkg.Gui`) là ứng dụng
 
 > Kết quả là một **FPKG debug** (ảnh FIH, signed byte `0x00`) — chỉ cài được trên **PS5 đã bật chế độ debug**.
 
+## Có gì mới trong 2.2
+
+- **2.2.0 — gói do Publishing Tools của Sony tạo, chạy trên cả macOS và Windows**: cách tạo gói mặc định mới dùng bộ công cụ `sdk-fpkg279-fixdss3` kèm sẵn, qua ba bước (bộ công cụ luôn đặt DRM `standard`, bỏ license giả và module giả lập AMPR/PlayGo, khôi phục ảnh màn hình chờ `pic*.png` thiếu từ bản `.dds` bằng `prospero-dds2png.exe` kèm theo). Đầu tiên tạo dự án GP5 phẳng, sau đó chạy `prospero-pub-cmd img_create --oformat nwonly`, cuối cùng chuyển kết quả sang gói `PLAINTEXT_NOAUTH`; bước chuyển là bản C# của script Python trong bộ công cụ, ra kết quả giống từng byte. Trên Windows SDK chạy trực tiếp (Visual C++ x64 được cài tự động). Trên macOS SDK chạy qua Wine đã cắt gọn kèm theo (Apple Silicon cần Rosetta 2). Ô tích **SDK Sony** dưới thanh tiến trình (mặc định bật, CLI `--no-sony-sdk`) cho phép quay về engine tích hợp; khi bật, các tuỳ chọn chỉ của engine (preset, Kraken, PFS, PlayGo, SDK…) mờ đi và loại gói cố định là Ứng dụng + PLAINTEXT_NOAUTH, đúng như bộ gốc. GP5 do app tạo giống từng byte với script của bộ gốc (cùng thứ tự tệp — thứ tự này quyết định bố cục gói), tệp `.gp5`, scenario và thư mục `-build-logs` được giữ cạnh gói như bộ gốc, và không cần thư mục gương. Nguồn cần có `sce_sys/keystone` đúng 96 byte. Bước SDK có thanh tiến trình riêng, cập nhật trực tiếp.
+
 ## Có gì mới trong 2.1.x
 
 - **2.1.9 — engine từ fpkg‑gui 0.6.8, kiểm tra gói, mẫu DLC, sửa lỗi khác ổ**: engine tự tạo lại mọi bảng PlayGo (1–255 khối, mặc định 100; giữ `playgo-chunk.dat` thì chỉ lấy số khối, tệp PlayGo hỏng bị bỏ thay vì làm dừng lượt tạo gói), ép DRM `"standard"` trong bộ nhớ, và công cụ hạ `requiredSystemSoftwareVersion` về SDK của game (`--keep-required-fw`). Mỗi gói tạo xong được engine kiểm tra: chữ ký CNT, toàn bộ bố cục PlayGo, NAPS, inode. Tuỳ chọn **kiểm tra đầy đủ** giải nén thử mọi tệp (`--full-verify`). Chế độ Giải nén gói có thêm nút **Kiểm tra nhanh / Kiểm tra đầy đủ** (`fpkg-cli verify --full`) và **Xuất mẫu DLC** cho gói DLC có dữ liệu (`sce_sys` + dự án `.gp5`, `fpkg-cli pkg-dlc-template`). Thư mục tạm khác ổ với nguồn hoặc thư mục xuất nay chạy được: gương chuyển sang thư mục tạm của hệ thống khi ổ không tạo được liên kết (exFAT/FAT32 trên Windows), ảnh giải nén được sửa tại chỗ, thư mục tạm đã chọn không còn bị đặt lại khi mở app, và ổ FAT32 được cảnh báo giới hạn 4 GB. Trên macOS, gói tạo qua ổ exFAT/FAT không còn lẫn tệp `._*`, và thư mục tạm có tên tiếng Việt lại xoá được.
@@ -81,6 +85,7 @@ Tải gói nén cho nền tảng của bạn từ trang [**Releases**](https://g
 
 - **macOS** — giải nén, lần đầu chạy hãy chuột phải `PSVIETHOA FPKG Builder.app` → chọn **Open** (Mở) (ứng dụng được ký ad‑hoc).
 - **Windows** — giải nén và chạy `PSVIETHOA FPKG Builder.exe`. SmartScreen có thể cảnh báo → chọn **Run anyway**.
+- **Linux** (x64 / arm64) — giải nén `.tar.gz`, chạy `app/PsViethoa.FpkgBuilder.App` (`./install-desktop-entry.sh` để thêm vào menu). Chế độ Sony SDK cần Wine của distro (`sudo apt install wine64` / `sudo dnf install wine` / `sudo pacman -S wine`); không có Wine thì dùng engine tích hợp. Ảnh đĩa được giải nén bằng bộ đọc .NET.
 
 Mỗi gói nén đều kèm sẵn công cụ dòng lệnh `fpkg-cli`.
 
@@ -152,6 +157,7 @@ dotnet test                                          # run the test suite
 
 scripts/publish-macos.sh osx-arm64 osx-x64           # dist/: .app + fpkg-cli + zip
 scripts/publish-windows.sh                           # dist/win-x64: .exe + fpkg-cli + zip
+scripts/publish-linux.sh linux-x64 linux-arm64       # dist/: app + fpkg-cli + sony-sdk tar.gz
 ```
 
 <details>

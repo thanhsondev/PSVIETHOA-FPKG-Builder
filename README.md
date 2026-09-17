@@ -40,6 +40,10 @@ Existing FPKG tooling for PS5 (`LibProsperoPkg.Gui`) is **Windows‑only WPF**. 
 
 > The result is a **debug FPKG** (FIH image, signed byte `0x00`) — it installs only on a **PS5 with debug mode enabled**.
 
+## What's new in 2.2
+
+- **2.2.0 — packages built by Sony's Publishing Tools, on macOS and Windows**: the new default build method runs the bundled `sdk-fpkg279-fixdss3` toolchain in three steps (it always sets DRM `standard`, drops the fake licence and the AMPR/PlayGo emulator modules, and recovers missing `pic*.png` splash screens from the `.dds` copies with the bundled `prospero-dds2png.exe`). It creates a flat GP5 project, then runs `prospero-pub-cmd img_create --oformat nwonly`, then converts the result to a `PLAINTEXT_NOAUTH` package; the conversion is a byte-identical C# port of the toolchain's Python script. On Windows the SDK runs natively (Visual C++ x64 is installed for you). On macOS it runs through a bundled, trimmed Wine (Apple Silicon needs Rosetta 2). A **Sony SDK** checkbox under the progress bar (on by default, CLI `--no-sony-sdk`) switches back to the built-in engine; while it is on, the engine-only options (presets, Kraken, PFS, PlayGo, SDK override…) are greyed out and the package type is fixed to Application + PLAINTEXT_NOAUTH, as in the toolkit. The GP5 the app writes is byte-identical to the toolkit script's (same file order — it decides the package layout), the `.gp5`, scenario and `-build-logs` stay next to the package like the toolkit leaves them, and no mirror folder is needed. The source needs a 96-byte `sce_sys/keystone`. The SDK stage has its own live progress bar.
+
 ## What's new in 2.1.x
 
 - **2.1.9 — engine from fpkg‑gui 0.6.8, package verification, DLC templates, cross‑drive fix**: the engine now regenerates every PlayGo table itself (1–255 chunks, default 100; only the counts are read from a kept `playgo-chunk.dat`, and broken PlayGo files are left out instead of stopping the build), forces DRM `"standard"` in memory, and the tool lowers `requiredSystemSoftwareVersion` to the game's SDK (`--keep-required-fw`). Every build is checked by the engine: CNT signature, the complete PlayGo layout, NAPS and inodes. An optional **full check** test-decompresses every file (`--full-verify`). Extract PKG mode gains **Quick check / Full check** buttons (`fpkg-cli verify --full`) and **Export DLC template** for DLC packages with data (`sce_sys` + a `.gp5` project, `fpkg-cli pkg-dlc-template`). A temporary folder on a different drive from the source or output now works: the mirror falls back to the system temp folder when the drive cannot hold links (exFAT/FAT32 on Windows), extracted images are patched in place, a chosen temp folder is no longer reset at startup, and FAT32 drives get a 4 GB warning. On macOS, packages built through an exFAT/FAT drive no longer contain `._*` files, and temporary folders with accented names are removed again.
@@ -81,6 +85,7 @@ Grab the archive for your platform from the [**Releases**](https://github.com/th
 
 - **macOS** — unzip, then right‑click `PSVIETHOA FPKG Builder.app` → **Open** the first time (the app is ad‑hoc signed).
 - **Windows** — unzip and run `PSVIETHOA FPKG Builder.exe`. SmartScreen may prompt → **Run anyway**.
+- **Linux** (x64 / arm64) — extract the `.tar.gz` and run `app/PsViethoa.FpkgBuilder.App` (`./install-desktop-entry.sh` adds a menu entry). The Sony SDK build method needs your distribution's Wine (`sudo apt install wine64` / `sudo dnf install wine` / `sudo pacman -S wine`); without it the built-in engine is used. Disk images are extracted with the pure-.NET reader.
 
 Each archive also contains the `fpkg-cli` command‑line tool.
 
@@ -152,6 +157,7 @@ dotnet test                                          # run the test suite
 
 scripts/publish-macos.sh osx-arm64 osx-x64           # dist/: .app + fpkg-cli + zip
 scripts/publish-windows.sh                           # dist/win-x64: .exe + fpkg-cli + zip
+scripts/publish-linux.sh linux-x64 linux-arm64       # dist/: app + fpkg-cli + sony-sdk tar.gz
 ```
 
 <details>

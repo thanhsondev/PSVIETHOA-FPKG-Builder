@@ -74,6 +74,7 @@ public sealed class PackageExtractionFixture : IDisposable
 
             var request = new BuildRequest
             {
+                UseSonySdk = false,
                 SourcePath = Source,
                 OutputFolder = Path.Combine(Root, "out-" + mode),
                 TemporaryFolder = Path.Combine(Root, "tmp-" + mode),
@@ -384,6 +385,7 @@ public sealed class PackageExtractionTests : IClassFixture<PackageExtractionFixt
         Assert.True(File.Exists(Path.Combine(folder, "eboot.bin")));
         Assert.Empty(BuildPreparer.Validate(new BuildRequest
         {
+            UseSonySdk = false,
             SourcePath = folder,
             OutputFolder = TempFolder("sony-out"),
             ContentId = metadata.ContentId!,

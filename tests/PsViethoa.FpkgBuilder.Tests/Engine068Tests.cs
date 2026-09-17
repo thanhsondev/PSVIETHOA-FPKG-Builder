@@ -58,6 +58,7 @@ public sealed class Engine068Tests : IDisposable
 
     private BuildRequest Request(string source, string suffix, string contentId) => new()
     {
+        UseSonySdk = false,
         SourcePath = source,
         OutputFolder = Path.Combine(_root, "out-" + suffix),
         TemporaryFolder = Path.Combine(_root, "tmp-" + suffix),

@@ -29,6 +29,7 @@ public static class ComponentProbe
             Engine(),
             Keys(),
             new ComponentStatus("kraken", Loc.T("Comp.Kraken"), ComponentState.Ok, Loc.T("Comp.KrakenOk")),
+            SonySdk(),
             Oodle(publishingToolsPath),
             Mount(),
             SleepGuard(),
@@ -68,6 +69,25 @@ public static class ComponentProbe
         BuildEngine.KeysAvailable
             ? new ComponentStatus("keys", Loc.T("Comp.Keys"), ComponentState.Ok, Loc.T("Comp.KeysOk"))
             : new ComponentStatus("keys", Loc.T("Comp.Keys"), ComponentState.Missing, Loc.T("Comp.KeysMissing"));
+
+    private static ComponentStatus SonySdk()
+    {
+        var runtime = SonySdkToolchain.Resolve(out var problem);
+        if (runtime == null)
+        {
+            return new ComponentStatus("sony-sdk", Loc.T("Comp.Sdk"), ComponentState.Missing, Loc.F("Comp.SdkUnavailable", problem ?? "?"));
+        }
+
+        if (runtime.UsesWine)
+        {
+            var wine = SonySdkToolchain.WineVersion(runtime.WinePath!) ?? runtime.WinePath!;
+            return new ComponentStatus("sony-sdk", Loc.T("Comp.Sdk"), ComponentState.Ok, Loc.F("Comp.SdkWineOk", runtime.Directory, wine));
+        }
+
+        return SonySdkToolchain.VcRuntimeInstalled
+            ? new ComponentStatus("sony-sdk", Loc.T("Comp.Sdk"), ComponentState.Ok, Loc.F("Comp.SdkOk", runtime.Directory))
+            : new ComponentStatus("sony-sdk", Loc.T("Comp.Sdk"), ComponentState.Warning, Loc.F("Comp.SdkVcMissing", runtime.Directory));
+    }
 
     private static ComponentStatus Oodle(string? explicitPath)
     {
@@ -122,8 +142,13 @@ public static class ComponentProbe
                 : new ComponentStatus("sleep", Loc.T("Comp.Sleep"), ComponentState.Warning, Loc.T("Comp.SleepMissing"));
         }
 
-        return OperatingSystem.IsWindows()
-            ? new ComponentStatus("sleep", Loc.T("Comp.Sleep"), ComponentState.Ok, Loc.T("Comp.SleepWindows"))
+        if (OperatingSystem.IsWindows())
+        {
+            return new ComponentStatus("sleep", Loc.T("Comp.Sleep"), ComponentState.Ok, Loc.T("Comp.SleepWindows"));
+        }
+
+        return OperatingSystem.IsLinux() && File.Exists(SleepInhibitor.SystemdInhibitPath)
+            ? new ComponentStatus("sleep", Loc.T("Comp.Sleep"), ComponentState.Ok, Loc.T("Comp.SleepSystemd"))
             : new ComponentStatus("sleep", Loc.T("Comp.Sleep"), ComponentState.NotApplicable, Loc.T("Comp.SleepMissing"));
     }
 }

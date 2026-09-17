@@ -133,6 +133,19 @@ public sealed class ParamJsonPatch : IDisposable
             return null;
         }
 
+        var applied = ApplyTo(node, options);
+        if (applied.Count == 0)
+        {
+            return null;
+        }
+
+        changes = applied;
+        return JsonSerializer.SerializeToUtf8Bytes(node, WriteOptions);
+    }
+
+    /// <summary>Áp các sửa đổi lên cây JSON tại chỗ; trả về mô tả (đã dịch) của từng thay đổi thật sự xảy ra.</summary>
+    public static IReadOnlyList<string> ApplyTo(JsonObject node, ParamJsonPatchOptions options)
+    {
         var applied = new List<string>();
         if (options.ForceStandardDrm)
         {
@@ -165,13 +178,7 @@ public sealed class ParamJsonPatch : IDisposable
             applied.Add(Loc.F("Plan.PatchRequiredFw", FormatFirmware(required), FormatFirmware(target)));
         }
 
-        if (applied.Count == 0)
-        {
-            return null;
-        }
-
-        changes = applied;
-        return JsonSerializer.SerializeToUtf8Bytes(node, WriteOptions);
+        return applied;
     }
 
     /// <summary>Có thay đổi nào sẽ được áp dụng lên nội dung param.json này không (dùng để quyết định gắn hay giải nén ảnh).</summary>

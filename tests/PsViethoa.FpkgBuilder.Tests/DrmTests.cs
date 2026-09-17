@@ -78,6 +78,7 @@ public sealed class DrmTests : IDisposable
         var log = new List<LogEntry>();
         var outcome = await new BuildEngine().BuildAsync(new BuildRequest
         {
+            UseSonySdk = false,
             SourcePath = app,
             OutputFolder = Path.Combine(_root, "out-" + expected),
             TemporaryFolder = Path.Combine(_root, "tmp-" + expected),

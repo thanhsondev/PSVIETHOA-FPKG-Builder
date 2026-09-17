@@ -39,7 +39,11 @@ SetCompressor /SOLID lzma
 SetCompressorDictSize 64
 BrandingText "PSVIETHOA — Nguyễn Thanh Sơn & Ngô Phi Phương · Main project: Drakmor"
 
-VIProductVersion "${VERSION}.0"
+; Phiên bản dạng số cho VIProductVersion (bản test có hậu tố như 2.2.0-test2 thì bỏ hậu tố).
+!ifndef VERSION_NUMERIC
+  !define VERSION_NUMERIC "${VERSION}"
+!endif
+VIProductVersion "${VERSION_NUMERIC}.0"
 VIAddVersionKey "ProductName" "${APPNAME}"
 VIAddVersionKey "ProductVersion" "${VERSION}"
 VIAddVersionKey "FileVersion" "${VERSION}"
@@ -78,6 +82,10 @@ LangString DokanInstalling ${LANG_VIETNAMESE} "Đang bật gắn ảnh trực ti
 LangString DokanInstalling ${LANG_ENGLISH} "Enabling direct image mounting (installing the bundled Dokan driver)…"
 LangString DokanFailed ${LANG_VIETNAMESE} "Không cài được driver Dokan (mã lỗi msiexec bên dưới). Ứng dụng vẫn chạy bình thường: ảnh sẽ được giải nén thay vì gắn; bạn có thể bật lại trong Tuỳ chọn nâng cao."
 LangString DokanFailed ${LANG_ENGLISH} "The Dokan driver could not be installed (msiexec code below). The app still works: images will be extracted instead of mounted; you can enable it again in the advanced options."
+LangString VcPresent ${LANG_VIETNAMESE} "Visual C++ 2015-2022 x64 đã có sẵn — bỏ qua."
+LangString VcPresent ${LANG_ENGLISH} "Visual C++ 2015-2022 x64 already present — skipping."
+LangString VcInstalling ${LANG_VIETNAMESE} "Đang cài Visual C++ 2015-2022 x64 cho SDK Sony…"
+LangString VcInstalling ${LANG_ENGLISH} "Installing Visual C++ 2015-2022 x64 for the Sony SDK…"
 LangString UninstallNote ${LANG_VIETNAMESE} "Sẽ gỡ ${APPNAME} khỏi máy. Driver Dokan (dùng chung cho nhiều ứng dụng) được giữ lại; gỡ riêng trong Ứng dụng & tính năng nếu không cần nữa."
 LangString UninstallNote ${LANG_ENGLISH} "${APPNAME} will be removed. The Dokan driver (shared by other apps) is kept; remove it separately from Apps & features if you no longer need it."
 
@@ -149,6 +157,23 @@ Section "-Dokan"
       MessageBox MB_ICONEXCLAMATION|MB_OK "$(DokanFailed)$\r$\n$\r$\nmsiexec: $0"
     ${Else}
       DetailPrint "Dokan: OK"
+    ${EndIf}
+  ${EndIf}
+  ${EnableX64FSRedirection}
+SectionEnd
+
+; Visual C++ 2015-2022 x64 cho SDK Sony (prospero-pub-cmd.exe): cài im lặng nếu System32 thật chưa có msvcp140.dll / vcruntime140_1.dll.
+Section "-VcRedist"
+  ${DisableX64FSRedirection}
+  ${If} ${FileExists} "$SYSDIR\msvcp140.dll"
+  ${AndIf} ${FileExists} "$SYSDIR\vcruntime140_1.dll"
+    DetailPrint "$(VcPresent)"
+  ${ElseIf} ${FileExists} "$INSTDIR\redist\vc_redist.x64.exe"
+    DetailPrint "$(VcInstalling)"
+    ExecWait '"$INSTDIR\redist\vc_redist.x64.exe" /install /quiet /norestart' $0
+    DetailPrint "vc_redist: exit $0"
+    ${If} $0 = 3010
+      SetRebootFlag true
     ${EndIf}
   ${EndIf}
   ${EnableX64FSRedirection}

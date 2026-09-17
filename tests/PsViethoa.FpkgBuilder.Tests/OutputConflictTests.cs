@@ -107,6 +107,7 @@ public sealed class OutputConflictTests : IDisposable
 
         var request = new BuildRequest
         {
+            UseSonySdk = false,
             SourcePath = source,
             OutputFolder = Path.Combine(_root, "out"),
             TemporaryFolder = Path.Combine(_root, "tmp"),

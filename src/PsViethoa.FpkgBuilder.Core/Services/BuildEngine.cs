@@ -60,6 +60,30 @@ public sealed class BuildEngine
         await Task.Run(() => ResolveOutputConflict(normalized.OutputFolder, normalized.ContentId, onOutputConflict, log, cancellationToken), cancellationToken)
             .ConfigureAwait(false);
 
+        // SDK Sony (chuẩn mới, mặc định bật): chỉ gói ứng dụng lớp ngoài không mã hoá dựng từ thư mục/ảnh. Không dùng được
+        // (thiếu bộ công cụ / Wine / Rosetta, hoặc loại gói khác) thì ghi lý do và tạo bằng engine tích hợp như trước.
+        SonySdkRuntime? sdkRuntime = null;
+        string? sdkUnavailable = null;
+        var sdkNotApplicable = false;
+        if (normalized.UseSonySdk)
+        {
+            if (SonySdkBuilder.Supports(normalized, source, out var unsupported))
+            {
+                sdkRuntime = SonySdkToolchain.Resolve(out sdkUnavailable);
+            }
+            else
+            {
+                sdkUnavailable = unsupported;
+                sdkNotApplicable = true;
+            }
+
+            if (sdkRuntime != null)
+            {
+                await Task.Run(() => RequireKeystone(source), cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        normalized.SonySdkActive = sdkRuntime != null;
         var backend = BuildPreparer.ResolveBackend(normalized, out var publishingToolsPath);
         var strategy = source.IsExFat
             ? await Task.Run(() => DecideStrategy(normalized, source, log), cancellationToken).ConfigureAwait(false)
@@ -69,8 +93,24 @@ public sealed class BuildEngine
             : source.IsUfs ? PhaseCatalog.Extract : null;
 
         var stopwatch = Stopwatch.StartNew();
-        var tracker = new ProgressTracker(stopwatch, PhaseCatalog.Sequence(normalized.ComputeSha256, exFatPhase, normalized.FullVerify));
-        LogPlan(normalized, source, project, backend, publishingToolsPath, log);
+        var tracker = new ProgressTracker(stopwatch, PhaseCatalog.Sequence(normalized.ComputeSha256, exFatPhase, normalized.FullVerify, sdkRuntime != null));
+        LogPlan(normalized, source, project, backend, publishingToolsPath, sdkRuntime != null, log);
+        if (sdkRuntime != null)
+        {
+            log(new LogEntry(LogLevel.Success, Loc.F("Sdk.PlanOn", SonySdkToolchain.Profile, sdkRuntime.Directory)));
+            log(normalized.SdkCompressionLevel is { } sdkLevel
+                ? new LogEntry(LogLevel.Warning, Loc.F("Sdk.PlanLevelCustom", sdkLevel))
+                : new LogEntry(LogLevel.Info, Loc.T("Sdk.PlanLevel")));
+        }
+        else if (normalized.UseSonySdk)
+        {
+            // Loại gói SDK không làm (DLC, homebrew, ảnh Native, dự án GP5) là lựa chọn của người dùng → thông tin; thiếu bộ công cụ → cảnh báo.
+            log(new LogEntry(sdkNotApplicable ? LogLevel.Info : LogLevel.Warning, Loc.F("Sdk.PlanFallback", sdkUnavailable ?? "?")));
+        }
+        else
+        {
+            log(new LogEntry(LogLevel.Info, Loc.T("Sdk.PlanOff")));
+        }
         progress?.Report(tracker.Current);
 
         using var sleepGuard = normalized.PreventSleep ? SleepInhibitor.TryAcquire() : null;
@@ -168,6 +208,17 @@ public sealed class BuildEngine
 
             cancellationToken.ThrowIfCancellationRequested();
 
+            // SDK Sony: GP5 phẳng trỏ thẳng vào từng tệp nguồn (như build-from-folder.ps1 với --absolute-paths), nên không cần
+            // thư mục gương — tệp cần bỏ chỉ việc không liệt kê, param.json đã sửa trỏ sang bản trong thư mục tạm. Ổ ảo Dokan đã
+            // tự ẩn tệp và đè param.json khi gắn nên dùng nguyên như script gốc.
+            if (sdkRuntime != null)
+            {
+                var plan = mount is { Backend: MountBackend.Dokan }
+                    ? SonySdkSourcePlan.Pure with { ParamPatch = normalized.ParamPatch, PlayGo = await Task.Run(() => ReadPlayGoStructure(sourceFolder, normalized, log), cancellationToken).ConfigureAwait(false) }
+                    : await Task.Run(() => PlanSonySdkSource(normalized, sourceFolder, log), cancellationToken).ConfigureAwait(false);
+                return await BuildWithSonySdkAsync(normalized, sdkRuntime, sourceFolder, plan, tracker, stopwatch, log, progress, cancellationToken).ConfigureAwait(false);
+            }
+
             // Bỏ tệp khỏi gói (playgo*, tàn dư AMPR emu, bộ giả lập DLC khi được chọn) và sửa param.json — làm trên một thư mục
             // gương trong thư mục tạm, KHÔNG bao giờ chạm vào thư mục nguồn, ảnh hay tệp .gp5 của người dùng.
             //
@@ -225,13 +276,170 @@ public sealed class BuildEngine
                 cancellationToken).ConfigureAwait(false);
 
             cancellationToken.ThrowIfCancellationRequested();
+            var warnings = result.Warnings is { } list ? list.ToArray() : Array.Empty<string>();
+            return await VerifyOutputAsync(normalized, result.OutputPath, warnings, tracker, stopwatch, log, progress, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (mount != null)
+            {
+                await Task.Run(mount.Dispose).ConfigureAwait(false);
+                log(new LogEntry(LogLevel.Info, Loc.T("Plan.Unmounted")));
+            }
 
+            if (staging != null)
+            {
+                await Task.Run(() => TryDeleteDirectory(staging)).ConfigureAwait(false);
+                log(new LogEntry(LogLevel.Info, Loc.T("Plan.StagingRemoved")));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Kế hoạch bỏ tệp cho GP5 của SDK Sony — cùng quy tắc với thư mục gương của engine (bộ giả lập DLC khi bỏ, tệp rác), trừ
+    /// bộ playgo*, ampr_emu.index và hai module giả lập trong fakelib vì script gốc (fixdss3) tự loại; param.json được script
+    /// chuẩn hoá (DRM standard) rồi công cụ áp thêm các sửa đổi tuỳ chọn. Thư mục nguồn chỉ được đọc.
+    /// </summary>
+    private static SonySdkSourcePlan PlanSonySdkSource(BuildRequest request, string appFolder, Action<LogEntry> log)
+    {
+        var skip = new HashSet<string>(
+            FolderCleanupPaths(request, appFolder)
+                .Where(path => !PlayGoCleanup.IsCandidate(path))
+                .Where(path => SonySdkProject.SkipReason(path, new HashSet<string>(StringComparer.OrdinalIgnoreCase)) == null),
+            StringComparer.OrdinalIgnoreCase);
+        LogCleanup(skip.ToList(), Array.Empty<string>(), log);
+
+        var playgo = PlayGoCleanup.ListFolder(appFolder);
+        var structure = ReadPlayGoStructure(appFolder, request, log);
+        if (playgo.Count > 0)
+        {
+            // Bảng playgo* của nguồn không bao giờ đưa thẳng vào gói (SDK từ chối); nhiều chunk thì SDK tạo lại theo cấu trúc giữ trong GP5.
+            log(new LogEntry(LogLevel.Info, structure == null
+                ? Loc.F("Sdk.PlayGoRegenerated", PlayGoCleanup.Describe(playgo))
+                : structure.SupportedLanguageMask == 0
+                    ? Loc.F("Sdk.PlayGoRebuiltFallback", PlayGoCleanup.Describe(playgo))
+                    : Loc.F("Sdk.PlayGoRebuilt", PlayGoCleanup.Describe(playgo), structure.Chunks.Count, structure.Scenarios.Count)));
+        }
+
+        return new SonySdkSourcePlan(skip, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), SkipJunk: true, request.ParamPatch, structure);
+    }
+
+    /// <summary>
+    /// Cấu trúc PlayGo của gói gốc để giữ lại trong GP5 (nhiều chunk = các gói ngôn ngữ thoại). Chỉ 1 chunk / 1 kịch bản thì
+    /// null (script gốc đã đúng). Tệp hỏng thì cảnh báo và dùng 1 chunk. Nguồn không còn bảng (hoặc bảng hỏng) và người dùng bật
+    /// "PlayGo dự phòng" thì dùng <see cref="SonySdkPlayGo.Fallback"/> (N chunk như engine tích hợp, số kịch bản của nguồn).
+    /// </summary>
+    private static PlayGoStructure? ReadPlayGoStructure(string appFolder, BuildRequest request, Action<LogEntry> log)
+    {
+        var sceSys = Path.Combine(appFolder, "sce_sys");
+        var structure = SonySdkPlayGo.TryRead(sceSys, out var problem);
+        if (structure == null)
+        {
+            if (problem != null)
+            {
+                log(new LogEntry(LogLevel.Warning, Loc.F("Sdk.PlayGoStructureInvalid", problem)));
+            }
+
+            if (request.SdkPlayGoFallback)
+            {
+                var scenarios = SonySdkPlayGo.SourceScenarioCount(sceSys);
+                var fallback = SonySdkPlayGo.Fallback(request.PlayGoChunks, scenarios ?? 1);
+                if (!fallback.IsTrivial)
+                {
+                    log(new LogEntry(LogLevel.Warning, Loc.F("Sdk.PlayGoFallback", fallback.Chunks.Count, fallback.Scenarios.Count, scenarios.HasValue ? Loc.T("Sdk.PlayGoFallbackScenarios") : string.Empty)));
+                    return fallback;
+                }
+            }
+
+            return null;
+        }
+
+        if (structure.IsTrivial)
+        {
+            return null;
+        }
+
+        var languages = string.Join(", ", SonySdkPlayGo.Codes(structure.SupportedLanguageMask));
+        var languageChunks = structure.Chunks.Count(chunk => chunk.LanguageMask != structure.SupportedLanguageMask);
+        log(new LogEntry(LogLevel.Info, Loc.F("Sdk.PlayGoStructure", structure.Chunks.Count, structure.Scenarios.Count, languageChunks, languages, structure.FileChunks.Count)));
+        return structure;
+    }
+
+    /// <summary>Bản param.json đã áp các sửa đổi của lượt này (DRM, versionFileUri, attribute3, hạ firmware), null khi không đổi gì.</summary>
+    private static byte[]? PatchedParamJson(BuildRequest request, string appFolder, Action<LogEntry> log)
+    {
+        var paramJson = Path.Combine(appFolder, "sce_sys", "param.json");
+        if (!(request.ParamPatch.Any || request.ForceStandardDrm) || !File.Exists(paramJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            var original = File.ReadAllBytes(paramJson);
+            LogDrmOverride(request, original, log);
+            if (request.ParamPatch.Any && ParamJsonPatch.Rewrite(original, request.ParamPatch, out var changes) is { } patched)
+            {
+                foreach (var change in changes)
+                {
+                    log(new LogEntry(LogLevel.Info, change));
+                }
+
+                return patched;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
+        {
+            log(new LogEntry(LogLevel.Warning, Loc.F("Plan.ParamPatchFailed", ex.Message)));
+        }
+
+        return null;
+    }
+
+    /// <summary>Tạo gói bằng SDK Sony từ thư mục ứng dụng (thư mục nguồn / bản giải nén / ổ gắn), rồi kiểm tra như thường lệ.</summary>
+    private static async Task<BuildOutcome> BuildWithSonySdkAsync(
+        BuildRequest request,
+        SonySdkRuntime runtime,
+        string appFolder,
+        SonySdkSourcePlan plan,
+        ProgressTracker tracker,
+        Stopwatch stopwatch,
+        Action<LogEntry> log,
+        IProgress<BuildProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        var result = await SonySdkBuilder.BuildAsync(
+            runtime,
+            request,
+            appFolder,
+            plan,
+            log,
+            (phase, percent, detail) => progress?.Report(tracker.Report(phase, percent, detail)),
+            cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        var outcome = await VerifyOutputAsync(request, result.OutputPath, result.Warnings.ToArray(), tracker, stopwatch, log, progress, cancellationToken).ConfigureAwait(false);
+        LogSdkVersionChange(appFolder, result.OutputPath, request.Passcode, log);
+        return outcome;
+    }
+
+    /// <summary>Kiểm tra cấu trúc (và SHA-256 nếu bật) rồi nội dung gói vừa tạo; gói hỏng thì ném lỗi thay vì báo thành công.</summary>
+    private static async Task<BuildOutcome> VerifyOutputAsync(
+        BuildRequest normalized,
+        string outputPath,
+        string[] warnings,
+        ProgressTracker tracker,
+        Stopwatch stopwatch,
+        Action<LogEntry> log,
+        IProgress<BuildProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        {
             log(new LogEntry(LogLevel.Info, Loc.T(normalized.ComputeSha256 ? "Plan.VerifyingSha" : "Plan.Verifying")));
             progress?.Report(tracker.EnterPhase(normalized.ComputeSha256 ? PhaseCatalog.Sha256 : PhaseCatalog.Verify));
 
             var verification = await Task.Run(
                 () => PackageVerifier.Verify(
-                    result.OutputPath,
+                    outputPath,
                     normalized.ImageMode,
                     normalized.ComputeSha256,
                     cancellationToken,
@@ -257,7 +465,7 @@ public sealed class BuildEngine
 
             var contents = await Task.Run(
                 () => PackageVerifier.VerifyContents(
-                    result.OutputPath,
+                    outputPath,
                     normalized.Passcode,
                     normalized.FullVerify,
                     cancellationToken,
@@ -283,23 +491,78 @@ public sealed class BuildEngine
 
             stopwatch.Stop();
             progress?.Report(tracker.Complete());
-
-            var warnings = result.Warnings is { } list ? list.ToArray() : Array.Empty<string>();
-            return new BuildOutcome(result.OutputPath, warnings, verification, stopwatch.Elapsed);
+            return new BuildOutcome(outputPath, warnings, verification, stopwatch.Elapsed);
         }
-        finally
+    }
+
+    /// <summary>
+    /// Nguồn phải có sce_sys/keystone đúng 96 byte — bộ công cụ SDK dừng hẳn khi thiếu (giống build-from-folder.ps1). Kiểm tra
+    /// trước khi giải nén/gắn ảnh để khỏi chờ vô ích; ảnh không đọc được ở đây thì để bước tạo GP5 kiểm tra lại.
+    /// </summary>
+    private static void RequireKeystone(SourceInfo source)
+    {
+        long? length = null;
+        var known = false;
+        try
         {
-            if (mount != null)
+            if (source.IsExFat)
             {
-                await Task.Run(mount.Dispose).ConfigureAwait(false);
-                log(new LogEntry(LogLevel.Info, Loc.T("Plan.Unmounted")));
+                using var image = ExFatImage.Open(source.Path);
+                var entry = image.Find(SonySdkProject.KeystonePath, SourceLocator.ResolveAppRoot(image, source));
+                length = entry is { IsDirectory: false } ? entry.Length : null;
+                known = true;
+            }
+            else if (source.IsUfs)
+            {
+                using var image = UfsImage.Open(source.Path);
+                var entry = image.Find(SonySdkProject.KeystonePath, SourceLocator.ResolveAppRoot(image, source));
+                length = entry is { IsDirectory: false } ? entry.Length : null;
+                known = true;
+            }
+            else if (!source.IsGp5)
+            {
+                SonySdkProject.HasValidKeystone(source.Path, out length);
+                known = true;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+        }
+
+        if (known && length != SonySdkProject.KeystoneLength)
+        {
+            var message = length == null
+                ? Loc.F("Sdk.KeystoneMissing", SonySdkProject.KeystonePath)
+                : Loc.F("Sdk.KeystoneLength", length, SonySdkProject.KeystoneLength);
+            throw new BuildValidationException([new ValidationError(BuildPreparer.FieldSource, message + " " + Loc.T("Sdk.KeystoneHint"))]);
+        }
+    }
+
+    /// <summary>Ghi chú khi SDK Sony ghi sdkVersion / requiredSystemSoftwareVersion khác với param.json của nguồn.</summary>
+    private static void LogSdkVersionChange(string appFolder, string outputPath, string passcode, Action<LogEntry> log)
+    {
+        try
+        {
+            var sourceParams = PackageInspector.ParseParamJson(File.ReadAllBytes(Path.Combine(appFolder, "sce_sys", "param.json")));
+            var output = PackageInspector.Inspect(outputPath, passcode, CancellationToken.None).Params;
+            if (output == null)
+            {
+                return;
             }
 
-            if (staging != null)
+            if (!string.Equals(sourceParams.SdkVersion, output.SdkVersion, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(sourceParams.RequiredSystemSoftwareVersion, output.RequiredSystemSoftwareVersion, StringComparison.OrdinalIgnoreCase))
             {
-                await Task.Run(() => TryDeleteDirectory(staging)).ConfigureAwait(false);
-                log(new LogEntry(LogLevel.Info, Loc.T("Plan.StagingRemoved")));
+                log(new LogEntry(LogLevel.Warning, Loc.F(
+                    "Sdk.VersionChanged",
+                    sourceParams.SdkVersion ?? "—",
+                    output.SdkVersion ?? "—",
+                    sourceParams.RequiredSystemSoftwareVersion ?? "—",
+                    output.RequiredSystemSoftwareVersion ?? "—")));
             }
+        }
+        catch (Exception)
+        {
         }
     }
 
@@ -380,25 +643,9 @@ public sealed class BuildEngine
         }
         var replace = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         var paramJson = System.IO.Path.Combine(appFolder, "sce_sys", "param.json");
-        if ((request.ParamPatch.Any || request.ForceStandardDrm) && File.Exists(paramJson))
+        if (PatchedParamJson(request, appFolder, log) is { } patchedParam)
         {
-            try
-            {
-                var original = File.ReadAllBytes(paramJson);
-                LogDrmOverride(request, original, log);
-                if (request.ParamPatch.Any && ParamJsonPatch.Rewrite(original, request.ParamPatch, out var changes) is { } patched)
-                {
-                    replace["sce_sys/param.json"] = patched;
-                    foreach (var change in changes)
-                    {
-                        log(new LogEntry(LogLevel.Info, change));
-                    }
-                }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
-            {
-                log(new LogEntry(LogLevel.Warning, Loc.F("Plan.ParamPatchFailed", ex.Message)));
-            }
+            replace["sce_sys/param.json"] = patchedParam;
         }
 
         if (request.KeepDlcEmu && File.Exists(System.IO.Path.Combine(appFolder, DlcEmuInspector.ConfigName)))
@@ -580,7 +827,11 @@ public sealed class BuildEngine
                 }
             }
 
-            if (request.RemovePlayGoFiles)
+            if (request.SonySdkActive)
+            {
+                // SDK Sony: script gốc tự loại playgo*, và bảng playgo-chunk.dat còn cần đọc để giữ cấu trúc chunk của gói gốc.
+            }
+            else if (request.RemovePlayGoFiles)
             {
                 var playgo = PlayGoCleanup.ListImage(image, appRoot);
                 paths.AddRange(playgo);
@@ -629,7 +880,8 @@ public sealed class BuildEngine
     /// <summary>Ghi nhật ký khi engine sẽ đổi applicationDrmType của nguồn sang "standard" (việc đổi do engine làm trong bộ nhớ).</summary>
     private static void LogDrmOverride(BuildRequest request, byte[] paramJson, Action<LogEntry> log)
     {
-        if (request.ForceStandardDrm && request.Kind == PackageKind.Application &&
+        // SDK Sony: DRM được sửa thẳng trong param.json (ParamPatch) và dòng nhật ký đó đã có — tránh ghi hai lần.
+        if (request.ForceStandardDrm && request.Kind == PackageKind.Application && !request.ParamPatch.ForceStandardDrm &&
             ParamJsonPatch.ReadDrmType(paramJson) is { } drm && ParamJsonPatch.NeedsDrmRewrite(drm))
         {
             log(new LogEntry(LogLevel.Info, Loc.F("Plan.PatchDrm", drm, ParamJsonPatch.StandardDrm)));
@@ -802,7 +1054,7 @@ public sealed class BuildEngine
         return Loc.F("Plan.Pfs", request.PfsFormat == PfsFormat.V3 ? "v3" : "v2", request.KrakenBlockKiB, shuffle, Loc.T(request.LayoutOptimization ? "Common.On" : "Common.Off"));
     }
 
-    private static void LogPlan(BuildRequest request, SourceInfo source, Gp5ProjectInfo? project, KrakenBackendKind backend, string? publishingToolsPath, Action<LogEntry> log)
+    private static void LogPlan(BuildRequest request, SourceInfo source, Gp5ProjectInfo? project, KrakenBackendKind backend, string? publishingToolsPath, bool sonySdk, Action<LogEntry> log)
     {
         log(new LogEntry(LogLevel.Success, Loc.T("Plan.Start")));
         log(new LogEntry(LogLevel.Info, source.IsGp5
@@ -829,6 +1081,25 @@ public sealed class BuildEngine
         log(new LogEntry(LogLevel.Info, Loc.F("Plan.ContentId", request.ContentId)));
         log(new LogEntry(LogLevel.Info, Loc.F("Plan.Version", request.Version)));
         log(new LogEntry(LogLevel.Info, Loc.F("Plan.Kind", request.Kind, request.ImageMode)));
+
+        // SDK Sony: mức nén, PFS, PlayGo, SDK và bản dựng xác định là của Publishing Tools — các tuỳ chọn engine không áp dụng nên không ghi.
+        if (sonySdk)
+        {
+            log(new LogEntry(LogLevel.Info, Loc.T(request.ForceStandardDrm ? "Plan.DrmPolicySdk" : "Plan.DrmPolicyOff")));
+            if (request.ClearVersionFileUri)
+            {
+                log(new LogEntry(LogLevel.Info, Loc.T("Plan.VersionUriPolicy")));
+            }
+
+            if (request.ClearPlayGoAttributes)
+            {
+                log(new LogEntry(LogLevel.Warning, Loc.T("Plan.Attribute3Policy")));
+            }
+
+            log(new LogEntry(LogLevel.Info, Loc.T(request.FullVerify ? "Plan.VerifyPolicyFull" : "Plan.VerifyPolicyQuick")));
+            log(new LogEntry(LogLevel.Info, Loc.T(request.ComputeSha256 ? "Plan.ShaOn" : "Plan.ShaOff")));
+            return;
+        }
 
         var workers = request.Threads == 0 ? Math.Max(1, Environment.ProcessorCount) : request.Threads;
         switch (backend)

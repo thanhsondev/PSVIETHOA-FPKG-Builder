@@ -33,11 +33,28 @@ public static partial class PhaseCatalog
     /// <summary>Kiểm tra đầy đủ: giải mã + giải nén thử mọi tệp (engine VerifyPackageFull) — lâu ngang một lượt đọc hết gói.</summary>
     public static readonly BuildPhase VerifyFull = new("verify-full", 8, 10);
 
+    /// <summary>SDK Sony: chuẩn bị môi trường chạy (Wine / Visual C++) — lần đầu tạo WINEPREFIX mất vài chục giây.</summary>
+    public static readonly BuildPhase SdkRuntime = new("sdk-runtime", 1.5, 0);
+
+    /// <summary>SDK Sony [1/3]: tạo dự án GP5 từ thư mục.</summary>
+    public static readonly BuildPhase SdkProject = new("sdk-project", 0.5, 1);
+
+    /// <summary>SDK Sony [2/3] chuẩn bị (Windows): mở trước song song mọi tệp nguồn để Defender quét song song (<see cref="SonySdkPrescan"/>).</summary>
+    public static readonly BuildPhase SdkPrescan = new("sdk-prescan", 3, 2);
+
+    /// <summary>SDK Sony [2/3]: Publishing Tools nén và ghi gói thô (gần như toàn bộ thời gian).</summary>
+    public static readonly BuildPhase SdkImage = new("sdk-image", 90, 3);
+
+    /// <summary>SDK Sony [3/3]: chuyển gói thô sang PLAINTEXT_NOAUTH (sửa tại chỗ, vài trăm ms).</summary>
+    public static readonly BuildPhase SdkConvert = new("sdk-convert", 1, 4);
+
+    public static IReadOnlyList<BuildPhase> SonySdkPhases { get; } = [SdkRuntime, SdkProject, SdkPrescan, SdkImage, SdkConvert];
+
     public static IReadOnlyList<BuildPhase> LibraryPhases { get; } =
         [Prepare, InnerRead, InnerData, Layout, Naps, Outer, Keys, Cnt, Finalize];
 
     /// <summary>Chuỗi giai đoạn đầy đủ cho một lần tạo gói (kèm bước chuẩn bị ảnh exFAT và kiểm tra của ứng dụng).</summary>
-    public static IReadOnlyList<BuildPhase> Sequence(bool computeSha256, BuildPhase? exFatPhase = null, bool fullVerify = false)
+    public static IReadOnlyList<BuildPhase> Sequence(bool computeSha256, BuildPhase? exFatPhase = null, bool fullVerify = false, bool sonySdk = false)
     {
         var list = new List<BuildPhase>(LibraryPhases.Count + 3);
         if (exFatPhase != null)
@@ -45,7 +62,7 @@ public static partial class PhaseCatalog
             list.Add(exFatPhase);
         }
 
-        list.AddRange(LibraryPhases);
+        list.AddRange(sonySdk ? SonySdkPhases : LibraryPhases);
         if (computeSha256)
         {
             list.Add(Sha256);

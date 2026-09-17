@@ -152,6 +152,7 @@ public sealed class Gp5Tests : IDisposable
     {
         var request = new BuildRequest
         {
+            UseSonySdk = false,
             SourcePath = Project("rel.gp5"),
             OutputFolder = Path.Combine(_root, "rel-pkg"),
             TemporaryFolder = Path.Combine(_root, "tmp"),
@@ -210,6 +211,7 @@ public sealed class Gp5Tests : IDisposable
 
         var request = new BuildRequest
         {
+            UseSonySdk = false,
             SourcePath = Project("rel.gp5"),
             OutputFolder = Path.Combine(_root, "rel-pkg"),
             TemporaryFolder = Path.Combine(_root, "tmp"),

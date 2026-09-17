@@ -139,6 +139,7 @@ public sealed class AmprTests : IDisposable
         var output = Path.Combine(_root, "out");
         var request = new BuildRequest
         {
+            UseSonySdk = false,
             SourcePath = folder,
             OutputFolder = output,
             TemporaryFolder = Path.Combine(_root, "tmp"),

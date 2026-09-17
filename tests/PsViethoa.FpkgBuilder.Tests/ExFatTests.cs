@@ -218,6 +218,7 @@ public sealed class ExFatTests : IDisposable
 
         var request = new BuildRequest
         {
+            UseSonySdk = false,
             SourcePath = Fixture("small-bare.exfat"),
             OutputFolder = Path.Combine(_root, "out"),
             TemporaryFolder = Path.Combine(_root, "tmp"),
@@ -257,6 +258,7 @@ public sealed class ExFatTests : IDisposable
 
         var request = new BuildRequest
         {
+            UseSonySdk = false,
             SourcePath = Fixture("small-bare.exfat"),
             OutputFolder = Path.Combine(_root, "out-v3"),
             TemporaryFolder = Path.Combine(_root, "tmp-v3"),
@@ -285,6 +287,7 @@ public sealed class ExFatTests : IDisposable
 
         var request = new BuildRequest
         {
+            UseSonySdk = false,
             SourcePath = Fixture("small-mbr.exfat"),
             OutputFolder = Path.Combine(_root, "out-mount"),
             TemporaryFolder = Path.Combine(_root, "tmp-mount"),
@@ -316,6 +319,7 @@ public sealed class ExFatTests : IDisposable
 
         var request = new BuildRequest
         {
+            UseSonySdk = false,
             SourcePath = Fixture("small-mbr.exfat"),
             OutputFolder = Path.Combine(_root, "out-mount-patch"),
             TemporaryFolder = Path.Combine(_root, "tmp-mount-patch"),

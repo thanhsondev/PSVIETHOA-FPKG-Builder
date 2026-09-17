@@ -109,6 +109,7 @@ public sealed class SourceUntouchedTests : IDisposable
 
     private BuildRequest Request(string source, string suffix, string contentId) => new()
     {
+        UseSonySdk = false,
         SourcePath = source,
         OutputFolder = Path.Combine(_root, "out-" + suffix),
         TemporaryFolder = Path.Combine(_root, "tmp-" + suffix),
@@ -410,7 +411,14 @@ public sealed class SourceUntouchedTests : IDisposable
         Directory.CreateDirectory(Path.Combine(tree, "Thư mục có dấu"));
         File.WriteAllText(Path.Combine(tree, "Thư mục có dấu", "Tệp tên rất dài có dấu.txt".Normalize(System.Text.NormalizationForm.FormD)), "x");
         File.WriteAllText(Path.Combine(tree, "Tệp.txt"), "y");
-        Directory.CreateSymbolicLink(Path.Combine(tree, "link"), source);
+        try
+        {
+            Directory.CreateSymbolicLink(Path.Combine(tree, "link"), source);
+        }
+        catch (IOException) when (OperatingSystem.IsWindows())
+        {
+            // Windows chưa bật Developer Mode / không chạy quyền admin: không tạo được liên kết, vẫn thử phần xoá cây có dấu.
+        }
 
         Assert.True(RobustDelete.File(Path.Combine(tree, "Tệp.txt")));
         RobustDelete.Tree(tree);

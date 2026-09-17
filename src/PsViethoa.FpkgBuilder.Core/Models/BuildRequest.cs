@@ -121,7 +121,40 @@ public sealed class BuildRequest
     /// cần khi không chọn SDK riêng.
     /// </summary>
     public Services.ParamJsonPatchOptions ParamPatch =>
-        new(false, ClearVersionFileUri, ClearPlayGoAttributes, LowerRequiredFirmware && SdkMajorOverride is null);
+        new(SonySdkActive, ClearVersionFileUri, ClearPlayGoAttributes, LowerRequiredFirmware && SdkMajorOverride is null);
+
+    /// <summary>
+    /// Tạo gói bằng SDK Sony (Publishing Tools 2.79 đã vá, bộ công cụ sdk-fpkg729-fix) thay vì engine tích hợp. Mặc định bật.
+    /// Chạy trực tiếp trên Windows, qua Wine kèm theo trên macOS. Chỉ áp dụng cho gói ứng dụng dạng lớp ngoài không mã hoá; nguồn
+    /// phải có sce_sys/keystone 96 byte. Không dùng được (thiếu bộ công cụ / Wine) thì tạo bằng engine tích hợp.
+    /// </summary>
+    public bool UseSonySdk { get; set; } = true;
+
+    /// <summary>
+    /// SDK Sony trên Windows: mở trước song song mọi tệp nguồn (chỉ đọc) để Windows Defender quét song song trước khi Publishing
+    /// Tools kiểm tra tuần tự từng tệp (<see cref="Services.SonySdkPrescan"/>). Không đổi GP5 hay gói. Mặc định bật.
+    /// </summary>
+    public bool SdkPrescan { get; set; } = true;
+
+    /// <summary>
+    /// SDK Sony: mức nén truyền cho <c>img_create --compression_level</c> (-4..9). Null (mặc định) = không truyền, Publishing Tools
+    /// dùng mức 7 — đúng như bộ công cụ gốc. Mức thấp nén nhanh hơn nhưng gói lớn hơn (tuỳ chọn opt-in, xem docs/research).
+    /// </summary>
+    public int? SdkCompressionLevel { get; set; }
+
+    /// <summary>
+    /// SDK Sony: khi nguồn KHÔNG còn <c>sce_sys/playgo-chunk.dat</c> (đa số bản dump) thì tạo <see cref="PlayGoChunks"/> chunk và số kịch
+    /// bản của playgo-scenario.json gốc như engine tích hợp, thay vì 1 chunk / 1 kịch bản của script gốc — để game hỏi chunk ngôn ngữ
+    /// thoại hay chế độ chơi (The Last of Us Part I/II có 2 kịch bản) vẫn thấy đã cài. Nguồn còn bảng gốc thì luôn dùng bảng gốc.
+    /// Tuỳ chọn opt-in, mặc định tắt (như bộ công cụ).
+    /// </summary>
+    public bool SdkPlayGoFallback { get; set; } = true;
+
+    /// <summary>
+    /// Do BuildEngine đặt khi lượt này thật sự chạy SDK Sony: bộ công cụ luôn chuẩn hoá param.json với applicationDrmType =
+    /// "standard" (không có tuỳ chọn tắt), nên <see cref="ForceStandardDrm"/> không có tác dụng ở chế độ này.
+    /// </summary>
+    internal bool SonySdkActive { get; set; }
 
     /// <summary>
     /// Sau khi tạo gói, giải mã và giải nén thử toàn bộ nội dung trong bộ nhớ để đối chiếu (VerifyPackageFull của engine). Kiểm tra

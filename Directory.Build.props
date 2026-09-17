@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <RollForward>LatestMajor</RollForward>
-    <Version>2.1.9</Version>
+    <Version>2.2.0-test3</Version>
     <Authors>PSVIETHOA — Nguyễn Thanh Sơn &amp; Ngô Phi Phương</Authors>
     <Company>PSVIETHOA</Company>
     <Product>PSVIETHOA FPKG Builder</Product>

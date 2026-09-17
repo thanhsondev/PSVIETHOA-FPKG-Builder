@@ -140,6 +140,7 @@ download_status=NO_EXTRA_DATA
         File.WriteAllBytes(Path.Combine(folder, "extra.bin"), new byte[300_000]);
         var rebuilt = await new BuildEngine().BuildAsync(new BuildRequest
         {
+            UseSonySdk = false,
             SourcePath = Path.Combine(folder, contentId + ".gp5"),
             OutputFolder = Path.Combine(_root, "tpl-rebuilt"),
             TemporaryFolder = Path.Combine(_root, "tpl-rebuilt-tmp"),
@@ -168,6 +169,7 @@ download_status=NO_EXTRA_DATA
         File.WriteAllBytes(Path.Combine(app, "eboot.bin"), new byte[4096]);
         var outcome = new BuildEngine().BuildAsync(new BuildRequest
         {
+            UseSonySdk = false,
             SourcePath = app,
             OutputFolder = Path.Combine(_root, "tpl-app-out"),
             TemporaryFolder = Path.Combine(_root, "tpl-app-tmp"),
@@ -226,6 +228,7 @@ download_status=NO_EXTRA_DATA
 
         var request = new BuildRequest
         {
+            UseSonySdk = false,
             SourcePath = folder,
             OutputFolder = Path.Combine(_root, "out-empty"),
             TemporaryFolder = Path.Combine(_root, "tmp-empty"),
@@ -260,6 +263,7 @@ download_status=NO_EXTRA_DATA
         {
             var request = new BuildRequest
             {
+                UseSonySdk = false,
                 SourcePath = MakeSource(withEmu: true),
                 OutputFolder = Path.Combine(_root, "out-" + tag),
                 TemporaryFolder = Path.Combine(_root, "tmp-" + tag),

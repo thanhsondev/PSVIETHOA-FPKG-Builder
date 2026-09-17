@@ -73,6 +73,7 @@ public sealed class PlayGoCleanupTests : IDisposable
 
     private BuildRequest Request(string source, string suffix, string contentId = "UP9000-PPSA26344_00-PSVIETHOAPLAYGO0") => new()
     {
+        UseSonySdk = false,
         SourcePath = source,
         OutputFolder = Path.Combine(_root, "out-" + suffix),
         TemporaryFolder = Path.Combine(_root, "tmp-" + suffix),

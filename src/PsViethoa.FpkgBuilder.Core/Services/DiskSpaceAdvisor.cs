@@ -20,11 +20,15 @@ public static partial class DiskSpaceAdvisor
     /// <summary>Dữ liệu giải nén từ ảnh exFAT (nếu có) chiếm thêm dung lượng trên ổ tạm.</summary>
     public const double StagingFactor = 1.02;
 
-    public static DiskSpaceReport Check(string outputFolder, string temporaryFolder, long sourceBytes, long stagingBytes = 0)
+    /// <param name="sonySdk">
+    /// Tạo bằng SDK Sony: Publishing Tools ghi thẳng gói vào thư mục xuất, không có ảnh trung gian trong thư mục tạm — ổ tạm chỉ
+    /// cần chỗ cho bản giải nén ảnh (nếu có).
+    /// </param>
+    public static DiskSpaceReport Check(string outputFolder, string temporaryFolder, long sourceBytes, long stagingBytes = 0, bool sonySdk = false)
     {
         var output = Probe(outputFolder);
         var temporary = Probe(temporaryFolder);
-        var needTemporary = (long)(sourceBytes * TemporaryFactor) + (long)(stagingBytes * StagingFactor);
+        var needTemporary = (sonySdk ? 0 : (long)(sourceBytes * TemporaryFactor)) + (long)(stagingBytes * StagingFactor);
         var needOutput = (long)(sourceBytes * OutputFactor);
 
         var sameVolume = output != null && temporary != null &&

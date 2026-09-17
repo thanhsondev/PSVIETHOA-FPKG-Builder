@@ -91,6 +91,21 @@ public sealed class ProgressTracker
         }
     }
 
+    /// <summary>Giai đoạn do ứng dụng điều khiển kèm phần trăm và chữ phụ (vd. "đã ghi 1,2 GB" của SDK Sony).</summary>
+    public BuildProgress Report(BuildPhase phase, double percent, string? detail)
+    {
+        lock (_gate)
+        {
+            Apply(phase, percent);
+            if (detail != null && IndexOf(phase) == _index)
+            {
+                _throughput = detail;
+            }
+
+            return Snapshot();
+        }
+    }
+
     public BuildProgress UpdatePhasePercent(double percent)
     {
         lock (_gate)

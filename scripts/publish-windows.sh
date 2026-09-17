@@ -54,6 +54,27 @@ PSVIETHOA FPKG Builder installs it only when you click "Enable direct image moun
 .exfat / .ffpfsc images can be mounted as a read-only virtual drive instead of being extracted to the temp folder.
 TXT
 
+# SDK Sony (Publishing Tools 2.79 đã vá, bộ công cụ sdk-fpkg729-fix): chạy trực tiếp trên Windows. fpkg-cli tìm nó ở ../app hoặc
+# thư mục cha (bộ cài đặt fpkg-cli vào thư mục con của ứng dụng).
+cp -R "$ROOT/libs/sony-sdk" "$OUT/app/sony-sdk"
+
+# prospero-pub-cmd.exe cần Visual C++ 2015-2022 x64 (MSVCP140/VCRUNTIME140). Bộ cài chính thức của Microsoft đi kèm: Setup.exe cài im
+# lặng khi máy chưa có, bản zip để ứng dụng tự cài (một hộp UAC) ở lần tạo gói đầu tiên. Tải một lần vào .cache/.
+VCREDIST_CACHE="$ROOT/.cache/vcredist"
+mkdir -p "$VCREDIST_CACHE"
+if [[ ! -s "$VCREDIST_CACHE/vc_redist.x64.exe" ]]; then
+  echo "==> Tải vc_redist.x64.exe (Microsoft Visual C++ 2015-2022 x64)"
+  curl -fsSL -o "$VCREDIST_CACHE/vc_redist.x64.exe" "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+fi
+cp "$VCREDIST_CACHE/vc_redist.x64.exe" "$OUT/app/redist/"
+VCREDIST_SHA256=$(shasum -a 256 "$VCREDIST_CACHE/vc_redist.x64.exe" | cut -d' ' -f1)
+cat >> "$OUT/app/redist/README.txt" <<TXT
+
+vc_redist.x64.exe — Microsoft Visual C++ 2015-2022 Redistributable (x64), unmodified, from https://aka.ms/vs/17/release/vc_redist.x64.exe
+(SHA-256: $VCREDIST_SHA256). Needed by the bundled Sony Publishing Tools (sony-sdk\prospero-pub-cmd.exe); installed silently by
+Setup.exe, or by the app on the first "Sony SDK" build when the libraries are missing.
+TXT
+
 find "$OUT" \( -name "*.pdb" -o -name "LibProsperoPkg.xml" \) -delete
 mv "$OUT/app/PsViethoa.FpkgBuilder.App.exe" "$OUT/app/$APP_NAME.exe"
 
@@ -63,7 +84,7 @@ echo "   -> $OUT/$APP_NAME-$VERSION-$RID.zip"
 # Bộ cài Setup.exe (NSIS — `brew install makensis`): cài ứng dụng + driver Dokan trong một lần, người dùng không cài gì thêm.
 if command -v makensis >/dev/null 2>&1; then
   echo "==> Tạo bộ cài Setup.exe (NSIS)"
-  makensis -V2 -DVERSION="$VERSION" -DDIST="$OUT" -DOUTFILE="$OUT/$APP_NAME-$VERSION-$RID-Setup.exe" \
+  makensis -V2 -DVERSION="$VERSION" -DVERSION_NUMERIC="${VERSION%%-*}" -DDIST="$OUT" -DOUTFILE="$OUT/$APP_NAME-$VERSION-$RID-Setup.exe" \
     -DICON="$ROOT/src/PsViethoa.FpkgBuilder.App/Assets/app.ico" "$ROOT/installer/windows/PSVIETHOA.nsi"
   echo "   -> $OUT/$APP_NAME-$VERSION-$RID-Setup.exe"
 else

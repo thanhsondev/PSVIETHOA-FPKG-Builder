@@ -32,6 +32,12 @@ for RID in "${RIDS[@]}"; do
   cp -R "$OUT/publish-app/." "$APP/Contents/MacOS/"
   cp "$ROOT/src/PsViethoa.FpkgBuilder.App/Assets/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 
+  # SDK Sony (Publishing Tools 2.79 đã vá, bộ công cụ sdk-fpkg729-fix) + Wine x86-64 đã cắt gọn để chạy nó trên macOS.
+  # fpkg-cli nằm cạnh .app nên tìm thấy cả hai trong Contents/Resources, không phải chép hai lần.
+  cp -R "$ROOT/libs/sony-sdk" "$APP/Contents/Resources/sony-sdk"
+  WINE_DIR="$("$ROOT/scripts/fetch-wine.sh")"
+  cp -R "$WINE_DIR" "$APP/Contents/Resources/wine"
+
   cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

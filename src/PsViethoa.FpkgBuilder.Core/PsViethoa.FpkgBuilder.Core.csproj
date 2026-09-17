@@ -18,6 +18,7 @@
   <ItemGroup>
     <!-- Bảng chuỗi đa ngôn ngữ (vi/en) -->
     <EmbeddedResource Include="Localization/*.json" LogicalName="PsViethoa.FpkgBuilder.Core.Localization.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Services/PythonCaseFold.txt" LogicalName="PsViethoa.FpkgBuilder.Core.Services.PythonCaseFold.txt" />
   </ItemGroup>
 
   <ItemGroup>

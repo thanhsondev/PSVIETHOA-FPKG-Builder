@@ -239,6 +239,12 @@ public static class BuildPreparer
             errors.Add(new ValidationError(FieldKrakenLevel, Loc.T("Val.KrakenLevel")));
         }
 
+        // Publishing Tools: "Compression level should be set to a number between -4 and 9".
+        if (normalized.SdkCompressionLevel is < BuildRequest.MinKrakenLevel or > BuildRequest.MaxKrakenLevel)
+        {
+            errors.Add(new ValidationError(FieldKrakenLevel, Loc.T("Val.SdkCompressionLevel")));
+        }
+
         if (normalized.Threads is < 0 or > BuildRequest.MaxThreads)
         {
             errors.Add(new ValidationError(FieldThreads, Loc.T("Val.Threads")));

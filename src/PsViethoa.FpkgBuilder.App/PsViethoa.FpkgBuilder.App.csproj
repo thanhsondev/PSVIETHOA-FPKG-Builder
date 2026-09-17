@@ -4,7 +4,7 @@
     <OutputType>WinExe</OutputType>
     <RootNamespace>PsViethoa.FpkgBuilder.App</RootNamespace>
     <AssemblyName>PsViethoa.FpkgBuilder.App</AssemblyName>
-    <Description>Trình tạo gói FPKG cho PS5 — giao diện tiếng Việt, chạy trên macOS và Windows.</Description>
+    <Description>Trình tạo gói FPKG cho PS5 — giao diện tiếng Việt, chạy trên macOS, Windows và Linux.</Description>
     <ApplicationIcon>Assets/app.ico</ApplicationIcon>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>

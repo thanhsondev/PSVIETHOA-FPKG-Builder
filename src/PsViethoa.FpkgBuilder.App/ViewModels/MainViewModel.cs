@@ -247,7 +247,86 @@ public sealed partial class MainViewModel : ObservableObject
         PfsOptions = [Loc.T("Pfs.V2"), Loc.T("Pfs.V3")];
         BlockSizeOptions = BlockSizesKiB.Select(k => $"{k} KiB").ToList();
         ShuffleOptions = ShufflePatterns.Select(BuildPresets.ShufflePatternLabel).ToList();
+        SdkCompressionOptions = [Loc.T("SdkLevel.Default"), .. SdkCompressionLevels.Select(level => Loc.F("SdkLevel.Value", level))];
     }
+
+    /// <summary>Các mức <c>--compression_level</c> cho SDK Sony ngoài mặc định (7): mục 0 của hộp chọn = không truyền (như bộ gốc).</summary>
+    private static readonly int[] SdkCompressionLevels = [9, 8, 6, 5, 4, 3, 2, 1, 0, -1, -2, -3, -4];
+
+    [ObservableProperty] private IReadOnlyList<string> _sdkCompressionOptions = Array.Empty<string>();
+
+    /// <summary>SDK Sony: 0 = mặc định của Publishing Tools (7, như bộ công cụ gốc); còn lại = <see cref="SdkCompressionLevels"/>.</summary>
+    [ObservableProperty] private int _sdkCompressionIndex;
+
+    /// <summary>SDK Sony trên Windows: quét trước song song tệp nguồn để Windows Defender không làm chậm pha kiểm tra tệp (mặc định bật).</summary>
+    [ObservableProperty] private bool _sdkPrescan = true;
+
+    /// <summary>SDK Sony: PlayGo dự phòng (N chunk + số kịch bản gốc) khi nguồn không còn playgo-chunk.dat (mặc định bật: hầu hết dump đã mất bảng gốc).</summary>
+    [ObservableProperty] private bool _sdkPlayGoFallback = true;
+
+    /// <summary>Mức --compression_level mà mỗi preset ở bước 3 chọn khi SDK Sony bật: null = không truyền (7, như bộ gốc).</summary>
+    private static int? SdkLevelForPreset(BuildPreset preset) =>
+        preset.Id == BuildPresets.Fast.Id ? 2 : preset.Id == BuildPresets.Balanced.Id ? 4 : preset.Id == BuildPresets.Maximum.Id ? 9 : null;
+
+    private static BuildPreset? SdkPresetForLevel(int? level) => level switch
+    {
+        null or 7 => BuildPresets.Smallest,
+        2 => BuildPresets.Fast,
+        4 => BuildPresets.Balanced,
+        9 => BuildPresets.Maximum,
+        _ => null,
+    };
+
+    public string PresetFastShort => Loc.T(SdkActive ? "Preset.fast.SdkShort" : "Preset.fast.Short");
+
+    public string PresetBalancedShort => Loc.T(SdkActive ? "Preset.balanced.SdkShort" : "Preset.balanced.Short");
+
+    public string PresetSmallestShort => Loc.T(SdkActive ? "Preset.smallest.SdkShort" : "Preset.smallest.Short");
+
+    public string PresetMaximumShort => Loc.T(SdkActive ? "Preset.maximum.SdkShort" : "Preset.maximum.Short");
+
+    partial void OnSdkCompressionIndexChanged(int value)
+    {
+        if (SdkActive)
+        {
+            SyncPresetFromSdk();
+        }
+    }
+
+    /// <summary>SDK Sony bật: các ô preset phản ánh mức --compression_level đang chọn (mặc định 7 = "Nhỏ nhất", như bộ gốc).</summary>
+    private void SyncPresetFromSdk()
+    {
+        if (_syncingPreset)
+        {
+            return;
+        }
+
+        _syncingPreset = true;
+        try
+        {
+            var level = SdkLevelFromIndex(SdkCompressionIndex);
+            var preset = SdkPresetForLevel(level);
+            PresetFast = preset?.Id == BuildPresets.Fast.Id;
+            PresetBalanced = preset?.Id == BuildPresets.Balanced.Id;
+            PresetSmallest = preset?.Id == BuildPresets.Smallest.Id;
+            PresetMaximum = preset?.Id == BuildPresets.Maximum.Id;
+            PresetCustom = preset == null;
+            PresetSummary = level is { } chosen ? Loc.F("Preset.SdkSummary", chosen) : Loc.T("Preset.SdkSummaryDefault");
+        }
+        finally
+        {
+            _syncingPreset = false;
+        }
+    }
+
+    private static int? SdkLevelFromIndex(int index) => index <= 0 || index > SdkCompressionLevels.Length ? null : SdkCompressionLevels[index - 1];
+
+    private static int SdkIndexFromLevel(int? level) => level is { } value && Array.IndexOf(SdkCompressionLevels, value) is var position && position >= 0 ? position + 1 : 0;
+
+    /// <summary>Số khối PlayGo sửa được: engine tích hợp, hoặc SDK Sony khi bật PlayGo dự phòng.</summary>
+    public bool PlayGoChunksEnabled => EngineOptionsEnabled || SdkPlayGoFallback;
+
+    partial void OnSdkPlayGoFallbackChanged(bool value) => OnPropertyChanged(nameof(PlayGoChunksEnabled));
 
     public IReadOnlyList<string> RecentSources =>
         _settings.RecentSources.Where(p => Directory.Exists(p) || File.Exists(p)).ToArray();
@@ -486,6 +565,112 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Ép DRM "standard" trong gói để game không bị khoá trên PS5 (engine làm trong bộ nhớ, nguồn không đổi).</summary>
     [ObservableProperty] private bool _forceStandardDrm = true;
 
+    /// <summary>Tạo gói bằng SDK Sony (chuẩn mới, mặc định bật); bỏ tích để dùng engine tích hợp.</summary>
+    [ObservableProperty] private bool _useSonySdk = true;
+
+    /// <summary>Máy này chạy được SDK Sony (có bộ công cụ, Wine/Rosetta trên macOS) — do RefreshComponentsAsync xác định.</summary>
+    [ObservableProperty] private bool _sdkAvailable = true;
+
+    /// <summary>Lý do SDK Sony không dùng được (đã dịch), rỗng khi dùng được.</summary>
+    [ObservableProperty] private string _sdkUnavailableReason = string.Empty;
+
+    /// <summary>Lượt tạo gói sẽ đi qua SDK Sony: ô tích bật, máy chạy được SDK và nguồn không phải dự án .gp5 có sẵn.</summary>
+    public bool SdkActive => UseSonySdk && SdkAvailable && !IsGp5Source;
+
+    /// <summary>Các tuỳ chọn chỉ dành cho engine tích hợp (loại gói, chế độ ảnh, mức nén, PFS, PlayGo, SDK, bản dựng xác định…) — mờ khi SDK Sony hoạt động, như bộ gốc không có các lựa chọn này.</summary>
+    public bool EngineOptionsEnabled => !SdkActive;
+
+    public bool SdkCheckBoxEnabled => !IsBuilding && !IsGp5Source;
+
+    public bool CanEditPlayGoDrop => !IsBuilding && !SdkActive;
+
+    public bool CanEditDrm => !IsBuilding && !SdkActive;
+
+    /// <summary>Ô "DRM standard": bộ công cụ SDK luôn chuẩn hoá applicationDrmType = standard nên hiện tích và khoá khi SDK hoạt động.</summary>
+    public bool ForceStandardDrmUi
+    {
+        get => SdkActive || ForceStandardDrm;
+        set
+        {
+            if (!SdkActive)
+            {
+                ForceStandardDrm = value;
+            }
+        }
+    }
+
+    partial void OnForceStandardDrmChanged(bool value) => OnPropertyChanged(nameof(ForceStandardDrmUi));
+
+    public bool ShowSdkUnavailable => UseSonySdk && !SdkAvailable;
+
+    public bool ShowSdkGp5Note => UseSonySdk && SdkAvailable && IsGp5Source;
+
+    public string SdkUnavailableText => Loc.F("Build.SonySdkUnavailable", SdkUnavailableReason);
+
+    /// <summary>Ô "Bỏ sce_sys/playgo*": SDK Sony luôn bỏ nên hiện tích và khoá; giá trị người dùng chọn chỉ đổi khi engine tích hợp.</summary>
+    public bool RemovePlayGoFilesUi
+    {
+        get => SdkActive || RemovePlayGoFiles;
+        set
+        {
+            if (!SdkActive)
+            {
+                RemovePlayGoFiles = value;
+            }
+        }
+    }
+
+    partial void OnUseSonySdkChanged(bool value) => ApplySdkMode();
+
+    partial void OnSdkAvailableChanged(bool value) => ApplySdkMode();
+
+    partial void OnIsGp5SourceChanged(bool value) => ApplySdkMode();
+
+    partial void OnSdkUnavailableReasonChanged(string value) => OnPropertyChanged(nameof(SdkUnavailableText));
+
+    /// <summary>SDK Sony chỉ tạo gói ứng dụng lớp ngoài không mã hoá: ép hai lựa chọn đó và làm mới mọi thuộc tính phụ thuộc.</summary>
+    private void ApplySdkMode()
+    {
+        if (SdkActive)
+        {
+            KindIndex = 0;
+            ImageModeIndex = 0;
+        }
+
+        foreach (var name in new[] { nameof(SdkActive), nameof(EngineOptionsEnabled), nameof(CompressionEnabled), nameof(SdkCheckBoxEnabled), nameof(CanEditPlayGoDrop), nameof(CanEditDrm), nameof(ShowSdkUnavailable), nameof(ShowSdkGp5Note), nameof(RemovePlayGoFilesUi), nameof(ForceStandardDrmUi), nameof(PlayGoChunksEnabled), nameof(PresetFastShort), nameof(PresetBalancedShort), nameof(PresetSmallestShort), nameof(PresetMaximumShort) })
+        {
+            OnPropertyChanged(name);
+        }
+
+        if (SdkActive)
+        {
+            SyncPresetFromSdk();
+        }
+        else
+        {
+            SyncPresetFromSettings();
+        }
+
+        if (_lastMetadata != null)
+        {
+            PlayGoText = DescribePlayGo(_lastMetadata);
+        }
+
+        RefreshDiskInfo();
+    }
+
+    /// <summary>Dòng PlayGo trên thẻ nguồn: SDK Sony luôn tạo mới 1 kịch bản / 1 khối (bộ gốc), engine tích hợp theo tuỳ chọn.</summary>
+    private string DescribePlayGo(SourceMetadata metadata)
+    {
+        if (SdkActive)
+        {
+            var count = metadata.PlayGoFileCount + (metadata.HasPlayGoScenario ? 1 : 0);
+            return count > 0 ? Loc.F("PlayGo.SonySdk", count) : Loc.T("PlayGo.SonySdkNone");
+        }
+
+        return MetadataReader.DescribePlayGo(metadata, (int)(PlayGoChunks ?? BuildRequest.DefaultPlayGoChunks), RemovePlayGoFiles);
+    }
+
     /// <summary>Dọn tàn dư AMPR emu (ampr_emu.index) khỏi gói — engine đã luôn bỏ module giả lập.</summary>
     [ObservableProperty] private bool _removeAmprLeftovers = true;
 
@@ -719,6 +904,9 @@ public sealed partial class MainViewModel : ObservableObject
         {
             var publishingTools = PublishingToolsPath;
             var rows = await Task.Run(() => ComponentProbe.Run(publishingTools));
+            var sdkProblem = await Task.Run(() => SonySdkToolchain.Resolve(out var problem) != null ? null : problem ?? "?");
+            SdkUnavailableReason = sdkProblem ?? string.Empty;
+            SdkAvailable = sdkProblem == null;
             Components.Clear();
             foreach (var row in rows)
             {
@@ -924,7 +1112,7 @@ public sealed partial class MainViewModel : ObservableObject
     public bool HasJunk => JunkCount > 0;
     public bool HasIcon => IconImage != null;
     public bool UsesPublishingTools => BackendIndex is 0 or 2;
-    public bool CompressionEnabled => BackendIndex != 3;
+    public bool CompressionEnabled => BackendIndex != 3 && !SdkActive;
     public bool CanCleanJunk => HasJunk && !IsBuilding && !JunkReadOnly;
     public bool CanOpenOutput => HasResult && !string.IsNullOrEmpty(ResultPath) && File.Exists(ResultPath);
 
@@ -941,6 +1129,9 @@ public sealed partial class MainViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(CanEdit));
         OnPropertyChanged(nameof(CanCleanJunk));
+        OnPropertyChanged(nameof(SdkCheckBoxEnabled));
+        OnPropertyChanged(nameof(CanEditPlayGoDrop));
+        OnPropertyChanged(nameof(CanEditDrm));
         BuildCommand.NotifyCanExecuteChanged();
         CancelCommand.NotifyCanExecuteChanged();
         CleanJunkCommand.NotifyCanExecuteChanged();
@@ -1021,15 +1212,16 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshValidation();
         if (_lastMetadata != null)
         {
-            PlayGoText = MetadataReader.DescribePlayGo(_lastMetadata, (int)(value ?? BuildRequest.DefaultPlayGoChunks), RemovePlayGoFiles);
+            PlayGoText = DescribePlayGo(_lastMetadata);
         }
     }
 
     partial void OnRemovePlayGoFilesChanged(bool value)
     {
+        OnPropertyChanged(nameof(RemovePlayGoFilesUi));
         if (_lastMetadata != null)
         {
-            PlayGoText = MetadataReader.DescribePlayGo(_lastMetadata, (int)(PlayGoChunks ?? BuildRequest.DefaultPlayGoChunks), value);
+            PlayGoText = DescribePlayGo(_lastMetadata);
         }
     }
 
@@ -1087,6 +1279,23 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (_syncingPreset)
         {
+            return;
+        }
+
+        if (SdkActive)
+        {
+            // SDK Sony: preset chỉ đổi --compression_level của img_create, không đụng các tuỳ chọn engine tích hợp đang bị khoá.
+            _syncingPreset = true;
+            try
+            {
+                SdkCompressionIndex = SdkIndexFromLevel(SdkLevelForPreset(preset));
+            }
+            finally
+            {
+                _syncingPreset = false;
+            }
+
+            SyncPresetFromSdk();
             return;
         }
 
@@ -1220,6 +1429,7 @@ public sealed partial class MainViewModel : ObservableObject
             SkipPfsCheck = s.SkipPfsInputCheck;
             LayoutOptimization = s.LayoutOptimization;
             ForceStandardDrm = s.ForceStandardDrm;
+            UseSonySdk = s.UseSonySdk;
             RemoveAmprLeftovers = s.RemoveAmprLeftovers;
             RemovePlayGoFiles = s.RemovePlayGoFiles;
             KeepDlcEmu = s.KeepDlcEmu;
@@ -1243,6 +1453,9 @@ public sealed partial class MainViewModel : ObservableObject
             ComputeSha256 = s.ComputeSha256;
             FullVerify = s.FullVerify;
             LowerRequiredFirmware = s.LowerRequiredFirmware;
+            SdkPrescan = s.SdkPrescan;
+            SdkPlayGoFallback = s.SdkPlayGoFallback;
+            SdkCompressionIndex = SdkIndexFromLevel(s.SdkCompressionLevel);
             PreventSleep = s.PreventSleep;
             OverrideSdk = s.OverrideSdk;
             SdkIndex = Math.Clamp(s.SdkMajor - 1, 0, SdkOptions.Count - 1);
@@ -1259,6 +1472,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         SyncPresetFromSettings();
+        ApplySdkMode();
     }
 
     /// <summary>
@@ -1304,6 +1518,7 @@ public sealed partial class MainViewModel : ObservableObject
         s.SkipPfsInputCheck = d.SkipPfsInputCheck;
         s.LayoutOptimization = d.LayoutOptimization;
         s.ForceStandardDrm = d.ForceStandardDrm;
+        s.UseSonySdk = d.UseSonySdk;
         s.RemovePlayGoFiles = d.RemovePlayGoFiles;
         s.RemoveAmprLeftovers = d.RemoveAmprLeftovers;
         s.KeepDlcEmu = d.KeepDlcEmu;
@@ -1314,6 +1529,9 @@ public sealed partial class MainViewModel : ObservableObject
         s.ComputeSha256 = d.ComputeSha256;
         s.FullVerify = d.FullVerify;
         s.LowerRequiredFirmware = d.LowerRequiredFirmware;
+        s.SdkPrescan = d.SdkPrescan;
+        s.SdkPlayGoFallback = d.SdkPlayGoFallback;
+        s.SdkCompressionLevel = d.SdkCompressionLevel;
         s.PreventSleep = d.PreventSleep;
         s.OverrideSdk = d.OverrideSdk;
         s.SdkMajor = d.SdkMajor;
@@ -1363,6 +1581,7 @@ public sealed partial class MainViewModel : ObservableObject
         s.SkipPfsInputCheck = SkipPfsCheck;
         s.LayoutOptimization = LayoutOptimization;
         s.ForceStandardDrm = ForceStandardDrm;
+        s.UseSonySdk = UseSonySdk;
         s.RemoveAmprLeftovers = RemoveAmprLeftovers;
         s.RemovePlayGoFiles = RemovePlayGoFiles;
         s.KeepDlcEmu = KeepDlcEmu;
@@ -1376,6 +1595,9 @@ public sealed partial class MainViewModel : ObservableObject
         s.ComputeSha256 = ComputeSha256;
         s.FullVerify = FullVerify;
         s.LowerRequiredFirmware = LowerRequiredFirmware;
+        s.SdkPrescan = SdkPrescan;
+        s.SdkPlayGoFallback = SdkPlayGoFallback;
+        s.SdkCompressionLevel = SdkLevelFromIndex(SdkCompressionIndex);
         s.PreventSleep = PreventSleep;
         s.OverrideSdk = OverrideSdk;
         s.SdkMajor = SdkIndex + 1;
@@ -1824,7 +2046,7 @@ public sealed partial class MainViewModel : ObservableObject
             MetaFiles = Loc.T("Meta.Scanning");
         }
 
-        PlayGoText = MetadataReader.DescribePlayGo(metadata, (int)(PlayGoChunks ?? BuildRequest.DefaultPlayGoChunks), RemovePlayGoFiles);
+        PlayGoText = DescribePlayGo(metadata);
 
         if (!metadata.HasSceSys)
         {
@@ -1980,7 +2202,8 @@ public sealed partial class MainViewModel : ObservableObject
         var temporary = string.IsNullOrWhiteSpace(TemporaryFolder) ? BuildPreparer.SuggestTemporaryFolder(output) : TemporaryFolder.Trim();
         var bytes = _sourceBytes;
         var staging = WillExtractExFat ? _sourceBytes : 0;
-        _ = Task.Run(() => DiskSpaceAdvisor.Check(output, temporary, bytes, staging)).ContinueWith(task =>
+        var sonySdk = SdkActive;
+        _ = Task.Run(() => DiskSpaceAdvisor.Check(output, temporary, bytes, staging, sonySdk)).ContinueWith(task =>
         {
             if (task.IsCompletedSuccessfully)
             {
@@ -2075,6 +2298,10 @@ public sealed partial class MainViewModel : ObservableObject
         SkipPfsInputCheck = SkipPfsCheck,
         LayoutOptimization = LayoutOptimization,
         ForceStandardDrm = ForceStandardDrm,
+        UseSonySdk = UseSonySdk,
+        SdkPrescan = SdkPrescan,
+        SdkPlayGoFallback = SdkPlayGoFallback,
+        SdkCompressionLevel = SdkLevelFromIndex(SdkCompressionIndex),
         RemoveAmprLeftovers = RemoveAmprLeftovers,
         RemovePlayGoFiles = RemovePlayGoFiles,
         KeepDlcEmu = KeepDlcEmu,

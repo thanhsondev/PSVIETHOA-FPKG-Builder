@@ -55,6 +55,18 @@ public sealed class AppSettings
     /// <summary>Ép applicationDrmType = "standard" khi tạo gói (mặc định bật; engine 0.6.8 làm trong bộ nhớ).</summary>
     public bool ForceStandardDrm { get; set; } = true;
 
+    /// <summary>Tạo gói bằng SDK Sony (Publishing Tools 2.79 kèm theo) thay vì engine tích hợp — mặc định bật từ 2.2.0.</summary>
+    public bool UseSonySdk { get; set; } = true;
+
+    /// <summary>SDK Sony trên Windows: quét trước song song tệp nguồn (Windows Defender) trước Publishing Tools — mặc định bật.</summary>
+    public bool SdkPrescan { get; set; } = true;
+
+    /// <summary>SDK Sony: PlayGo dự phòng cho nguồn không còn playgo-chunk.dat — mặc định tắt (như bộ công cụ gốc).</summary>
+    public bool SdkPlayGoFallback { get; set; } = true;
+
+    /// <summary>SDK Sony: mức --compression_level; null = mặc định của Publishing Tools (7), như bộ công cụ gốc.</summary>
+    public int? SdkCompressionLevel { get; set; }
+
     public int PlayGoChunks { get; set; } = BuildRequest.DefaultPlayGoChunks;
 
     /// <summary>

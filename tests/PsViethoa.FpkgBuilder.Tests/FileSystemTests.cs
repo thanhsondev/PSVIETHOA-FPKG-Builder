@@ -77,6 +77,7 @@ public class FileSystemTests : IDisposable
     {
         var request = new BuildRequest
         {
+            UseSonySdk = false,
             SourcePath = Path.Combine(_root, "src"),
             OutputFolder = Path.Combine(_root, "src", "out"),
             ContentId = "up9000-ppsa00001_00-psviethoatest001",
@@ -113,6 +114,7 @@ public class FileSystemTests : IDisposable
 
         var request = new BuildRequest
         {
+            UseSonySdk = false,
             SourcePath = Path.Combine(_root, "src"),
             OutputFolder = Path.Combine(_root, "out"),
             ContentId = "UP9000-PPSA00001_00-PSVIETHOATEST001",
@@ -168,6 +170,7 @@ public class FileSystemTests : IDisposable
     {
         var request = new BuildRequest
         {
+            UseSonySdk = false,
             SourcePath = Path.Combine(_root, "src"),
             OutputFolder = Path.Combine(_root, "out"),
             ContentId = "UP9000-PPSA00001_00-PSVIETHOATEST001",

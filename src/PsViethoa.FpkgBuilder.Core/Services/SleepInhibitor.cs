@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace PsViethoa.FpkgBuilder.Core.Services;
 
-/// <summary>Ngăn hệ điều hành ngủ trong lúc tạo gói (caffeinate trên macOS, SetThreadExecutionState trên Windows).</summary>
+/// <summary>Ngăn hệ điều hành ngủ trong lúc tạo gói (caffeinate trên macOS, SetThreadExecutionState trên Windows, systemd-inhibit trên Linux).</summary>
 public sealed partial class SleepInhibitor : IDisposable
 {
     private Process? _caffeinate;
@@ -42,6 +42,26 @@ public sealed partial class SleepInhibitor : IDisposable
                 inhibitor.Mechanism = "SetThreadExecutionState";
                 return inhibitor;
             }
+
+            if (OperatingSystem.IsLinux() && File.Exists(SystemdInhibitPath))
+            {
+                // Giữ khoá "idle:sleep" của systemd-logind chừng nào tiến trình con còn sống; Dispose giết cả cây tiến trình.
+                var info = new ProcessStartInfo(SystemdInhibitPath)
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = false,
+                    RedirectStandardError = false,
+                };
+                foreach (var argument in new[] { "--what=idle:sleep", "--who=PSVIETHOA FPKG Builder", "--why=Building a PS5 package", "--mode=block", "sleep", "infinity" })
+                {
+                    info.ArgumentList.Add(argument);
+                }
+
+                inhibitor._caffeinate = Process.Start(info);
+                inhibitor.Mechanism = "systemd-inhibit";
+                return inhibitor;
+            }
         }
         catch (Exception)
         {
@@ -50,6 +70,8 @@ public sealed partial class SleepInhibitor : IDisposable
 
         return null;
     }
+
+    public const string SystemdInhibitPath = "/usr/bin/systemd-inhibit";
 
     private const uint EsContinuous = 0x80000000;
     private const uint EsSystemRequired = 0x00000001;
@@ -92,7 +114,7 @@ public sealed partial class SleepInhibitor : IDisposable
         {
             if (_caffeinate is { HasExited: false })
             {
-                _caffeinate.Kill();
+                _caffeinate.Kill(entireProcessTree: true);
             }
 
             _caffeinate?.Dispose();

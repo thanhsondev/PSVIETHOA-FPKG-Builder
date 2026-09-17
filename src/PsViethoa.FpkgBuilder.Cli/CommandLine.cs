@@ -388,7 +388,9 @@ internal static class CommandLine
         var output = arguments.Get("output", "o") ?? BuildPreparer.SuggestOutputFolder(source);
         var temp = arguments.Get("temp") ?? BuildPreparer.SuggestTemporaryFolder(output);
         var staging = metadata.IsExFat && !PsViethoa.FpkgBuilder.Core.ExFat.ImageMounter.CanMountPath(source) ? stats.TotalBytes : 0;
-        var disk = DiskSpaceAdvisor.Check(output, temp, stats.TotalBytes, staging);
+        // Mặc định tạo bằng SDK Sony (không có ảnh trung gian) trừ khi --no-sony-sdk, thiếu bộ công cụ hay nguồn là dự án .gp5.
+        var sonySdk = !arguments.Has("no-sony-sdk") && !metadata.IsGp5 && SonySdkToolchain.Resolve(out _) != null;
+        var disk = DiskSpaceAdvisor.Check(output, temp, stats.TotalBytes, staging, sonySdk);
         Console.WriteLine(Loc.F("Cli.Disk", disk.Summary) + (disk.Sufficient ? string.Empty : Loc.T("Cli.DiskLow")));
         return 0;
     }
@@ -572,6 +574,46 @@ internal static class CommandLine
         if (arguments.Has("keep-drm"))
         {
             request.ForceStandardDrm = false;
+        }
+
+        if (arguments.Has("no-sony-sdk") || arguments.Has("builtin-engine"))
+        {
+            request.UseSonySdk = false;
+        }
+        else
+        {
+            // SDK Sony: Publishing Tools tự quyết mức nén, PFS, PlayGo, SDK… — các cờ của engine không có tác dụng, báo để khỏi hiểu lầm.
+            var ignored = new[]
+                {
+                    "preset", "level", "threads", "pfs", "block-size", "shuffle", "shuffle-analysis", "shuffle-prediction-level", "skip-pfs-input-check",
+                    "playgo", "sdk", "backend", "dll", "no-deterministic", "no-layout-optimization", "source-mode", "project", "keep-playgo", "keep-required-fw", "keep-drm",
+                }
+                .Where(flag => arguments.Has(flag))
+                // --playgo đặt số chunk của PlayGo dự phòng khi có --sdk-playgo-fallback.
+                .Where(flag => !(flag == "playgo" && !arguments.Has("no-sdk-playgo-fallback")))
+                .Select(flag => "--" + flag)
+                .ToList();
+            if (ignored.Count > 0)
+            {
+                Console.Error.WriteLine(Loc.F("Cli.SdkIgnoredFlags", string.Join(", ", ignored)));
+            }
+        }
+
+        if (arguments.Has("no-sdk-prescan"))
+        {
+            request.SdkPrescan = false;
+        }
+
+        if (arguments.Has("no-sdk-playgo-fallback"))
+        {
+            request.SdkPlayGoFallback = false;
+        }
+
+        if (arguments.Get("sdk-compression-level") is { } sdkLevelText)
+        {
+            request.SdkCompressionLevel = int.TryParse(sdkLevelText, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var sdkLevel)
+                ? sdkLevel
+                : int.MinValue;
         }
 
         if (arguments.Has("keep-ampr"))

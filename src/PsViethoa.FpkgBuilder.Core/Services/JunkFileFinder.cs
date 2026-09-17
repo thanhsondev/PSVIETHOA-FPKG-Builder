@@ -4,8 +4,9 @@ using PsViethoa.FpkgBuilder.Core.Models;
 namespace PsViethoa.FpkgBuilder.Core.Services;
 
 /// <summary>
-/// Tìm tệp rác do hệ điều hành sinh ra (.DS_Store, Thumbs.db, ._AppleDouble…) – những tệp này
-/// sẽ bị đóng vào gói PKG nếu không dọn trước.
+/// Tìm tệp rác do hệ điều hành sinh ra (.DS_Store, Thumbs.db, ._AppleDouble…) và lối tắt Internet <c>*.url</c> mà trang chia sẻ bản
+/// dump chèn vào (ví dụ "更多资源请访问 2468c.com.url" trong sce_sys) – những tệp này sẽ bị đóng vào gói PKG nếu không dọn trước. Tên
+/// ngoài ASCII của lối tắt còn làm Publishing Tools từ chối cả GP5; game PS5 không bao giờ chứa tệp .url.
 /// </summary>
 public static class JunkFileFinder
 {
@@ -13,6 +14,8 @@ public static class JunkFileFinder
     [
         ".DS_Store", "Thumbs.db", "ehthumbs.db", "ehthumbs_vista.db", "desktop.ini", ".localized",
     ];
+
+    private static readonly string[] JunkFileExtensions = [".url"];
 
     private static readonly string[] JunkDirectoryNames =
     [
@@ -29,6 +32,14 @@ public static class JunkFileFinder
         foreach (var junk in JunkFileNames)
         {
             if (name.Equals(junk, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        foreach (var extension in JunkFileExtensions)
+        {
+            if (name.Length > extension.Length && name.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }

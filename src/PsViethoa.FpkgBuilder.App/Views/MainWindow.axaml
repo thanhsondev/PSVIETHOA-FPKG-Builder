@@ -380,11 +380,11 @@
                                 <Grid ColumnDefinitions="*,14,*">
                                     <StackPanel Classes="field">
                                         <TextBlock Classes="label" Text="{l:T Step2.KindLabel}" />
-                                        <ComboBox ItemsSource="{Binding KindOptions}" SelectedIndex="{Binding KindIndex, Mode=TwoWay}" />
+                                        <ComboBox ItemsSource="{Binding KindOptions}" SelectedIndex="{Binding KindIndex, Mode=TwoWay}" IsEnabled="{Binding EngineOptionsEnabled}" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="2" Classes="field">
                                         <TextBlock Classes="label" Text="{l:T Step2.ImageModeLabel}" />
-                                        <ComboBox ItemsSource="{Binding ImageModeOptions}" SelectedIndex="{Binding ImageModeIndex, Mode=TwoWay}" />
+                                        <ComboBox ItemsSource="{Binding ImageModeOptions}" SelectedIndex="{Binding ImageModeIndex, Mode=TwoWay}" IsEnabled="{Binding EngineOptionsEnabled}" />
                                     </StackPanel>
                                 </Grid>
                                 <TextBlock Classes="hint" Margin="0" Text="{Binding ImageModeHint}" />
@@ -404,14 +404,14 @@
                                     </Border>
                                 </StackPanel>
 
-                                <Grid ColumnDefinitions="*,6,*,6,*,6,*">
+                                <Grid ColumnDefinitions="*,6,*,6,*,6,*" IsEnabled="{Binding CanEdit}">
                                     <RadioButton Grid.Column="0" Theme="{StaticResource SegmentRadio}" GroupName="preset" IsChecked="{Binding PresetFast, Mode=TwoWay}">
                                         <StackPanel Spacing="2">
                                             <StackPanel Orientation="Horizontal" Spacing="6">
                                                 <PathIcon Classes="sm" Data="{StaticResource IconBolt}" />
                                                 <TextBlock Text="{l:T Preset.fast.Name}" FontWeight="SemiBold" />
                                             </StackPanel>
-                                            <TextBlock Classes="xs muted" Text="{l:T Preset.fast.Short}" TextWrapping="Wrap" />
+                                            <TextBlock Classes="xs muted" Text="{Binding PresetFastShort}" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </RadioButton>
                                     <RadioButton Grid.Column="2" Theme="{StaticResource SegmentRadio}" GroupName="preset" IsChecked="{Binding PresetBalanced, Mode=TwoWay}">
@@ -420,7 +420,7 @@
                                                 <PathIcon Classes="sm" Data="{StaticResource IconTune}" />
                                                 <TextBlock Text="{l:T Preset.balanced.Name}" FontWeight="SemiBold" />
                                             </StackPanel>
-                                            <TextBlock Classes="xs muted" Text="{l:T Preset.balanced.Short}" TextWrapping="Wrap" />
+                                            <TextBlock Classes="xs muted" Text="{Binding PresetBalancedShort}" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </RadioButton>
                                     <RadioButton Grid.Column="4" Theme="{StaticResource SegmentRadio}" GroupName="preset" IsChecked="{Binding PresetSmallest, Mode=TwoWay}">
@@ -429,7 +429,7 @@
                                                 <PathIcon Classes="sm" Data="{StaticResource IconZip}" />
                                                 <TextBlock Text="{l:T Preset.smallest.Name}" FontWeight="SemiBold" />
                                             </StackPanel>
-                                            <TextBlock Classes="xs muted" Text="{l:T Preset.smallest.Short}" TextWrapping="Wrap" />
+                                            <TextBlock Classes="xs muted" Text="{Binding PresetSmallestShort}" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </RadioButton>
                                     <RadioButton Grid.Column="6" Theme="{StaticResource SegmentRadio}" GroupName="preset" IsChecked="{Binding PresetMaximum, Mode=TwoWay}">
@@ -438,11 +438,18 @@
                                                 <PathIcon Classes="sm" Data="{StaticResource IconSparkle}" />
                                                 <TextBlock Text="{l:T Preset.maximum.Name}" FontWeight="SemiBold" />
                                             </StackPanel>
-                                            <TextBlock Classes="xs muted" Text="{l:T Preset.maximum.Short}" TextWrapping="Wrap" />
+                                            <TextBlock Classes="xs muted" Text="{Binding PresetMaximumShort}" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </RadioButton>
                                 </Grid>
                                 <TextBlock Classes="hint" Margin="0" Text="{Binding PresetSummary}" />
+                                <!-- SDK Sony: các preset ở trên đổi mức nén (compression_level) của img_create, mặc định 7 = "Nhỏ nhất"; các tuỳ chọn engine khác vẫn khoá. -->
+                                <Border Classes="banner info" IsVisible="{Binding SdkActive}">
+                                    <Grid ColumnDefinitions="Auto,*">
+                                        <PathIcon Classes="sm accent" Data="{StaticResource IconInfo}" VerticalAlignment="Top" Margin="0,2,10,0" />
+                                        <TextBlock Grid.Column="1" Classes="small" Text="{l:T Preset.SonySdkNote}" TextWrapping="Wrap" />
+                                    </Grid>
+                                </Border>
 
                                 <ToggleButton Theme="{StaticResource DisclosureToggle}" IsChecked="{Binding AdvancedExpanded, Mode=TwoWay}">
                                     <Grid ColumnDefinitions="Auto,*,Auto">
@@ -460,6 +467,46 @@
 
                                 <StackPanel Spacing="14" IsVisible="{Binding AdvancedExpanded}" Margin="0,2,0,0">
                                     <Border Classes="divider" Margin="0" />
+
+                                    <!-- SDK Sony: bộ gốc không có các lựa chọn của engine, nên chúng mờ đi thay vì im lặng bị bỏ qua -->
+                                    <Border Classes="banner info" IsVisible="{Binding SdkActive}">
+                                        <Grid ColumnDefinitions="Auto,*">
+                                            <PathIcon Classes="sm accent" Data="{StaticResource IconInfo}" VerticalAlignment="Top" Margin="0,2,10,0" />
+                                            <TextBlock Grid.Column="1" Classes="small" Text="{l:T Advanced.SonySdkNote}" TextWrapping="Wrap" />
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Tuỳ chọn riêng của SDK Sony: mặc định giữ đúng như bộ công cụ gốc (mức nén 7, 1 chunk khi nguồn mất bảng PlayGo) -->
+                                    <Border Classes="banner" Background="Transparent" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12,10" IsVisible="{Binding SdkActive}">
+                                        <StackPanel Spacing="10">
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Classes="small" Text="{l:T Advanced.SdkOptionsTitle}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                <TextBlock Classes="xs muted" Text="{l:T Advanced.SdkOptionsHint}" TextWrapping="Wrap" />
+                                            </StackPanel>
+
+                                            <StackPanel Classes="field">
+                                                <TextBlock Classes="label" Text="{l:T Advanced.SdkCompression}" />
+                                                <ComboBox Name="SdkCompressionCombo" ItemsSource="{Binding SdkCompressionOptions}" SelectedIndex="{Binding SdkCompressionIndex, Mode=TwoWay}" HorizontalAlignment="Stretch" IsEnabled="{Binding CanEdit}" />
+                                                <TextBlock Classes="hint" Text="{l:T Advanced.SdkCompressionHint}" TextWrapping="Wrap" />
+                                            </StackPanel>
+
+                                            <Grid ColumnDefinitions="Auto,12,*">
+                                                <ToggleSwitch IsChecked="{Binding SdkPlayGoFallback, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" VerticalAlignment="Top" />
+                                                <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{l:T Advanced.SdkPlayGoFallback}" TextWrapping="Wrap" />
+                                                    <TextBlock Classes="xs muted" Text="{l:T Advanced.SdkPlayGoFallbackHint}" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <Grid ColumnDefinitions="Auto,12,*" IsVisible="{Binding IsWindows}">
+                                                <ToggleSwitch IsChecked="{Binding SdkPrescan, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" VerticalAlignment="Top" />
+                                                <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{l:T Advanced.SdkPrescan}" TextWrapping="Wrap" />
+                                                    <TextBlock Classes="xs muted" Text="{l:T Advanced.SdkPrescanHint}" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
 
                                     <!-- Thành phần & plugin: kiểm tra thật từng thành phần có hoạt động không -->
                                     <StackPanel Classes="field" Spacing="6">
@@ -541,13 +588,13 @@
 
                                     <StackPanel Classes="field" IsVisible="{Binding IsFolderSource}">
                                         <TextBlock Classes="label" Text="{l:T Advanced.SourceMode}" />
-                                        <ComboBox Name="SourceModeCombo" ItemsSource="{Binding SourceModeOptions}" SelectedIndex="{Binding SourceModeIndex, Mode=TwoWay}" />
+                                        <ComboBox Name="SourceModeCombo" ItemsSource="{Binding SourceModeOptions}" SelectedIndex="{Binding SourceModeIndex, Mode=TwoWay}" IsEnabled="{Binding EngineOptionsEnabled}" />
                                         <TextBlock Classes="hint" Text="{l:T Advanced.SourceModeHint}" />
                                     </StackPanel>
 
                                     <StackPanel Classes="field">
                                         <TextBlock Classes="label" Text="{l:T Advanced.Backend}" />
-                                        <ComboBox Name="BackendCombo" ItemsSource="{Binding BackendOptions}" SelectedIndex="{Binding BackendIndex, Mode=TwoWay}" />
+                                        <ComboBox Name="BackendCombo" ItemsSource="{Binding BackendOptions}" SelectedIndex="{Binding BackendIndex, Mode=TwoWay}" IsEnabled="{Binding EngineOptionsEnabled}" />
                                         <TextBlock Classes="hint" Text="{Binding BackendHint}" />
                                     </StackPanel>
 
@@ -611,7 +658,7 @@
                                     </StackPanel>
 
                                     <Grid ColumnDefinitions="Auto,12,*">
-                                        <ToggleSwitch IsChecked="{Binding LayoutOptimization, Mode=TwoWay}" VerticalAlignment="Top" />
+                                        <ToggleSwitch IsChecked="{Binding LayoutOptimization, Mode=TwoWay}" IsEnabled="{Binding EngineOptionsEnabled}" VerticalAlignment="Top" />
                                         <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
                                             <TextBlock Text="{l:T Advanced.Layout}" />
                                             <TextBlock Classes="xs muted" Text="{l:T Advanced.LayoutHint}" TextWrapping="Wrap" />
@@ -627,7 +674,7 @@
                                             </StackPanel>
 
                                             <Grid ColumnDefinitions="Auto,12,*">
-                                                <ToggleSwitch IsChecked="{Binding ForceStandardDrm, Mode=TwoWay}" VerticalAlignment="Top" />
+                                                <ToggleSwitch IsChecked="{Binding ForceStandardDrmUi, Mode=TwoWay}" IsEnabled="{Binding EngineOptionsEnabled}" VerticalAlignment="Top" />
                                                 <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
                                                     <TextBlock Text="{l:T Advanced.ForceDrm}" />
                                                     <TextBlock Classes="xs muted" Text="{l:T Advanced.ForceDrmHint}" TextWrapping="Wrap" />
@@ -635,7 +682,7 @@
                                             </Grid>
 
                                             <Grid ColumnDefinitions="Auto,12,*">
-                                                <ToggleSwitch IsChecked="{Binding RemovePlayGoFiles, Mode=TwoWay}" VerticalAlignment="Top" />
+                                                <ToggleSwitch IsChecked="{Binding RemovePlayGoFilesUi, Mode=TwoWay}" IsEnabled="{Binding EngineOptionsEnabled}" VerticalAlignment="Top" />
                                                 <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
                                                     <TextBlock Text="{l:T Advanced.RemovePlayGo}" />
                                                     <TextBlock Classes="xs muted" Text="{l:T Advanced.RemovePlayGoHint}" TextWrapping="Wrap" />
@@ -685,13 +732,13 @@
                                         </StackPanel>
                                         <StackPanel Grid.Column="2" Classes="field">
                                             <TextBlock Classes="label" Text="{l:T Advanced.PlayGo}" />
-                                            <NumericUpDown Name="PlayGoBox" Minimum="1" Maximum="255" Increment="1" FormatString="0" Value="{Binding PlayGoChunks, Mode=TwoWay}" />
+                                            <NumericUpDown Name="PlayGoBox" Minimum="1" Maximum="255" Increment="1" FormatString="0" Value="{Binding PlayGoChunks, Mode=TwoWay}" IsEnabled="{Binding PlayGoChunksEnabled}" />
                                             <TextBlock Classes="hint" Text="{l:T Advanced.PlayGoHint}" />
                                             <TextBlock Classes="error" Text="{Binding PlayGoError}" IsVisible="{Binding PlayGoError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
                                         </StackPanel>
                                     </Grid>
 
-                                    <StackPanel Classes="field">
+                                    <StackPanel Classes="field" IsEnabled="{Binding EngineOptionsEnabled}">
                                         <TextBlock Classes="label" Text="{l:T Advanced.Sdk}" />
                                         <Grid ColumnDefinitions="Auto,12,*">
                                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -729,7 +776,7 @@
 
                                     <StackPanel Spacing="8">
                                         <Grid ColumnDefinitions="Auto,12,*">
-                                            <ToggleSwitch IsChecked="{Binding Deterministic, Mode=TwoWay}" VerticalAlignment="Top" />
+                                            <ToggleSwitch IsChecked="{Binding Deterministic, Mode=TwoWay}" IsEnabled="{Binding EngineOptionsEnabled}" VerticalAlignment="Top" />
                                             <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
                                                 <TextBlock Text="{l:T Advanced.Deterministic}" />
                                                 <TextBlock Classes="xs muted" Text="{l:T Advanced.DeterministicHint}" TextWrapping="Wrap" />
@@ -842,9 +889,10 @@
                             <!-- Hai sửa lỗi nhanh của Drakmor ngay cạnh nút tạo gói (được lưu cùng cấu hình) + khôi phục mọi tuỳ chọn về mặc định -->
                             <Grid ColumnDefinitions="*,12,Auto">
                                 <WrapPanel VerticalAlignment="Center">
-                                    <CheckBox IsChecked="{Binding ForceStandardDrm, Mode=TwoWay}" Content="{l:T Build.ForceDrm}" FontSize="12.5" MinHeight="0" Margin="0,0,16,0" IsEnabled="{Binding !IsBuilding}" ToolTip.Tip="{l:T Advanced.ForceDrmHint}" />
+                                    <CheckBox IsChecked="{Binding UseSonySdk, Mode=TwoWay}" Content="{l:T Build.SonySdk}" FontSize="12.5" FontWeight="SemiBold" MinHeight="0" Margin="0,0,16,0" IsEnabled="{Binding SdkCheckBoxEnabled}" ToolTip.Tip="{l:T Build.SonySdkTip}" />
+                                    <CheckBox IsChecked="{Binding ForceStandardDrmUi, Mode=TwoWay}" Content="{l:T Build.ForceDrm}" FontSize="12.5" MinHeight="0" Margin="0,0,16,0" IsEnabled="{Binding CanEditDrm}" ToolTip.Tip="{l:T Advanced.ForceDrmHint}" />
                                     <!-- Nội dung là TextBlock: chuỗi thẳng trong Content coi "_" là phím tắt nên "sce_sys" hiện thành "scesys". -->
-                                    <CheckBox IsChecked="{Binding RemovePlayGoFiles, Mode=TwoWay}" FontSize="12.5" MinHeight="0" IsEnabled="{Binding !IsBuilding}" ToolTip.Tip="{l:T Advanced.RemovePlayGoHint}">
+                                    <CheckBox IsChecked="{Binding RemovePlayGoFilesUi, Mode=TwoWay}" FontSize="12.5" MinHeight="0" IsEnabled="{Binding CanEditPlayGoDrop}" ToolTip.Tip="{l:T Advanced.RemovePlayGoHint}">
                                         <TextBlock Text="{l:T Build.RemovePlayGo}" />
                                     </CheckBox>
                                 </WrapPanel>
@@ -855,6 +903,19 @@
                                     </StackPanel>
                                 </Button>
                             </Grid>
+
+                            <Border Classes="banner warning" IsVisible="{Binding ShowSdkUnavailable}">
+                                <Grid ColumnDefinitions="Auto,*">
+                                    <PathIcon Classes="warning" Data="{StaticResource IconAlert}" VerticalAlignment="Top" Margin="0,2,10,0" />
+                                    <TextBlock Grid.Column="1" Classes="small" Text="{Binding SdkUnavailableText}" TextWrapping="Wrap" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="banner info" IsVisible="{Binding ShowSdkGp5Note}">
+                                <Grid ColumnDefinitions="Auto,*">
+                                    <PathIcon Classes="sm accent" Data="{StaticResource IconInfo}" VerticalAlignment="Top" Margin="0,2,10,0" />
+                                    <TextBlock Grid.Column="1" Classes="small" Text="{l:T Build.SonySdkGp5}" TextWrapping="Wrap" />
+                                </Grid>
+                            </Border>
 
                             <Grid ColumnDefinitions="*,10,Auto">
                                 <Button Name="BuildButton" Classes="primary" Command="{Binding BuildCommand}" IsVisible="{Binding !IsBuilding}" HorizontalAlignment="Stretch" ToolTip.Tip="{l:T Build.ButtonTip}">

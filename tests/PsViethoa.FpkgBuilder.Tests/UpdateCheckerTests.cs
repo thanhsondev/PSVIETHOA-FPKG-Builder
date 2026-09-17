@@ -47,6 +47,18 @@ public sealed class UpdateCheckerTests
         Assert.ThrowsAny<System.Text.Json.JsonException>(() => UpdateChecker.Parse("not json", "2.1.4", ""));
     }
 
+    [Theory]
+    [InlineData("v2.2.0", "2.2.0-test3", true)]
+    [InlineData("v2.2.0-test3", "2.2.0-test2", true)]
+    [InlineData("v2.2.0-test10", "2.2.0-test9", true)]
+    [InlineData("v2.2.0-test3", "2.2.0-test3", false)]
+    [InlineData("v2.2.0-test2", "2.2.0-test3", false)]
+    [InlineData("v2.2.0-test3", "2.2.0", false)]
+    [InlineData("v2.2.1", "2.2.0-test3", true)]
+    [InlineData("v2.1.9", "2.2.0-test3", false)]
+    public void IsNewer_TreatsTestBuildsAsOlderThanTheFinalVersion(string latest, string current, bool expected) =>
+        Assert.Equal(expected, UpdateChecker.IsNewer(latest, current));
+
     [Fact]
     public void IsNewer_HandlesPrefixesAndBuildMetadata()
     {
