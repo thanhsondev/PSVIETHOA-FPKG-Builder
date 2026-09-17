@@ -115,7 +115,8 @@ public static class UpdateChecker
         }
 
         var tag = tagElement.GetString() ?? string.Empty;
-        var latest = NormalizeVersion(tag);
+        // Giữ hậu tố bản thử ("2.2.0-test3") để hiển thị và so sánh; bỏ hậu tố thì bản thử tự thấy chính nó là "bản mới".
+        var latest = tag.Trim().TrimStart('v', 'V');
         var url = root.TryGetProperty("html_url", out var htmlUrl) && htmlUrl.ValueKind == JsonValueKind.String ? htmlUrl.GetString()! : ReleasesPage;
         DateTimeOffset? published = root.TryGetProperty("published_at", out var publishedAt) && publishedAt.ValueKind == JsonValueKind.String &&
                                     DateTimeOffset.TryParse(publishedAt.GetString(), out var stamp)
@@ -150,7 +151,7 @@ public static class UpdateChecker
             }
         }
 
-        return new UpdateInfo(latest, tag, url, assetName, assetUrl, assetSize, published, IsNewer(latest, currentVersion));
+        return new UpdateInfo(latest, tag, url, assetName, assetUrl, assetSize, published, IsNewer(tag, currentVersion));
     }
 
     /// <summary>"v2.1.4" / "2.1.4+abc" → "2.1.4".</summary>

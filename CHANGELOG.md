@@ -1,8 +1,8 @@
 # Changelog
 
-## 2.2.0 — 2026-09-17
+## 2.2.0 — 2026-09-18
 
-### Research build test3 (Windows, 2026-09-17/18) — not committed yet
+### Verified on the Windows research pass (2026-09-17/18)
 
 - **Ghost of Yōtei voice fix confirmed at the package level.** The dump's original PlayGo table has 35 chunks (29 per-language `pgc_lang_*` chunks, several sharing the same language mask), 1 scenario with `initial_chunk_count = 32`; the game's `eboot.bin` imports `libScePlayGo`. Publishing Tools 2.79 accepts the GP5 written by the app, and a package built from a fixture carrying the real tables reports an identical structure (chunks, masks, labels, scenario, initial count, default language, every file in the same chunk). A synthetic 35-chunk test with duplicate masks now runs through the real SDK. PS5 confirmation still pending.
 - **playgo-scenario.json of the original package is reused** for multi-chunk sources when it matches the scenario structure: Publishing Tools copies this file into the package verbatim, and the PlayGo tables do not depend on it.
@@ -13,6 +13,7 @@
 - **Internet shortcut files (`*.url`) are treated as junk** — dump sites drop files such as `更多资源请访问 2468c.com.url` into `sce_sys` (Frostpunk 2, PRAGMATA), whose non-ASCII names made the SDK reject the whole GP5.
 - **Safety: aliases are never created on the source drive.** `SonySdkPathAliases.DefaultBases` still listed the source drive root as a last resort; it is removed.
 - **Step 3 presets work with the Sony SDK too**: while "Sony SDK" is on they set `img_create --compression_level` (Smallest = the toolkit's default 7, shown selected by default; Fast 2 / Standard 4 / Maximum 9 opt-in) instead of being greyed out with the built-in engine's level. **PlayGo fallback is on by default** now (24 of 25 surveyed dumps have no `playgo-chunk.dat`); CLI `--no-sdk-playgo-fallback` turns it off.
+- **Update check**: test builds (`2.2.0-testN`) are recognised as older than the final `2.2.0`, and a build never offers itself as an update (the tag suffix was stripped before comparing).
 - **Linux builds** (`scripts/publish-linux.sh`, x64 and arm64 tarballs with app + `fpkg-cli` + `sony-sdk`). The Sony SDK runs through the distribution's Wine (`/usr/bin/wine`, `wine64`, `/opt/wine-*`, PATH or `PSVIETHOA_WINE`; the WINEPREFIX lives in `~/.local/share/psviethoa-fpkg-builder`), the update check knows the `Linux-x64` / `Linux-arm64` assets, and the machine is kept awake with `systemd-inhibit` when available. Images are extracted with the .NET reader as on Windows without Dokan.
 - Tests: 281, now passing on Windows as well (tests written on macOS used file names Windows forbids, `\n` line splitting and symlink creation without privileges).
 

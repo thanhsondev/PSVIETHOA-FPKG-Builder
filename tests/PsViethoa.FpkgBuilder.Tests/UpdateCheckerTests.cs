@@ -47,6 +47,16 @@ public sealed class UpdateCheckerTests
         Assert.ThrowsAny<System.Text.Json.JsonException>(() => UpdateChecker.Parse("not json", "2.1.4", ""));
     }
 
+    [Fact]
+    public void Parse_DoesNotOfferTheRunningTestBuildAsAnUpdate()
+    {
+        const string json = """{"tag_name":"v2.2.0-test3","html_url":"https://example/r","published_at":"2026-09-17T12:00:00Z","assets":[{"name":"PSVIETHOA-FPKG-Builder-2.2.0-test3-Windows-x64.zip","browser_download_url":"https://example/win.zip","size":10}]}""";
+        Assert.False(UpdateChecker.Parse(json, "2.2.0-test3", "Windows-x64").IsNewer);
+        Assert.True(UpdateChecker.Parse(json, "2.2.0-test2", "Windows-x64").IsNewer);
+        Assert.True(UpdateChecker.Parse(json, "2.1.9", "Windows-x64").IsNewer);
+        Assert.Equal("2.2.0-test3", UpdateChecker.Parse(json, "2.1.9", "Windows-x64").LatestVersion);
+    }
+
     [Theory]
     [InlineData("v2.2.0", "2.2.0-test3", true)]
     [InlineData("v2.2.0-test3", "2.2.0-test2", true)]
