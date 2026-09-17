@@ -203,13 +203,40 @@ public sealed partial class ExtractionViewModel : ObservableObject
     [ObservableProperty] private bool _isHashing;
     [ObservableProperty] private double _hashPercent;
 
+    /// <summary>Đang kiểm tra nội dung gói bằng engine (nhanh hoặc đầy đủ).</summary>
+    [ObservableProperty] private bool _isVerifying;
+    [ObservableProperty] private bool _isVerifyingFull;
+    [ObservableProperty] private double _verifyPercent;
+
+    /// <summary>Gói đang mở là DLC có dữ liệu: hiện nút "Xuất mẫu DLC".</summary>
+    [ObservableProperty] private bool _isDlcWithData;
+
+    /// <summary>Kết quả lần kiểm tra gần nhất (null = chưa kiểm tra gói này).</summary>
+    [ObservableProperty] private ContentVerification? _verifyResult;
+
     public bool HasIcon => IconImage != null;
     public bool HasBlockedReason => !string.IsNullOrEmpty(BlockedReason);
     public bool HasParams => ParamRows.Count > 0;
     public bool HasParamError => !string.IsNullOrEmpty(ParamError);
     public bool HasSha => !string.IsNullOrEmpty(Sha256);
     public bool CanComputeSha => HasPackage && !HasSha && !IsBusy;
-    public bool IsBusy => IsLoading || IsExtracting || IsHashing;
+    public bool CanVerify => HasPackage && !IsBusy;
+    public bool CanExportDlcTemplate => HasPackage && IsDlcWithData && !IsBusy;
+    public bool IsBusy => IsLoading || IsExtracting || IsHashing || IsVerifying;
+    public bool HasVerifyResult => VerifyResult != null && !IsVerifying;
+    public bool VerifyPassed => VerifyResult is { IsValid: true };
+    public bool VerifyFailed => VerifyResult is { IsValid: false };
+
+    public string VerifyingText => IsVerifyingFull
+        ? Loc.F("Extract.VerifyingFull", VerifyPercent.ToString("0"))
+        : Loc.T("Extract.VerifyingQuick");
+
+    public string VerifyResultText => VerifyResult switch
+    {
+        null => string.Empty,
+        { IsValid: true } result => Loc.F(result.IsFull ? "Plan.VerifiedFull" : "Plan.VerifiedQuick", result.Checks.Count, Formatters.Duration(result.Elapsed)),
+        { } result => Loc.F("Extract.VerifyFailed", result.Issues.Count) + "\n" + string.Join("\n", result.Issues.Select(issue => "• " + issue)),
+    };
     public bool CanEdit => !IsBusy;
     public string HashingText => Loc.F("Extract.Hashing", HashPercent.ToString("0"));
 
@@ -223,6 +250,22 @@ public sealed partial class ExtractionViewModel : ObservableObject
     partial void OnParamRowsChanged(IReadOnlyList<KeyValueRow> value) => OnPropertyChanged(nameof(HasParams));
     partial void OnParamErrorChanged(string? value) => OnPropertyChanged(nameof(HasParamError));
     partial void OnHashPercentChanged(double value) => OnPropertyChanged(nameof(HashingText));
+    partial void OnVerifyPercentChanged(double value) => OnPropertyChanged(nameof(VerifyingText));
+    partial void OnIsVerifyingFullChanged(bool value) => OnPropertyChanged(nameof(VerifyingText));
+
+    partial void OnVerifyResultChanged(ContentVerification? value)
+    {
+        OnPropertyChanged(nameof(HasVerifyResult));
+        OnPropertyChanged(nameof(VerifyPassed));
+        OnPropertyChanged(nameof(VerifyFailed));
+        OnPropertyChanged(nameof(VerifyResultText));
+    }
+
+    partial void OnIsVerifyingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(HasVerifyResult));
+        NotifyBusy();
+    }
 
     partial void OnSha256Changed(string? value)
     {
@@ -243,7 +286,12 @@ public sealed partial class ExtractionViewModel : ObservableObject
         OnPropertyChanged(nameof(CanEdit));
         OnPropertyChanged(nameof(CanEditOutput));
         OnPropertyChanged(nameof(CanComputeSha));
+        OnPropertyChanged(nameof(CanVerify));
+        OnPropertyChanged(nameof(CanExportDlcTemplate));
+        ExportDlcTemplateCommand.NotifyCanExecuteChanged();
         ComputeSha256Command.NotifyCanExecuteChanged();
+        VerifyQuickCommand.NotifyCanExecuteChanged();
+        VerifyFullCommand.NotifyCanExecuteChanged();
         ExtractCommand.NotifyCanExecuteChanged();
         CopyInfoCommand.NotifyCanExecuteChanged();
         ReloadCommand.NotifyCanExecuteChanged();
@@ -279,7 +327,7 @@ public sealed partial class ExtractionViewModel : ObservableObject
     public bool HasErrorBanner => !string.IsNullOrEmpty(ErrorBanner);
     public bool HasNoticeBanner => !string.IsNullOrEmpty(NoticeBanner);
     public bool CanCancel => IsExtracting && !IsCanceling;
-    public bool CanOpenOutput => Directory.Exists(OutputFolder.Trim()) && !IsExtracting;
+    public bool CanOpenOutput => (Directory.Exists(OutputFolder.Trim()) || Directory.Exists(ResultFolder)) && !IsExtracting;
 
     partial void OnStatusKindChanged(StatusKind value)
     {
@@ -429,7 +477,7 @@ public sealed partial class ExtractionViewModel : ObservableObject
 
     private void StartLoad()
     {
-        if (IsExtracting || IsHashing)
+        if (IsExtracting || IsHashing || IsVerifying)
         {
             // Reader đang được dùng để trích xuất/băm: không thay gói giữa chừng (ô đường dẫn bị khoá, kéo–thả bị chặn ở View).
             return;
@@ -560,6 +608,7 @@ public sealed partial class ExtractionViewModel : ObservableObject
             }
 
             CanExport = info.Cnt != null;
+            IsDlcWithData = info.IsDlcWithData;
             HasSupplement = info.HasSupplement;
             if (!HasSupplement)
             {
@@ -692,6 +741,8 @@ public sealed partial class ExtractionViewModel : ObservableObject
         SelectedBytes = 0;
         Sha256 = null;
         HashPercent = 0;
+        VerifyResult = null;
+        VerifyPercent = 0;
         HasResult = false;
         ErrorBanner = null;
         NoticeBanner = null;
@@ -703,6 +754,7 @@ public sealed partial class ExtractionViewModel : ObservableObject
         HasPackage = false;
         CanExtract = false;
         CanExport = false;
+        IsDlcWithData = false;
         HasSupplement = false;
         BlockedReason = null;
         LoadError = null;
@@ -1507,6 +1559,134 @@ public sealed partial class ExtractionViewModel : ObservableObject
             _workCancellation?.Dispose();
             _workCancellation = null;
             IsHashing = false;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanVerify))]
+    private Task VerifyQuickAsync() => VerifyAsync(full: false);
+
+    [RelayCommand(CanExecute = nameof(CanVerify))]
+    private Task VerifyFullAsync() => VerifyAsync(full: true);
+
+    /// <summary>
+    /// Kiểm tra nội dung gói bằng engine 0.6.8: bản nhanh đọc metadata (chữ ký CNT, bố cục PlayGo, NAPS, inode, SI); bản đầy đủ
+    /// còn giải mã, đối chiếu từng khối với imagedigs.dat và giải nén thử mọi tệp trong bộ nhớ. Không ghi gì ra đĩa.
+    /// </summary>
+    private async Task VerifyAsync(bool full)
+    {
+        if (_info is not { } info || IsBusy)
+        {
+            return;
+        }
+
+        IsVerifyingFull = full;
+        VerifyPercent = 0;
+        VerifyResult = null;
+        IsVerifying = true;
+        _workCancellation = new CancellationTokenSource();
+        var token = _workCancellation.Token;
+        var passcode = Passcode;
+        Log(LogLevel.Info, Loc.T(full ? "Plan.VerifyingFull" : "Extract.VerifyingQuick"));
+        try
+        {
+            var result = await Task.Run(
+                () => PackageVerifier.VerifyContents(
+                    info.Path,
+                    passcode,
+                    full,
+                    token,
+                    percent => Dispatcher.UIThread.Post(() => VerifyPercent = percent)),
+                token);
+            foreach (var check in result.Checks)
+            {
+                Log(LogLevel.Info, Loc.F("Plan.VerifyCheck", check));
+            }
+
+            foreach (var issue in result.Issues)
+            {
+                Log(LogLevel.Error, Loc.F("Plan.VerifyIssue", issue.Stage, issue.Message));
+            }
+
+            VerifyResult = result;
+            Log(result.IsValid ? LogLevel.Success : LogLevel.Error, result.IsValid
+                ? Loc.F(result.IsFull ? "Plan.VerifiedFull" : "Plan.VerifiedQuick", result.Checks.Count, Formatters.Duration(result.Elapsed))
+                : Loc.F("Verify.ContentFailed", string.Join("; ", result.Issues)));
+        }
+        catch (OperationCanceledException)
+        {
+            Log(LogLevel.Warning, Loc.T("Extract.VerifyCanceled"));
+        }
+        catch (Exception ex)
+        {
+            ErrorBanner = ex.Message;
+            Log(LogLevel.Error, ex.Message);
+        }
+        finally
+        {
+            _workCancellation?.Dispose();
+            _workCancellation = null;
+            IsVerifying = false;
+        }
+    }
+
+    [RelayCommand]
+    private void CancelVerify() => _workCancellation?.Cancel();
+
+    partial void OnIsDlcWithDataChanged(bool value) => NotifyBusy();
+
+    /// <summary>
+    /// Xuất mẫu DLC (fpkg-gui 0.6.8 "Export DLC template") ra "&lt;gói&gt;-dlc-template" cạnh tệp .pkg: tệp sce_sys cần để đóng gói
+    /// lại cùng tệp dự án .gp5. Bỏ dữ liệu DLC vào thư mục đó rồi chọn tệp .gp5 làm nguồn ở chế độ Tạo gói.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanExportDlcTemplate))]
+    private async Task ExportDlcTemplateAsync()
+    {
+        if (_info is not { } info || IsBusy)
+        {
+            return;
+        }
+
+        var folder = PackageReader.SuggestDlcTemplateFolder(info.Path);
+        var passcode = Passcode;
+        IsVerifyingFull = true;
+        VerifyPercent = 0;
+        IsVerifying = true;
+        _workCancellation = new CancellationTokenSource();
+        var token = _workCancellation.Token;
+        Log(LogLevel.Info, Loc.F("DlcTemplate.Exporting", folder));
+        try
+        {
+            var files = await Task.Run(
+                () => PackageReader.ExportDlcTemplate(info.Path, folder, passcode, token, percent => Dispatcher.UIThread.Post(() => VerifyPercent = percent)),
+                token);
+            foreach (var file in files)
+            {
+                Log(LogLevel.Info, "  " + file);
+            }
+
+            ResultTitle = Loc.F("DlcTemplate.Done", files.Count, info.ContentId + ".gp5");
+            ResultFolder = folder;
+            HasResult = true;
+            Log(LogLevel.Success, Loc.F("DlcTemplate.Done", files.Count, info.ContentId + ".gp5") + " " + folder);
+        }
+        catch (OperationCanceledException)
+        {
+            Log(LogLevel.Warning, Loc.T("DlcTemplate.Canceled"));
+            BuildEngine.TryDeleteDirectory(folder);
+        }
+        catch (Exception ex)
+        {
+            ErrorBanner = ex.Message;
+            Log(LogLevel.Error, ex.Message);
+        }
+        finally
+        {
+            _workCancellation?.Dispose();
+            _workCancellation = null;
+            IsVerifying = false;
+            IsVerifyingFull = false;
+            OnPropertyChanged(nameof(CanOpenOutput));
+            OpenOutputFolderCommand.NotifyCanExecuteChanged();
         }
     }
 

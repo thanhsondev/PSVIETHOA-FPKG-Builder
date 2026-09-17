@@ -286,7 +286,12 @@ public sealed class PlayGoCleanupTests : IDisposable
         Assert.StartsWith(VersionUri, document.RootElement.GetProperty("versionFileUri").GetString(), StringComparison.Ordinal);
         Assert.Equal(4160, document.RootElement.GetProperty("attribute3").GetInt32());
         Assert.Equal("free", document.RootElement.GetProperty("applicationDrmType").GetString());
-        Assert.DoesNotContain(log, e => e.Message.Contains("playgo-chunk.dat", StringComparison.OrdinalIgnoreCase));
+
+        // Bộ playgo* của nguồn toàn byte ngẫu nhiên: engine 0.6.8 sẽ dừng khi đọc header, nên công cụ bỏ riêng tệp hỏng và báo
+        // cảnh báo thay vì báo "đã bỏ playgo*" — gói vẫn tạo được và nguồn giữ nguyên.
+        Assert.DoesNotContain(log, e => e.Message.Contains("playgo-chunk.dat", StringComparison.Ordinal) && e.Message.Contains("playgo-ficm.dat", StringComparison.Ordinal));
+        Assert.Contains(log, e => e.Level == LogLevel.Warning && e.Message.Contains("playgo-chunk.dat", StringComparison.Ordinal));
+        Assert.Equal(4, PlayGoCleanup.ListFolder(folder).Count);
     }
 
     // ===================== Tạo gói thật: dự án GP5 =====================

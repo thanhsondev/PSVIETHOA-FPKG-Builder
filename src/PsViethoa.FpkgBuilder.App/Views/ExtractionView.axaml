@@ -202,7 +202,9 @@
                                     <TextBlock Classes="xs muted" Text="{l:T Extract.OptAppTreeHint}" TextWrapping="Wrap" />
                                 </StackPanel>
                             </CheckBox>
-                            <CheckBox Classes="option" IsChecked="{Binding ExtractOuter, Mode=TwoWay}" IsEnabled="{Binding HasPackage}" Content="{l:T Extract.OptOuter}" />
+                            <CheckBox Classes="option" IsChecked="{Binding ExtractOuter, Mode=TwoWay}" IsEnabled="{Binding HasPackage}">
+                                <TextBlock Text="{l:T Extract.OptOuter}" TextWrapping="Wrap" />
+                            </CheckBox>
                             <CheckBox Classes="option" IsChecked="{Binding ExtractCnt, Mode=TwoWay}" IsEnabled="{Binding CanExport}" Content="{l:T Extract.OptCnt}" />
                             <CheckBox Classes="option" IsChecked="{Binding ExtractSi, Mode=TwoWay}" IsEnabled="{Binding HasSupplement}">
                                 <StackPanel Spacing="1">
@@ -250,6 +252,46 @@
                             <ProgressBar Classes="thin" Minimum="0" Maximum="100" Value="{Binding HashPercent}" />
                             <TextBlock Classes="xs muted" Text="{Binding HashingText}" />
                         </StackPanel>
+
+                        <!-- Kiểm tra nội dung gói bằng engine (nhanh / đầy đủ) -->
+                        <WrapPanel ItemSpacing="8" LineSpacing="8">
+                            <Button Command="{Binding VerifyQuickCommand}" ToolTip.Tip="{l:T Extract.VerifyQuickTip}">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <PathIcon Classes="sm" Data="{StaticResource IconShieldCheck}" />
+                                    <TextBlock Text="{l:T Extract.VerifyQuick}" />
+                                </StackPanel>
+                            </Button>
+                            <Button Command="{Binding VerifyFullCommand}" ToolTip.Tip="{l:T Extract.VerifyFullTip}">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <PathIcon Classes="sm" Data="{StaticResource IconShieldCheck}" />
+                                    <TextBlock Text="{l:T Extract.VerifyFull}" />
+                                </StackPanel>
+                            </Button>
+                            <Button Command="{Binding ExportDlcTemplateCommand}" IsVisible="{Binding IsDlcWithData}" ToolTip.Tip="{l:T DlcTemplate.Tip}">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <PathIcon Classes="sm" Data="{StaticResource IconCopy}" />
+                                    <TextBlock Text="{l:T DlcTemplate.Button}" />
+                                </StackPanel>
+                            </Button>
+                        </WrapPanel>
+
+                        <Grid ColumnDefinitions="*,10,Auto" IsVisible="{Binding IsVerifying}">
+                            <StackPanel Spacing="4" VerticalAlignment="Center">
+                                <ProgressBar Classes="thin" Minimum="0" Maximum="100" Value="{Binding VerifyPercent}" IsIndeterminate="{Binding !IsVerifyingFull}" />
+                                <TextBlock Classes="xs muted" Text="{Binding VerifyingText}" />
+                            </StackPanel>
+                            <Button Grid.Column="2" Classes="link" Command="{Binding CancelVerifyCommand}" Content="{l:T Common.Cancel}" VerticalAlignment="Center" />
+                        </Grid>
+
+                        <Border Classes="surface" Padding="12,10" IsVisible="{Binding HasVerifyResult}">
+                            <Grid ColumnDefinitions="Auto,10,*">
+                                <Panel VerticalAlignment="Top">
+                                    <PathIcon Data="{StaticResource IconCheckCircle}" Foreground="{DynamicResource SuccessBrush}" IsVisible="{Binding VerifyPassed}" />
+                                    <PathIcon Data="{StaticResource IconAlertCircle}" Foreground="{DynamicResource DangerBrush}" IsVisible="{Binding VerifyFailed}" />
+                                </Panel>
+                                <SelectableTextBlock Grid.Column="2" Text="{Binding VerifyResultText}" TextWrapping="Wrap" FontSize="12.5" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
 
                         <StackPanel Spacing="6">
                             <TextBlock Classes="label" Text="{l:T Extract.SectionGeneralTitle}" />

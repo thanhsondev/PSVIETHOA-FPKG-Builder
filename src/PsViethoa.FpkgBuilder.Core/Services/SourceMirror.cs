@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text;
+using Microsoft.Win32.SafeHandles;
 using PsViethoa.FpkgBuilder.Core.Localization;
 using PsViethoa.FpkgBuilder.Core.Models;
 
@@ -84,6 +86,11 @@ public sealed class SourceMirror : IDisposable
             }
 
             log(new LogEntry(LogLevel.Info, Loc.F("Plan.Mirror", root)));
+            if (RemoveAppleDoubleArtifacts(root, sourceFolder) is var artifacts and > 0)
+            {
+                log(new LogEntry(LogLevel.Info, Loc.F("Plan.AppleDoubleRemoved", artifacts, workFolder)));
+            }
+
             return mirror;
         }
         catch (Exception ex)
@@ -93,6 +100,167 @@ public sealed class SourceMirror : IDisposable
             mirror.Dispose();
             log(new LogEntry(LogLevel.Warning, Loc.F("Plan.MirrorFailed", ex.GetType().Name + ": " + ex.Message + " @ " + (ex.StackTrace ?? string.Empty).Split('\n')[0].Trim())));
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Dựng gương ở chỗ đầu tiên làm được trong <paramref name="workFolders"/>. Thư mục tạm người dùng chọn có thể nằm trên ổ không
+    /// tạo được liên kết (Windows: exFAT/FAT32 của ổ cắm ngoài không có junction, ổ mạng không cho liên kết) — khi đó gương, vốn rất
+    /// nhỏ, được dựng ở thư mục tạm của hệ thống; dữ liệu tạm lớn của thư viện vẫn nằm ở thư mục tạm người dùng chọn.
+    /// </summary>
+    public static SourceMirror? CreateInAny(string sourceFolder, IReadOnlyList<string> workFolders, MirrorPlan plan, Action<LogEntry> log, bool force = false)
+    {
+        for (var i = 0; i < workFolders.Count; i++)
+        {
+            if (i > 0)
+            {
+                log(new LogEntry(LogLevel.Warning, Loc.F("Plan.MirrorFallback", workFolders[i - 1], workFolders[i])));
+            }
+
+            if (Create(sourceFolder, workFolders[i], plan, log, force) is { } mirror)
+            {
+                return mirror;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Áp kế hoạch thẳng lên một thư mục thuộc về công cụ (bản giải nén ảnh trong thư mục tạm, KHÔNG BAO GIỜ là thư mục nguồn của
+    /// người dùng): xoá tệp bỏ, ghi tệp sửa, thêm tệp mới, bỏ thư mục chỉ còn rỗng vì dọn. Không cần liên kết nên chạy được trên mọi
+    /// hệ thống tệp.
+    /// </summary>
+    public static void ApplyInPlace(string ownedFolder, MirrorPlan plan)
+    {
+        var root = System.IO.Path.GetFullPath(ownedFolder);
+        var emptied = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var relative in plan.Skip.Select(Normalize).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var target = Full(root, relative);
+            if (File.Exists(target))
+            {
+                RobustDelete.File(target);
+                emptied.Add(System.IO.Path.GetDirectoryName(target)!);
+            }
+            else if (Directory.Exists(target))
+            {
+                RobustDelete.Tree(target);
+                emptied.Add(System.IO.Path.GetDirectoryName(target)!);
+            }
+        }
+
+        foreach (var (relative, content) in plan.Replace)
+        {
+            var target = Full(root, Normalize(relative));
+            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(target)!);
+            File.WriteAllBytes(target, content);
+        }
+
+        foreach (var (relative, file) in plan.Add)
+        {
+            var target = Full(root, Normalize(relative));
+            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(target)!);
+            CopyBytes(file, target, overwrite: true);
+        }
+
+        // Như gương: thư mục chỉ rỗng vì dọn (fakelib chỉ chứa module giả lập) thì bỏ hẳn, lan dần lên nhưng không chạm gốc.
+        foreach (var folder in emptied.OrderByDescending(path => path.Length))
+        {
+            var current = folder;
+            while (current.Length > root.Length && Directory.Exists(current) && !Directory.EnumerateFileSystemEntries(current).Any())
+            {
+                Directory.Delete(current);
+                current = System.IO.Path.GetDirectoryName(current)!;
+            }
+        }
+    }
+
+    /// <summary>
+    /// macOS trên ổ exFAT/FAT: mỗi tệp tiến trình tạo ra mang thuộc tính com.apple.provenance, mà hai hệ thống tệp đó không có chỗ
+    /// chứa nên hệ điều hành ghi ra tệp AppleDouble "._tên" bên cạnh — thư viện sẽ đóng gói luôn các tệp đó (ví dụ
+    /// sce_sys/._param.json). Hàm này xoá các tệp AppleDouble (magic 0x00051607) có tệp chính đi kèm trong <paramref name="root"/>,
+    /// KHÔNG đi vào thư mục liên kết, và khi có <paramref name="sourceRoot"/> thì không xoá tệp nào cũng có mặt trong nguồn
+    /// (thứ đó là của người dùng). Xoá "._tên" không làm hệ điều hành tạo lại. Trả về số tệp đã xoá.
+    /// </summary>
+    public static int RemoveAppleDoubleArtifacts(string root, string? sourceRoot = null)
+    {
+        if (!OperatingSystem.IsMacOS() || !Directory.Exists(root))
+        {
+            return 0;
+        }
+
+        var removed = 0;
+        var pending = new Stack<string>();
+        pending.Push(root);
+        while (pending.Count > 0)
+        {
+            var folder = pending.Pop();
+            string[] entries;
+            try
+            {
+                entries = Directory.EnumerateFileSystemEntries(folder).ToArray();
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                continue;
+            }
+
+            foreach (var entry in entries)
+            {
+                var info = new FileInfo(entry);
+                if (info.LinkTarget != null)
+                {
+                    // Liên kết trỏ về nguồn: không bao giờ đi vào hay xoá qua nó.
+                    continue;
+                }
+
+                if (Directory.Exists(entry))
+                {
+                    pending.Push(entry);
+                    continue;
+                }
+
+                var name = info.Name;
+                if (!name.StartsWith("._", StringComparison.Ordinal) || name.Length <= 2 ||
+                    !System.IO.Path.Exists(System.IO.Path.Combine(folder, name[2..])) || !IsAppleDouble(entry))
+                {
+                    continue;
+                }
+
+                if (sourceRoot != null &&
+                    File.Exists(System.IO.Path.Combine(sourceRoot, System.IO.Path.GetRelativePath(root, entry))))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    if (RobustDelete.File(entry))
+                    {
+                        removed++;
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                }
+            }
+        }
+
+        return removed;
+    }
+
+    private static bool IsAppleDouble(string path)
+    {
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            Span<byte> magic = stackalloc byte[4];
+            return stream.Length >= 26 && stream.Read(magic) == 4 && magic.SequenceEqual(new byte[] { 0x00, 0x05, 0x16, 0x07 });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
         }
     }
 
@@ -227,10 +395,22 @@ public sealed class SourceMirror : IDisposable
             }
         }
 
+        // Junction tạo thẳng qua API (không phụ thuộc cmd.exe, không vướng ký tự đặc biệt); lỗi mới thử mklink.
+        Exception? nativeError = null;
+        try
+        {
+            CreateJunction(destination, source);
+            return;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or DllNotFoundException or EntryPointNotFoundException)
+        {
+            nativeError = ex;
+        }
+
         // cmd.exe khai triển %BIEN% kể cả trong dấu nháy kép, nên đường dẫn có '%' không thể đi qua mklink an toàn.
         if (destination.Contains('%') || source.Contains('%'))
         {
-            throw new IOException("path contains '%': " + source);
+            throw new IOException("junction: " + nativeError.Message);
         }
 
         // Junction không cần quyền quản trị, khác với liên kết tượng trưng trên Windows.
@@ -244,18 +424,96 @@ public sealed class SourceMirror : IDisposable
         process.WaitForExit();
         if (process.ExitCode != 0 || !Directory.Exists(destination))
         {
-            throw new IOException("mklink /J failed for " + destination);
+            throw new IOException("junction: " + nativeError.Message + " · mklink /J: " + process.StandardError.ReadToEnd().Trim());
         }
     }
+
+    private const uint GenericWrite = 0x40000000;
+    private const uint OpenExisting = 3;
+    private const uint FileFlagBackupSemantics = 0x02000000;
+    private const uint FileFlagOpenReparsePoint = 0x00200000;
+    private const uint FsctlSetReparsePoint = 0x000900A4;
+    private const uint IoReparseTagMountPoint = 0xA0000003;
+
+    /// <summary>
+    /// Tạo junction NTFS (IO_REPARSE_TAG_MOUNT_POINT) bằng FSCTL_SET_REPARSE_POINT — cùng cơ chế với mklink /J, không cần quyền
+    /// quản trị. Junction phải nằm trên NTFS; đích là thư mục cục bộ ở bất kỳ ổ nào.
+    /// </summary>
+    internal static void CreateJunction(string junction, string target)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException();
+        }
+
+        var fullTarget = System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetFullPath(target));
+        if (fullTarget.StartsWith(@"\\", StringComparison.Ordinal))
+        {
+            throw new IOException("junction target cannot be a network path: " + fullTarget);
+        }
+
+        var substitute = Encoding.Unicode.GetBytes(@"\??\" + fullTarget);
+        var print = Encoding.Unicode.GetBytes(fullTarget);
+        var pathBufferLength = substitute.Length + 2 + print.Length + 2;
+        var buffer = new byte[8 + 8 + pathBufferLength];
+        BitConverter.GetBytes(IoReparseTagMountPoint).CopyTo(buffer, 0);
+        BitConverter.GetBytes((ushort)(8 + pathBufferLength)).CopyTo(buffer, 4);
+        BitConverter.GetBytes((ushort)0).CopyTo(buffer, 8);
+        BitConverter.GetBytes((ushort)substitute.Length).CopyTo(buffer, 10);
+        BitConverter.GetBytes((ushort)(substitute.Length + 2)).CopyTo(buffer, 12);
+        BitConverter.GetBytes((ushort)print.Length).CopyTo(buffer, 14);
+        substitute.CopyTo(buffer, 16);
+        print.CopyTo(buffer, 16 + substitute.Length + 2);
+
+        Directory.CreateDirectory(junction);
+        try
+        {
+            using var handle = CreateFileW(junction, GenericWrite, 0, IntPtr.Zero, OpenExisting, FileFlagBackupSemantics | FileFlagOpenReparsePoint, IntPtr.Zero);
+            if (handle.IsInvalid)
+            {
+                throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+            }
+
+            if (!DeviceIoControl(handle, FsctlSetReparsePoint, buffer, buffer.Length, IntPtr.Zero, 0, out _, IntPtr.Zero))
+            {
+                throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+            }
+        }
+        catch
+        {
+            // Thư mục rỗng vừa tạo không phải liên kết: xoá đi để lần thử sau (mklink) bắt đầu sạch.
+            try
+            {
+                Directory.Delete(junction);
+            }
+            catch (Exception)
+            {
+            }
+
+            throw;
+        }
+
+        if (!Directory.Exists(System.IO.Path.Combine(junction, ".")) || new DirectoryInfo(junction).LinkTarget == null)
+        {
+            throw new IOException("junction was not created: " + junction);
+        }
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern SafeFileHandle CreateFileW(string lpFileName, uint dwDesiredAccess, uint dwShareMode, IntPtr lpSecurityAttributes, uint dwCreationDisposition, uint dwFlagsAndAttributes, IntPtr hTemplateFile);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool DeviceIoControl(SafeFileHandle hDevice, uint dwIoControlCode, byte[] lpInBuffer, int nInBufferSize, IntPtr lpOutBuffer, int nOutBufferSize, out int lpBytesReturned, IntPtr lpOverlapped);
 
     /// <summary>
     /// Chép nội dung tệp, KHÔNG chép thuộc tính mở rộng. File.Copy trên macOS gọi copyfile() kèm metadata và ném
     /// "Attribute not found" khi nguồn nằm trên ổ exFAT vừa gắn bằng hdiutil.
     /// </summary>
-    private static void CopyBytes(string source, string destination)
+    private static void CopyBytes(string source, string destination, bool overwrite = false)
     {
         using var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 20, FileOptions.SequentialScan);
-        using var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1 << 20, FileOptions.SequentialScan);
+        using var output = new FileStream(destination, overwrite ? FileMode.Create : FileMode.CreateNew, FileAccess.Write, FileShare.None, 1 << 20, FileOptions.SequentialScan);
         input.CopyTo(output, 1 << 20);
     }
 
@@ -327,7 +585,7 @@ public sealed class SourceMirror : IDisposable
                 continue;
             }
 
-            File.Delete(entry);
+            RobustDelete.File(entry);
         }
 
         Directory.Delete(folder);

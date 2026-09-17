@@ -476,6 +476,13 @@
         <member name="M:LibProsperoPkg.GP5.Gp5Project.ReadFrom(System.String)">
             <summary>Reads a GP5 project from the given file path.</summary>
         </member>
+        <member name="M:LibProsperoPkg.GP5.Gp5Project.EnsureDefaultPlayGoScenario(LibProsperoPkg.GP5.Gp5Project)">
+            <summary>
+            Publishing Tools requires at least one scenario whenever <c>chunk_info</c> is present.
+            Complete malformed/minimal projects with the SDK's conventional play-mode scenario: chunk
+            zero is initial and every declared chunk remains reachable later in the scenario order.
+            </summary>
+        </member>
         <member name="T:LibProsperoPkg.GP5.Gp5Volume">
             <summary>The <c>&lt;volume&gt;</c> element of a GP5 project.</summary>
         </member>
@@ -2152,6 +2159,12 @@
             <param name="destination">Writable destination for the logical file.</param>
             <returns>Number of decompressed bytes written.</returns>
         </member>
+        <member name="M:LibProsperoPkg.PFS.Compression.PprPfsKraken.Unpack(System.IO.Stream,System.Int64,System.IO.Stream,System.Threading.CancellationToken,System.Action{System.Int64,System.Int64})">
+            <summary>
+            Decompresses a PFSC v2 container with cancellation and logical-byte progress reporting.
+            The decoder keeps only one 256-KiB Kraken group in memory.
+            </summary>
+        </member>
         <member name="M:LibProsperoPkg.PFS.Compression.PprPfsKraken.Write(System.IO.Stream,System.Int64,System.IO.Stream,System.Int32,System.Boolean)">
             <summary>
             Writes a seekable PFSC v2 container with a bounded working set proportional to the selected
@@ -2629,6 +2642,17 @@
         </member>
         <member name="M:LibProsperoPkg.PFS.Compression.ProsperoNapsImage.Decompress(System.IO.Stream,LibProsperoPkg.PKG.NapsLayoutDocument,System.IO.Stream)">
             <summary>Decompresses the complete logical stream to a seekable destination.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.PFS.Compression.ProsperoNapsImage.OpenRead(System.IO.Stream,LibProsperoPkg.PKG.NapsLayoutDocument,System.Threading.CancellationToken)">
+            <summary>
+            Opens a seekable, read-only view of the logical NAPS image. Data is decoded on demand and
+            only one 256-KiB logical span is retained, so callers can enumerate or extract a PPR-PFS
+            image without first materializing a temporary multi-gigabyte inner image.
+            </summary>
+            <remarks>The returned stream does not own <paramref name="pfsImage"/>.</remarks>
+        </member>
+        <member name="M:LibProsperoPkg.PFS.Compression.ProsperoNapsImage.Decompress(System.IO.Stream,LibProsperoPkg.PKG.NapsLayoutDocument,System.IO.Stream,System.Threading.CancellationToken,System.Action{System.Int32})">
+            <summary>Decompresses the complete logical stream with cancellation and percentage progress.</summary>
         </member>
         <member name="M:LibProsperoPkg.PFS.Compression.ProsperoNapsImage.DecompressRange(System.IO.Stream,LibProsperoPkg.PKG.NapsLayoutDocument,System.Int64,System.Int32)">
             <summary>
@@ -3483,8 +3507,14 @@
             Represents a file in a PFS image.
             </summary>
         </member>
+        <member name="M:LibProsperoPkg.PFS.PfsReader.File.Save(System.String,System.Boolean,System.Threading.CancellationToken,System.Action{System.Int64,System.Int64})">
+            <summary>Saves this inode with cancellation and byte progress reporting.</summary>
+        </member>
         <member name="M:LibProsperoPkg.PFS.PfsReader.File.CopyTo(System.IO.Stream,System.Boolean)">
             <summary>Copies this inode to an arbitrary writable stream.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.PFS.PfsReader.File.CopyTo(System.IO.Stream,System.Boolean,System.Threading.CancellationToken,System.Action{System.Int64,System.Int64})">
+            <summary>Copies this inode with cancellation and byte progress reporting.</summary>
         </member>
         <member name="M:LibProsperoPkg.PFS.PfsReader.File.ReadAllBytes(System.Boolean)">
             <summary>Reads the complete inode into memory.</summary>
@@ -4879,7 +4909,7 @@
             <summary>
             Per-work-block chunk table of the compressed metadata region, captured once during assembly so
             the naps generator can read the chunk sizes WITHOUT Kraken-packing the metadata a second time.
-            Empty when the metadata is stored raw (no compression).
+            Stored metadata also has a table, with equal compressed and uncompressed sizes.
             </summary>
         </member>
         <member name="P:LibProsperoPkg.PFS.ProsperoPs5InnerImageResult.DataEndLogical">
@@ -5388,6 +5418,9 @@
             DX10 <c>DXGI_FORMAT_BC7_UNORM</c> DDS with no mipmaps, matching the surface dimensions and
             header layout of the reference <c>icon0.dds</c> / <c>pic0.dds</c> / <c>pic1.dds</c> / <c>pic2.dds</c>.
             </summary>
+        </member>
+        <member name="M:LibProsperoPkg.PKG.ProsperoDdsEncoder.DecodeDdsToPng(System.Byte[],System.Boolean)">
+            <summary>Decodes the first DDS surface to a PNG, retaining its size and optionally alpha.</summary>
         </member>
         <member name="F:LibProsperoPkg.PKG.ProsperoDdsEncoder.HeaderSize">
             <summary>The total size, in bytes, of the DDS magic + DDS_HEADER + DDS_HEADER_DXT10 prefix.</summary>
@@ -6598,6 +6631,30 @@
             schedule is known.
             </summary>
         </member>
+        <member name="T:LibProsperoPkg.PKG.ProsperoCntIntegrityMismatch">
+            <summary>One CNT entry whose stored digest does not match either plaintext or raw bytes.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.PKG.ProsperoCntIntegrityMismatch.#ctor(System.UInt32,System.String)">
+            <summary>One CNT entry whose stored digest does not match either plaintext or raw bytes.</summary>
+        </member>
+        <member name="T:LibProsperoPkg.PKG.ProsperoCntIntegrityResult">
+            <summary>Result of the no-extraction CNT header and entry-digest verification.</summary>
+        </member>
+        <member name="T:LibProsperoPkg.PKG.ProsperoInnerFileStatistics">
+            <summary>Logical and stored sizes measured from the inner PPR-PFS inode table.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.PKG.ProsperoInnerFileStatistics.#ctor(System.Int32,System.Int64,System.Int64)">
+            <summary>Logical and stored sizes measured from the inner PPR-PFS inode table.</summary>
+        </member>
+        <member name="T:LibProsperoPkg.PKG.ProsperoPackageVerificationIssue">
+            <summary>One failed package verification check.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.PKG.ProsperoPackageVerificationIssue.#ctor(System.String,System.String)">
+            <summary>One failed package verification check.</summary>
+        </member>
+        <member name="T:LibProsperoPkg.PKG.ProsperoPackageVerificationResult">
+            <summary>Bounded-memory result returned by quick and full package verification.</summary>
+        </member>
         <member name="T:LibProsperoPkg.PKG.ProsperoPackageArchive">
             <summary>
             Splits, decrypts and extracts finalized debug packages. Container parsing is independent of
@@ -6614,11 +6671,40 @@
             name is retained for API compatibility; this field is not a private-key signature.
             </summary>
         </member>
+        <member name="M:LibProsperoPkg.PKG.ProsperoPackageArchive.TryReadCntEntry(System.String,System.String,System.UInt32)">
+            <summary>
+            Reads one CNT entry directly from the package. Protected records are decrypted in memory
+            with <paramref name="passcode"/>; no extraction directory is created.
+            </summary>
+        </member>
+        <member name="M:LibProsperoPkg.PKG.ProsperoPackageArchive.VerifyCntEntryDigests(System.String,System.String,System.Threading.CancellationToken,System.Action{System.Int32})">
+            <summary>
+            Verifies the CNT header wrap and every CNT SHA3-256 entry digest directly from the package.
+            It decrypts only one protected entry at a time and never creates a temporary directory.
+            </summary>
+        </member>
+        <member name="M:LibProsperoPkg.PKG.ProsperoPackageArchive.VerifyPackageQuick(System.String,System.String,System.Threading.CancellationToken,System.Action{System.Int32},System.Action{System.String})">
+            <summary>
+            Quickly verifies package ranges, CNT authentication, the complete PlayGo layout, the
+            outer-PFS superblock, the NAPS layout, inner-PFS inode metadata, and the SI central
+            directory. Game payloads are not decompressed and nothing is written to disk.
+            </summary>
+        </member>
+        <member name="M:LibProsperoPkg.PKG.ProsperoPackageArchive.VerifyPackageFull(System.String,System.String,System.Threading.CancellationToken,System.Action{System.Int32},System.Action{System.String},System.Int32)">
+            <summary>
+            Performs all quick checks, verifies every decrypted outer-PFS block against
+            <c>imagedigs.dat</c>, decodes every NAPS chunk and every inner file into bounded memory, and
+            discards the decoded bytes. No files or temporary images are created.
+            </summary>
+        </member>
         <member name="M:LibProsperoPkg.PKG.ProsperoPackageArchive.DecryptOuterPfs(System.String,System.String,System.String)">
             <summary>
             Decrypts the outer finalized-image PFS directly to a file. Unlike the byte-array overload,
             this path uses one 64-KiB buffer and supports multi-gigabyte images.
             </summary>
+        </member>
+        <member name="M:LibProsperoPkg.PKG.ProsperoPackageArchive.DecryptOuterPfs(System.String,System.String,System.String,System.Threading.CancellationToken,System.Action{System.Int32})">
+            <summary>Decrypts the outer PFS with cancellation and percentage progress.</summary>
         </member>
         <member name="M:LibProsperoPkg.PKG.ProsperoPackageArchive.DecodeInnerPfs(System.String,System.String)">
             <summary>
@@ -6631,6 +6717,9 @@
             Decrypts and NAPS-decodes a package to a logical inner PPR-PFS file without holding either
             complete image in managed memory.
             </summary>
+        </member>
+        <member name="M:LibProsperoPkg.PKG.ProsperoPackageArchive.DecodeInnerPfs(System.String,System.String,System.String,System.Threading.CancellationToken,System.Action{System.Int32})">
+            <summary>Decodes the logical inner PPR-PFS with cancellation and percentage progress.</summary>
         </member>
         <member name="M:LibProsperoPkg.PKG.ProsperoPackageArchive.DecodePlaintextInnerPfsRange(System.String,System.Int64,System.Int32)">
             <summary>
@@ -6647,14 +6736,42 @@
         <member name="M:LibProsperoPkg.PKG.ProsperoPackageArchive.ExtractInnerFiles(System.String,System.String,System.String,System.Boolean)">
             <summary>Extracts every file from the NAPS-decoded inner PPR-PFS image.</summary>
         </member>
+        <member name="M:LibProsperoPkg.PKG.ProsperoPackageArchive.ExtractInnerFiles(System.String,System.String,System.String,System.Boolean,System.Threading.CancellationToken,System.Action{System.Int32},System.Action{System.String})">
+            <summary>Extracts inner game files with cancellation, progress, and per-file notifications.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.PKG.ProsperoPackageArchive.AnalyzeInnerFiles(System.String,System.String,System.Threading.CancellationToken,System.Action{System.Int32})">
+            <summary>
+            Reads inner-PFS inode metadata on demand and returns exact game-file counts and sizes without
+            writing a decrypted outer or logical inner image to a temporary directory.
+            </summary>
+        </member>
         <member name="M:LibProsperoPkg.PKG.ProsperoPackageArchive.ExtractCntEntries(System.String,System.String,System.String,System.Boolean)">
             <summary>
             Extracts CNT entries and decrypts protected entries with the supplied package passcode.
             Publisher containers are detected from the 0xB80-byte RSA-3072 ENTRY_KEYS record.
             </summary>
         </member>
+        <member name="M:LibProsperoPkg.PKG.ProsperoPackageArchive.ExtractCntEntries(System.String,System.String,System.String,System.Boolean,System.Threading.CancellationToken,System.Action{System.Int32},System.Action{System.String})">
+            <summary>Extracts CNT entries with cancellation, progress, and per-file notifications.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.PKG.ProsperoPackageArchive.ExtractRebuildSourceFiles(System.String,System.String,System.String,System.Threading.CancellationToken,System.Action{System.Int32},System.Action{System.String})">
+            <summary>
+            Extracts only CNT records that are useful as inputs for rebuilding a package and places
+            them under their canonical <c>sce_sys</c> paths. Cryptographic tables, image digests,
+            generated PlayGo auxiliaries, and publisher bookkeeping records are omitted.
+            </summary>
+        </member>
+        <member name="M:LibProsperoPkg.PKG.ProsperoPackageArchive.ExportAdditionalContentTemplate(System.String,System.String,System.String,System.Threading.CancellationToken,System.Action{System.Int32},System.Action{System.String})">
+            <summary>
+            Exports the CNT inputs needed to rebuild a data-bearing AC package and creates a GP5
+            project rooted at the exported folder. Inner-PFS payload files are never read or written.
+            </summary>
+        </member>
         <member name="M:LibProsperoPkg.PKG.ProsperoPackageArchive.ExtractSiEntries(System.String,System.String)">
             <summary>Extracts the trailing debug SI ZIP while preserving its publisher member paths.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.PKG.ProsperoPackageArchive.ExtractSiEntries(System.String,System.String,System.Threading.CancellationToken,System.Action{System.Int32},System.Action{System.String})">
+            <summary>Extracts SI files with cancellation, progress, and per-file notifications.</summary>
         </member>
         <member name="T:LibProsperoPkg.PKG.ProsperoPkgHeader">
             <summary>
@@ -7047,16 +7164,29 @@
         </member>
         <member name="P:LibProsperoPkg.PKG.ProsperoPkgBuildProperties.PlayGoChunkCount">
             <summary>
-            Number of automatically generated PlayGo chunks (1..64, default 64). Small publisher images
-            are clamped to the number of non-empty files and physical blocks; legacy images use one.
+            Number of automatically generated PlayGo chunks (1..255, default 100). Supplied PlayGo headers
+            override the fallback counts; all tables are rebuilt, including empty logical chunks.
             </summary>
+        </member>
+        <member name="P:LibProsperoPkg.PKG.ProsperoPkgBuildProperties.PlayGoLanguageMask">
+            <summary>Scenario presentation languages only. Generated chunks always support all languages.</summary>
         </member>
         <member name="P:LibProsperoPkg.PKG.ProsperoPkgBuildProperties.SdkVersionOverride">
             <summary>
             Optional full 64-bit executable SDK identifier. It replaces or synthesizes executable
-            <c>.sceversion</c> metadata; package metadata receives the canonical major/minor form.
+            <c>.sceversion</c> metadata; package <c>sdkVersion</c> and
+            <c>requiredSystemSoftwareVersion</c> receive the canonical major/minor form.
             Null preserves source metadata.
             </summary>
+        </member>
+        <member name="P:LibProsperoPkg.PKG.ProsperoPkgBuildProperties.ForceStandardApplicationDrm">
+            <summary>Uses standard application DRM metadata for APP builds without changing source files.</summary>
+        </member>
+        <member name="P:LibProsperoPkg.PKG.ProsperoPkgBuildProperties.ApplicationDrmTypeOverride">
+            <summary>APP metadata override; null preserves the source policy. Takes precedence over ForceStandardApplicationDrm.</summary>
+        </member>
+        <member name="P:LibProsperoPkg.PKG.ProsperoPkgBuildProperties.AdditionalContentDrmTypeOverride">
+            <summary>AC DRM override; null retains the normal entitlement-protected AC profile.</summary>
         </member>
         <member name="P:LibProsperoPkg.PKG.ProsperoPkgBuildProperties.PublisherImageMode">
             <summary>Selects the stock encrypted or research plaintext/no-auth publisher image.</summary>
@@ -7195,6 +7325,9 @@
             Resolves a package-relative source path. When a GP5 exists it is the authoritative manifest,
             matching <see cref="M:LibProsperoPkg.PKG.ProsperoPkgBuilder.BuildInnerTree(System.String,System.String,LibProsperoPkg.PKG.ProsperoVolumeType,System.Nullable{System.UInt64},LibProsperoPkg.ProsperoSourceMode,System.String,System.Threading.CancellationToken,System.Action{System.String})"/>; otherwise the loose source tree is used.
             </summary>
+        </member>
+        <member name="M:LibProsperoPkg.PKG.ProsperoPkgBuilder.ResolvePlayGoCounts(System.String,System.Int32,LibProsperoPkg.ProsperoSourceMode,System.String)">
+            <summary>Imports only source PlayGo counters. GP5 mapping remains authoritative.</summary>
         </member>
         <member name="T:LibProsperoPkg.PKG.ProsperoPkgType">
             <summary>The kind of PS5 package, distinguished by its 4-byte magic / signed byte.</summary>
@@ -8136,6 +8269,18 @@
             pipeline. See the file header for the layouts and the boundary.
             </summary>
         </member>
+        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.ReadSourceCounts(System.String,System.String,System.Int32)">
+            <summary>Reads counts only; no source layout or scenario content is reused.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.ReadChunkCounts(System.ReadOnlySpan{System.Byte})">
+            <summary>Reads PlayGo counts directly from an in-memory <c>playgo-chunk.dat</c> entry.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.BuildScenarioJson(System.Int32,System.UInt64)">
+            <summary>Fresh generic scenario presentation; language selection does not control chunk availability.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.BuildScenarioPng">
+            <summary>Neutral presentation for regenerated scenarios; no source PlayGo artwork is reused.</summary>
+        </member>
         <member name="F:LibProsperoPkg.PlayGo.ProsperoPlayGo.ChunkDatSize">
             <summary>The fixed size of a PS5 <c>playgo-chunk.dat</c> for the single-chunk profile.</summary>
         </member>
@@ -8166,7 +8311,7 @@
             complete mount image; the original position is restored.
             </summary>
         </member>
-        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.BuildChunkDat(System.String,System.UInt64,System.UInt64,System.Boolean,System.Boolean,System.Int32)">
+        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.BuildChunkDat(System.String,System.UInt64,System.UInt64,System.Boolean,System.Boolean,System.Int32,System.Int32,System.Int32,System.UInt64)">
             <summary>
             Builds the PS5 <c>sce_sys/playgo-chunk.dat</c> (<c>plgx</c> container, version 0x1000) for the
             single-image / single-chunk / single-scenario profile used by PS5 system applications.
@@ -8187,11 +8332,14 @@
             AC uses one-byte empty label tables.
             </param>
             <param name="chunkCount">Number of automatic chunks. One preserves the byte-exact verified profile.</param>
+            <param name="scenarioCount">Number of fresh scenarios, each listing all chunks.</param>
+            <param name="initialChunkCount">Number of chunks required before starting each scenario.</param>
+            <param name="languageMask">Supported PlayGo languages for the header and every chunk.</param>
             <returns>The generated <c>playgo-chunk.dat</c> payload.</returns>
         </member>
-        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.BuildMultiChunkDat(System.String,System.Collections.Generic.IReadOnlyList{System.UInt64},System.UInt64,System.Boolean,System.Boolean,System.UInt64)">
+        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.BuildMultiChunkDat(System.String,System.Collections.Generic.IReadOnlyList{System.UInt64},System.UInt64,System.Boolean,System.Boolean,System.UInt64,System.Int32,System.Int32)">
             <summary>
-            Builds a single-scenario PlayGo descriptor with multiple contiguous main-image extents.
+            Builds PlayGo descriptors with contiguous main-image extents and regenerated scenarios.
             Chunk zero owns its main extent plus the common trailing metadata extent; every later chunk
             owns one main extent. Publishing Tools uses this shape for a scenario ordered as
             <c>0 1 ... N-1</c>.
@@ -8243,6 +8391,26 @@
             debug package, or <c>null</c> when the embedded resource is unavailable.
             </summary>
         </member>
+        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.ValidateLayout(System.ReadOnlySpan{System.Byte},System.ReadOnlySpan{System.Byte},System.ReadOnlySpan{System.Byte},System.ReadOnlySpan{System.Byte},System.String,System.Nullable{System.UInt64})">
+            <summary>
+            Validates the mutually dependent PlayGo CNT records without extracting the nested image.
+            The descriptor sections, chunk/extent and scenario/chunk references, extent coverage,
+            FICM assignments, FLT table, scenario JSON, and content id are checked together.
+            </summary>
+            <param name="chunkData"><c>playgo-chunk.dat</c> bytes.</param>
+            <param name="ficmData"><c>playgo-ficm.dat</c> bytes.</param>
+            <param name="hashTableData"><c>playgo-hash-table.dat</c> bytes.</param>
+            <param name="scenarioJson">
+            Optional <c>playgo-scenario.json</c> bytes. Basic Publishing Tools APP packages omit
+            this CNT record; when present, it is validated against the descriptor.
+            </param>
+            <param name="expectedContentId">CNT content id, when known.</param>
+            <param name="expectedMountSize">
+            Expected byte range covered by the manifest extents, from package offset zero through the
+            end of the outer PFS (the beginning of the CNT segment). Omit when validating a detached
+            metadata container.
+            </param>
+        </member>
         <member name="T:LibProsperoPkg.PlayGo.ProsperoChunkCrcAccumulator">
             <summary>
             Incrementally builds the PlayGo CRC table while a finalized mount image is being written.
@@ -8255,6 +8423,15 @@
             Appends CRC32C values for complete 64-KiB blocks that were already calculated while those
             blocks were written. The accumulator must currently be on a block boundary.
             </summary>
+        </member>
+        <member name="T:LibProsperoPkg.PlayGo.ProsperoPlayGoLayoutInfo">
+            <summary>Summary of a structurally valid PS5 PlayGo layout.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGoLayoutInfo.#ctor(System.Int32,System.Int32,System.Int32,System.UInt64,System.Int32)">
+            <summary>Summary of a structurally valid PS5 PlayGo layout.</summary>
+        </member>
+        <member name="T:LibProsperoPkg.PlayGo.ProsperoPlayGoLanguages">
+            <summary>Publishing Tools PlayGo language IDs. ID zero occupies the most significant mask bit.</summary>
         </member>
         <member name="T:LibProsperoPkg.ProsperoContentVersion">
             <summary>
@@ -8366,6 +8543,18 @@
             trusted <see cref="T:LibProsperoPkg.PKG.IProsperoRetailFinalizationProvider"/> that returns the protected
             0x300-byte FIH material. The builder refuses to emit a structural-only 0x80 image.
             </summary>
+        </member>
+        <member name="T:LibProsperoPkg.ProsperoApplicationDrmType">
+            <summary>Explicit application DRM metadata for a newly built package.</summary>
+        </member>
+        <member name="T:LibProsperoPkg.ProsperoAdditionalContentDrmType">
+            <summary>Explicit DRM policy for data-bearing additional-content packages.</summary>
+        </member>
+        <member name="F:LibProsperoPkg.ProsperoAdditionalContentDrmType.Free">
+            <summary>Do not add an entitlement license and publish a zero DRM type.</summary>
+        </member>
+        <member name="F:LibProsperoPkg.ProsperoAdditionalContentDrmType.Entitlement">
+            <summary>Publish the normal AC entitlement license and Prospero DRM type.</summary>
         </member>
         <member name="T:LibProsperoPkg.ProsperoSourceMode">
             <summary>Selects whether build inputs come from a loose folder or a GP5 manifest.</summary>
@@ -8613,18 +8802,31 @@
         </member>
         <member name="P:LibProsperoPkg.ProsperoBuildOptions.PlayGoChunkCount">
             <summary>
-            Number of automatically generated PlayGo chunks (64 by default). One preserves the verified
-            publisher <c>nwonly</c> profile. Values above one create an experimental single-scenario
-            layout whose physical main extent and AFID-ordered files are divided deterministically.
-            Small images are clamped to the number of non-empty files and physical blocks.
+            Fallback number of generated PlayGo chunks (100 by default, 1..255).
+            A supplied PlayGo header overrides counts only. All tables and scenarios are regenerated
+            for the current image. Each generic scenario starts with chunk zero and keeps all remaining
+            chunks in its later download order.
             </summary>
+        </member>
+        <member name="P:LibProsperoPkg.ProsperoBuildOptions.PlayGoLanguageMask">
+            <summary>Scenario presentation languages only. Generated chunks always support all languages.</summary>
         </member>
         <member name="P:LibProsperoPkg.ProsperoBuildOptions.SdkVersionOverride">
             <summary>
             Optional full 64-bit executable SDK identifier. It is applied verbatim to executable
             <c>.sceversion</c> metadata; <c>sce_sys/param.json</c> receives its canonical major/minor
-            form. When omitted, source metadata is preserved.
+            form in both <c>sdkVersion</c> and <c>requiredSystemSoftwareVersion</c>. When omitted,
+            source metadata is preserved.
             </summary>
+        </member>
+        <member name="P:LibProsperoPkg.ProsperoBuildOptions.ForceStandardApplicationDrm">
+            <summary>Uses standard application DRM metadata for APP builds without changing source files.</summary>
+        </member>
+        <member name="P:LibProsperoPkg.ProsperoBuildOptions.ApplicationDrmTypeOverride">
+            <summary>APP metadata override; null preserves the source policy. Takes precedence over ForceStandardApplicationDrm.</summary>
+        </member>
+        <member name="P:LibProsperoPkg.ProsperoBuildOptions.AdditionalContentDrmTypeOverride">
+            <summary>AC DRM override; null retains the normal entitlement-protected AC profile.</summary>
         </member>
         <member name="P:LibProsperoPkg.ProsperoBuildOptions.PublisherImageMode">
             <summary>

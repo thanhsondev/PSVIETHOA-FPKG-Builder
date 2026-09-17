@@ -55,6 +55,20 @@ public static partial class DiskSpaceAdvisor
                     : Localization.Loc.F("Disk.OutputLow", output.MountPoint, Formatters.Size(output.FreeBytes), Formatters.Size(needOutput));
         }
 
+        // FAT/FAT32 không chứa được tệp từ 4 GiB: ảnh trong ở thư mục tạm và tệp .pkg của game thật hầu như luôn vượt mức đó.
+        var fatVolumes = new[] { temporary?.MountPoint, output?.MountPoint }
+            .Where(mount => mount != null && IsFat(mount))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (fatVolumes.Length > 0)
+        {
+            summary += " " + Localization.Loc.F("Disk.Fat", string.Join(", ", fatVolumes!));
+            if (sourceBytes >= FatMaxFileBytes)
+            {
+                sufficient = false;
+            }
+        }
+
         return new DiskSpaceReport(
             output?.MountPoint ?? "?",
             output?.FreeBytes ?? -1,
@@ -92,6 +106,45 @@ public static partial class DiskSpaceAdvisor
         {
             return null;
         }
+    }
+
+    /// <summary>Tệp lớn nhất FAT32 chứa được (4 GiB − 1 byte).</summary>
+    public const long FatMaxFileBytes = 4L * 1024 * 1024 * 1024 - 1;
+
+    /// <summary>Tên hệ thống tệp của ổ chứa đường dẫn ("NTFS", "exFAT", "FAT32", "apfs", "msdos"…; null nếu không đọc được).</summary>
+    public static string? FileSystemOf(string path)
+    {
+        try
+        {
+            var mount = ResolveMountPoint(ExistingAncestor(path));
+            return mount == null ? null : new DriveInfo(mount).DriveFormat;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Ổ FAT/FAT32 (Windows "FAT32", macOS "msdos") — giới hạn mỗi tệp dưới 4 GiB.</summary>
+    public static bool IsFat(string path) =>
+        FileSystemOf(path) is { } format &&
+        (format.StartsWith("FAT", StringComparison.OrdinalIgnoreCase) || format.Equals("msdos", StringComparison.OrdinalIgnoreCase) || format.Equals("vfat", StringComparison.OrdinalIgnoreCase));
+
+    private static string ExistingAncestor(string path)
+    {
+        var existing = Path.GetFullPath(path);
+        while (!Directory.Exists(existing))
+        {
+            var parent = Path.GetDirectoryName(existing);
+            if (string.IsNullOrEmpty(parent) || parent == existing)
+            {
+                break;
+            }
+
+            existing = parent;
+        }
+
+        return existing;
     }
 
     public static bool IsSameVolume(string a, string b)

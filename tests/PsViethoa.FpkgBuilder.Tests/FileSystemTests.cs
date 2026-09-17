@@ -82,7 +82,7 @@ public class FileSystemTests : IDisposable
             ContentId = "up9000-ppsa00001_00-psviethoatest001",
             Version = "01.000.000",
             Passcode = "short",
-            PlayGoChunks = 99,
+            PlayGoChunks = 256,
         };
 
         var errors = BuildPreparer.Validate(request);
@@ -93,7 +93,7 @@ public class FileSystemTests : IDisposable
 
         request.OutputFolder = Path.Combine(_root, "out");
         request.Passcode = new string('0', 32);
-        request.PlayGoChunks = 64;
+        request.PlayGoChunks = 255;
         request.KrakenBackend = KrakenBackendKind.BuiltIn;
         Assert.Empty(BuildPreparer.Validate(request));
 

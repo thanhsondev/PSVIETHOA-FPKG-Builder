@@ -86,6 +86,9 @@ public sealed class SourceMetadata
 
     public bool HasPlayGoScenario { get; set; }
 
+    /// <summary>Số khối/kịch bản engine sẽ lấy từ bộ playgo* của nguồn và các tệp hỏng sẽ bị bỏ (engine 0.6.8).</summary>
+    public Services.PlayGoCleanup.InputCheck PlayGoInput { get; set; } = Services.PlayGoCleanup.InputCheck.None;
+
     public int PlayGoFileCount =>
         (HasPlayGoChunk ? 1 : 0) + (HasPlayGoHashTable ? 1 : 0) + (HasPlayGoFicm ? 1 : 0);
 

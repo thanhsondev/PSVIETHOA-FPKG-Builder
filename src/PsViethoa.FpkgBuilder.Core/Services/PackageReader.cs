@@ -496,6 +496,58 @@ public sealed class PackageReader : IDisposable
         }
     }
 
+    /// <summary>Thư mục gợi ý cho mẫu DLC: "&lt;tên gói&gt;-dlc-template" cạnh tệp .pkg, thêm " (2)", " (3)"… nếu đã có và không rỗng.</summary>
+    public static string SuggestDlcTemplateFolder(string packagePath)
+    {
+        var full = Path.GetFullPath(packagePath);
+        var parent = Path.GetDirectoryName(full) ?? Directory.GetCurrentDirectory();
+        var baseName = Path.GetFileNameWithoutExtension(full) + "-dlc-template";
+        var candidate = Path.Combine(parent, baseName);
+        for (var index = 2; Directory.Exists(candidate) && Directory.EnumerateFileSystemEntries(candidate).Any(); index++)
+        {
+            candidate = Path.Combine(parent, $"{baseName} ({index})");
+        }
+
+        return candidate;
+    }
+
+    /// <summary>
+    /// Xuất mẫu DLC từ một gói DLC có dữ liệu (fpkg-gui 0.6.8 "Export DLC template", engine ExportAdditionalContentTemplate): các tệp
+    /// sce_sys cần để đóng gói lại (param.json, license.dat/info, icon…) cùng tệp dự án "&lt;Content ID&gt;.gp5" (loại prospero_ac,
+    /// Content ID, passcode, entitlement key lấy từ license.info, số khối/kịch bản PlayGo của gói gốc, rootdir = thư mục mẫu). Dữ
+    /// liệu game bên trong không bị đọc. Thư mục đích phải chưa có hoặc rỗng. Trả về đường dẫn tương đối đã ghi.
+    /// </summary>
+    public static IReadOnlyList<string> ExportDlcTemplate(string packagePath, string outputFolder, string passcode, CancellationToken cancellationToken, Action<int>? progress = null)
+    {
+        ValidatePasscode(passcode);
+        var destination = Path.GetFullPath(outputFolder);
+        if (Directory.Exists(destination) && Directory.EnumerateFileSystemEntries(destination).Any())
+        {
+            throw new IOException(Localization.Loc.F("DlcTemplate.NotEmpty", destination));
+        }
+
+        // Thư viện từ chối đường dẫn có liên kết (macOS /var → /private/var) và đòi thư mục rỗng: xuất vào một thư mục con chưa tồn
+        // tại trong thư mục tạm thật rồi chuyển sang đích. Dự án GP5 dùng rootdir tương đối "." nên chuyển đi vẫn đúng.
+        var staging = CreateRealTemporaryDirectory("psviethoa-dlc-");
+        try
+        {
+            var target = Path.Combine(staging, "template");
+            cancellationToken.ThrowIfCancellationRequested();
+            ProsperoPackageArchive.ExportAdditionalContentTemplate(packagePath, target, passcode, cancellationToken, progress);
+            cancellationToken.ThrowIfCancellationRequested();
+            Directory.CreateDirectory(destination);
+            return MoveTree(target, destination);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("additional-content", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(Localization.Loc.T("DlcTemplate.NotDlc"), ex);
+        }
+        finally
+        {
+            BuildEngine.TryDeleteDirectory(staging);
+        }
+    }
+
     /// <summary>Xuất CNT entries ra một thư mục tạm không chứa symlink; người gọi tự xoá thư mục.</summary>
     internal static string ExportCntEntriesToTemp(string packagePath, string passcode, CancellationToken cancellationToken)
     {

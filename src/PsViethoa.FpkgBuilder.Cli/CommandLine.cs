@@ -146,6 +146,7 @@ internal static class CommandLine
                 "pkg-info" => PackageCommands.Info(arguments),
                 "pkg-list" => PackageCommands.List(arguments),
                 "pkg-extract" => PackageCommands.Extract(arguments),
+                "pkg-dlc-template" => PackageCommands.DlcTemplate(arguments),
                 _ => Unknown(command),
             };
         }
@@ -357,7 +358,7 @@ internal static class CommandLine
         Console.WriteLine(metadata.HasParamJson
             ? Loc.F("Cli.Param", metadata.ContentId ?? "—", metadata.Version ?? "—", metadata.SdkMajor?.ToString() ?? "—", metadata.Title ?? "—")
             : Loc.T("Cli.NoParam") + (metadata.ParamJsonError != null ? " (" + metadata.ParamJsonError + ")" : string.Empty));
-        Console.WriteLine(MetadataReader.DescribePlayGo(metadata, BuildRequest.MaxPlayGoChunks, !arguments.Has("keep-playgo")));
+        Console.WriteLine(MetadataReader.DescribePlayGo(metadata, BuildRequest.DefaultPlayGoChunks, !arguments.Has("keep-playgo")));
 
         var stats = FolderScanner.Scan(source, CancellationToken.None);
         Console.WriteLine(Loc.F("Cli.Stats", Formatters.Count(stats.FileCount), Formatters.Count(stats.DirectoryCount), Formatters.SizeWithBytes(stats.TotalBytes), Formatters.Size(stats.LargestFileBytes), stats.ScanDuration.TotalMilliseconds.ToString("0")));
@@ -406,7 +407,12 @@ internal static class CommandLine
             : OuterImageMode.PlaintextNoAuth;
         var verification = PackageVerifier.Verify(path, mode, arguments.Has("sha256"), CancellationToken.None);
         PrintVerification(path, verification);
-        return 0;
+
+        // Kiểm tra nội dung bằng engine: nhanh mặc định, --full giải nén thử mọi tệp trong bộ nhớ.
+        var passcode = arguments.Get("passcode") ?? new string('0', BuildRequest.PasscodeLength);
+        var contents = PackageVerifier.VerifyContents(path, passcode, arguments.Has("full"), CancellationToken.None);
+        PrintContents(contents);
+        return contents.IsValid ? 0 : 2;
     }
 
     private static int CleanJunk(Arguments arguments)
@@ -501,7 +507,7 @@ internal static class CommandLine
                 _ => ExFatStrategy.Auto,
             },
             Threads = arguments.GetInt("threads", "j") ?? 0,
-            PlayGoChunks = arguments.GetInt("playgo") ?? BuildRequest.MaxPlayGoChunks,
+            PlayGoChunks = arguments.GetInt("playgo") ?? BuildRequest.DefaultPlayGoChunks,
             SdkMajorOverride = arguments.GetInt("sdk"),
             Deterministic = !arguments.Has("no-deterministic"),
             ComputeSha256 = arguments.Has("sha256"),
@@ -586,6 +592,16 @@ internal static class CommandLine
         if (arguments.Has("keep-attribute3"))
         {
             request.ClearPlayGoAttributes = false;
+        }
+
+        if (arguments.Has("keep-required-fw"))
+        {
+            request.LowerRequiredFirmware = false;
+        }
+
+        if (arguments.Has("full-verify"))
+        {
+            request.FullVerify = true;
         }
 
         if (arguments.Has("strip-dlc-emu") || arguments.Has("no-dlc-emu"))
@@ -696,6 +712,28 @@ internal static class CommandLine
         {
             Console.WriteLine(Loc.F("Cli.Sha", verification.Sha256));
         }
+
+        if (verification.Contents is { } contents)
+        {
+            PrintContents(contents);
+        }
+    }
+
+    private static void PrintContents(ContentVerification contents)
+    {
+        foreach (var check in contents.Checks)
+        {
+            Console.WriteLine(Loc.F("Plan.VerifyCheck", check));
+        }
+
+        foreach (var issue in contents.Issues)
+        {
+            Console.Error.WriteLine(Loc.F("Plan.VerifyIssue", issue.Stage, issue.Message));
+        }
+
+        Console.WriteLine(contents.IsValid
+            ? Loc.F(contents.IsFull ? "Plan.VerifiedFull" : "Plan.VerifiedQuick", contents.Checks.Count, Formatters.Duration(contents.Elapsed))
+            : Loc.F("Verify.ContentFailed", string.Join("; ", contents.Issues)));
     }
 }
 

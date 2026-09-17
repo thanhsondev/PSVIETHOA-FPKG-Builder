@@ -30,11 +30,14 @@ public static partial class PhaseCatalog
     public static readonly BuildPhase Verify = new("verify", 1, 8);
     public static readonly BuildPhase Sha256 = new("sha256", 6, 9);
 
+    /// <summary>Kiểm tra đầy đủ: giải mã + giải nén thử mọi tệp (engine VerifyPackageFull) — lâu ngang một lượt đọc hết gói.</summary>
+    public static readonly BuildPhase VerifyFull = new("verify-full", 8, 10);
+
     public static IReadOnlyList<BuildPhase> LibraryPhases { get; } =
         [Prepare, InnerRead, InnerData, Layout, Naps, Outer, Keys, Cnt, Finalize];
 
     /// <summary>Chuỗi giai đoạn đầy đủ cho một lần tạo gói (kèm bước chuẩn bị ảnh exFAT và kiểm tra của ứng dụng).</summary>
-    public static IReadOnlyList<BuildPhase> Sequence(bool computeSha256, BuildPhase? exFatPhase = null)
+    public static IReadOnlyList<BuildPhase> Sequence(bool computeSha256, BuildPhase? exFatPhase = null, bool fullVerify = false)
     {
         var list = new List<BuildPhase>(LibraryPhases.Count + 3);
         if (exFatPhase != null)
@@ -49,6 +52,11 @@ public static partial class PhaseCatalog
         }
 
         list.Add(Verify);
+        if (fullVerify)
+        {
+            list.Add(VerifyFull);
+        }
+
         return list;
     }
 

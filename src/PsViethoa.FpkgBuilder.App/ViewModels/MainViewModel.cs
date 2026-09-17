@@ -462,9 +462,15 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private double _krakenLevel = BuildRequest.DefaultKrakenLevel;
     [ObservableProperty] private string _krakenLevelText = string.Empty;
     [ObservableProperty] private decimal? _threads = 0;
-    [ObservableProperty] private decimal? _playGoChunks = BuildRequest.MaxPlayGoChunks;
+    [ObservableProperty] private decimal? _playGoChunks = BuildRequest.DefaultPlayGoChunks;
     [ObservableProperty] private bool _deterministic = true;
     [ObservableProperty] private bool _computeSha256;
+
+    /// <summary>Kiểm tra đầy đủ gói sau khi tạo: giải mã và giải nén thử mọi tệp trong bộ nhớ (chậm hơn, không ghi gì ra đĩa).</summary>
+    [ObservableProperty] private bool _fullVerify;
+
+    /// <summary>Hạ requiredSystemSoftwareVersion về SDK của game (fpkg-gui 0.6.8) — chỉ có tác dụng khi giữ SDK của game.</summary>
+    [ObservableProperty] private bool _lowerRequiredFirmware = true;
     [ObservableProperty] private bool _preventSleep = true;
     [ObservableProperty] private string _publishingToolsPath = string.Empty;
     [ObservableProperty] private bool _advancedExpanded;
@@ -477,7 +483,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _skipPfsCheck;
     [ObservableProperty] private bool _layoutOptimization = true;
 
-    /// <summary>Ép DRM "standard" trong lúc tạo gói để game không bị khoá trên PS5 (tệp nguồn được khôi phục sau đó).</summary>
+    /// <summary>Ép DRM "standard" trong gói để game không bị khoá trên PS5 (engine làm trong bộ nhớ, nguồn không đổi).</summary>
     [ObservableProperty] private bool _forceStandardDrm = true;
 
     /// <summary>Dọn tàn dư AMPR emu (ampr_emu.index) khỏi gói — engine đã luôn bỏ module giả lập.</summary>
@@ -1015,7 +1021,7 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshValidation();
         if (_lastMetadata != null)
         {
-            PlayGoText = MetadataReader.DescribePlayGo(_lastMetadata, (int)(value ?? BuildRequest.MaxPlayGoChunks), RemovePlayGoFiles);
+            PlayGoText = MetadataReader.DescribePlayGo(_lastMetadata, (int)(value ?? BuildRequest.DefaultPlayGoChunks), RemovePlayGoFiles);
         }
     }
 
@@ -1023,7 +1029,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (_lastMetadata != null)
         {
-            PlayGoText = MetadataReader.DescribePlayGo(_lastMetadata, (int)(PlayGoChunks ?? BuildRequest.MaxPlayGoChunks), value);
+            PlayGoText = MetadataReader.DescribePlayGo(_lastMetadata, (int)(PlayGoChunks ?? BuildRequest.DefaultPlayGoChunks), value);
         }
     }
 
@@ -1177,11 +1183,21 @@ public sealed partial class MainViewModel : ObservableObject
             OutputFolder = s.OutputFolder;
             AutoOutputFolder = s.OutputFolderAuto;
             CheckUpdatesOnStartup = s.CheckUpdatesOnStartup;
+            // Thư mục tạm người dùng tự chọn được giữ nguyên kể cả khi khác ổ với thư mục xuất (trước đây bị đặt lại mỗi lần mở
+            // ứng dụng, nên chọn tạm ở ổ này, xuất ở ổ kia không bao giờ "ăn"). Chỉ giá trị gợi ý tự động mới đi theo thư mục xuất.
             var defaultTemporary = string.IsNullOrWhiteSpace(s.OutputFolder) ? string.Empty : BuildPreparer.SuggestTemporaryFolder(s.OutputFolder);
-            var keepSaved = !string.IsNullOrWhiteSpace(s.TemporaryFolder) &&
-                            (string.IsNullOrWhiteSpace(s.OutputFolder) || DiskSpaceAdvisor.IsSameVolume(s.TemporaryFolder, s.OutputFolder));
-            TemporaryFolder = keepSaved ? s.TemporaryFolder : defaultTemporary;
-            _suggestedTemporary = keepSaved ? null : defaultTemporary;
+            var savedTemporary = s.TemporaryFolder?.Trim() ?? string.Empty;
+            var savedIsSuggestion = string.Equals(savedTemporary, defaultTemporary, StringComparison.OrdinalIgnoreCase);
+            if (savedTemporary.Length > 0 && !savedIsSuggestion)
+            {
+                TemporaryFolder = savedTemporary;
+                _suggestedTemporary = null;
+            }
+            else
+            {
+                TemporaryFolder = defaultTemporary;
+                _suggestedTemporary = defaultTemporary;
+            }
 
             ContentId = s.ContentId;
             Title = s.Title;
@@ -1211,9 +1227,22 @@ public sealed partial class MainViewModel : ObservableObject
             ClearPlayGoAttributes = s.ClearPlayGoAttributes;
             KrakenLevel = Math.Clamp(s.KrakenLevel, BuildRequest.MinKrakenLevel, BuildRequest.MaxKrakenLevel);
             Threads = Math.Clamp(s.Threads, 0, BuildRequest.MaxThreads);
+            if (s.PlayGoDefaultsRevision < 1)
+            {
+                // Cấu hình từ trước engine 0.6.8: 64 là mặc định (và tối đa) cũ, không phải giá trị người dùng chủ động chọn.
+                if (s.PlayGoChunks == 64)
+                {
+                    s.PlayGoChunks = BuildRequest.DefaultPlayGoChunks;
+                }
+
+                s.PlayGoDefaultsRevision = 1;
+            }
+
             PlayGoChunks = Math.Clamp(s.PlayGoChunks, BuildRequest.MinPlayGoChunks, BuildRequest.MaxPlayGoChunks);
             Deterministic = s.Deterministic;
             ComputeSha256 = s.ComputeSha256;
+            FullVerify = s.FullVerify;
+            LowerRequiredFirmware = s.LowerRequiredFirmware;
             PreventSleep = s.PreventSleep;
             OverrideSdk = s.OverrideSdk;
             SdkIndex = Math.Clamp(s.SdkMajor - 1, 0, SdkOptions.Count - 1);
@@ -1283,6 +1312,8 @@ public sealed partial class MainViewModel : ObservableObject
         s.PlayGoChunks = d.PlayGoChunks;
         s.Deterministic = d.Deterministic;
         s.ComputeSha256 = d.ComputeSha256;
+        s.FullVerify = d.FullVerify;
+        s.LowerRequiredFirmware = d.LowerRequiredFirmware;
         s.PreventSleep = d.PreventSleep;
         s.OverrideSdk = d.OverrideSdk;
         s.SdkMajor = d.SdkMajor;
@@ -1339,9 +1370,12 @@ public sealed partial class MainViewModel : ObservableObject
         s.ClearPlayGoAttributes = ClearPlayGoAttributes;
         s.KrakenLevel = (int)Math.Round(KrakenLevel);
         s.Threads = (int)(Threads ?? 0);
-        s.PlayGoChunks = (int)(PlayGoChunks ?? BuildRequest.MaxPlayGoChunks);
+        s.PlayGoChunks = (int)(PlayGoChunks ?? BuildRequest.DefaultPlayGoChunks);
+        s.PlayGoDefaultsRevision = 1;
         s.Deterministic = Deterministic;
         s.ComputeSha256 = ComputeSha256;
+        s.FullVerify = FullVerify;
+        s.LowerRequiredFirmware = LowerRequiredFirmware;
         s.PreventSleep = PreventSleep;
         s.OverrideSdk = OverrideSdk;
         s.SdkMajor = SdkIndex + 1;
@@ -1790,7 +1824,7 @@ public sealed partial class MainViewModel : ObservableObject
             MetaFiles = Loc.T("Meta.Scanning");
         }
 
-        PlayGoText = MetadataReader.DescribePlayGo(metadata, (int)(PlayGoChunks ?? BuildRequest.MaxPlayGoChunks), RemovePlayGoFiles);
+        PlayGoText = MetadataReader.DescribePlayGo(metadata, (int)(PlayGoChunks ?? BuildRequest.DefaultPlayGoChunks), RemovePlayGoFiles);
 
         if (!metadata.HasSceSys)
         {
@@ -2048,9 +2082,11 @@ public sealed partial class MainViewModel : ObservableObject
         ClearPlayGoAttributes = ClearPlayGoAttributes,
         KrakenLevel = (int)Math.Round(KrakenLevel),
         Threads = (int)(Threads ?? 0),
-        PlayGoChunks = (int)(PlayGoChunks ?? BuildRequest.MaxPlayGoChunks),
+        PlayGoChunks = (int)(PlayGoChunks ?? BuildRequest.DefaultPlayGoChunks),
         Deterministic = Deterministic,
         ComputeSha256 = ComputeSha256,
+        FullVerify = FullVerify,
+        LowerRequiredFirmware = LowerRequiredFirmware,
         SdkMajorOverride = OverrideSdk ? SdkIndex + 1 : null,
         PublishingToolsPath = string.IsNullOrWhiteSpace(PublishingToolsPath) ? null : PublishingToolsPath.Trim(),
         PreventSleep = PreventSleep,
@@ -2395,6 +2431,9 @@ public sealed partial class MainViewModel : ObservableObject
             .AppendLine("Content ID: " + (v.ContentId ?? "—"))
             .AppendLine(Loc.F("Result.Entries", v.EntryCount))
             .AppendLine("SHA-256: " + (v.Sha256 ?? "—"))
+            .AppendLine(v.Contents is { } contents
+                ? Loc.F(contents.IsFull ? "Plan.VerifiedFull" : "Plan.VerifiedQuick", contents.Checks.Count, Formatters.Duration(contents.Elapsed))
+                : "—")
             .AppendLine(Loc.F("Result.Elapsed", Formatters.Duration(_outcome.Elapsed)))
             .ToString();
 
