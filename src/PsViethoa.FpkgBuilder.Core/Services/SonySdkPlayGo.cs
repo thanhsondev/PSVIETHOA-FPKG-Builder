@@ -328,7 +328,10 @@ public static class SonySdkPlayGo
         xml.Append("      <scenarios default_id=\"").Append(structure.DefaultScenarioId).Append("\">\n");
         foreach (var scenario in structure.Scenarios)
         {
-            xml.Append("        <scenario id=\"").Append(scenario.Id).Append("\" type=\"playmode\" initial_chunk_count=\"").Append(scenario.InitialChunkCount)
+            // Mọi chunk đều "initial": gói FPKG được cài trọn nên không có chunk nào tải sau. Giữ initial_chunk_count gốc (Yōtei: 32/35)
+            // khiến game mở lên hỏi hệ thống về các chunk còn lại → hộp "Something went wrong (CE-108111-2)" dù vẫn chơi được;
+            // engine LibProsperoPkg 0.6.9 cũng đánh dấu mọi chunk initial. Thứ tự chunk và ngôn ngữ từng chunk vẫn như gói gốc.
+            xml.Append("        <scenario id=\"").Append(scenario.Id).Append("\" type=\"playmode\" initial_chunk_count=\"").Append(scenario.ChunkOrder.Count)
                 .Append("\" label=\"").Append(SonySdkProject.EscapeAttribute(scenario.Label)).Append("\">")
                 .Append(string.Join(' ', scenario.ChunkOrder)).Append("</scenario>\n");
         }

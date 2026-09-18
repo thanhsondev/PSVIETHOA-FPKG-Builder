@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.2.1 — 2026-09-18
+
+- **Fixed: "Something went wrong (CE-108111-2)" dialog when launching a game rebuilt with its original PlayGo chunks (Ghost of Yōtei).** The original tables mark only the first 32 of 35 chunks as initial (the rest stream in later on a retail install), so the game asked the system about the "later" chunks at start-up and the system answered with that dialog (the game then continued normally). Every scenario now marks all of its chunks as initial — an FPKG is fully installed, nothing arrives later — while chunk order and per-chunk languages stay as in the original package. LibProsperoPkg 0.6.9 does the same.
+- **Engine updated to fpkg-gui 0.6.9** (LibProsperoPkg.dll): language chunks generated from `playgo-scenario.json`, improved PlayGo validation.
+- **PS5 Pro Enhanced / 120 Hz / VRR are kept.** "Clear the attribute3 flags in param.json" is now **off by default** (CLI: `--clear-attribute3` to opt in; `--keep-attribute3` still accepted). `attribute3` is the game's feature-flag field — bit 7 = 120 Hz, bit 19 = VRR, bit 23 = PS5 Pro Enhanced (a game supporting all three stores 4456512) — so the old default of zeroing it made PS5 Pro consoles run such games without their Pro enhancements. The zeroing came from an old "uncheck the PlayGo flags" black-screen guide; no public documentation maps any PlayGo bit in attribute3, the real PlayGo problem is solved in the PlayGo tables since 2.1.7/2.2.0, and Sony's own toolkit leaves the field alone. Existing settings are migrated once (`PlayGoDefaultsRevision` 2); the option and the plan log still explain what the bits mean.
+- Verified against Publishing Tools: with the option off, `attribute3` (e.g. 4456512) survives the SDK build unchanged in the package's `param.json`. Note on `sce_sys/about/right.sprx`: Publishing Tools rejects the whole `sce_sys/about` directory as a reserved node and does not regenerate it, so SDK-built packages have no `right.sprx` — that module only provides the logo/copyright screen (▲+■+Options on the game's Information page) and has nothing to do with PS5 Pro; the built-in engine keeps it as before.
+
 ## 2.2.0 — 2026-09-18
 
 ### Verified on the Windows research pass (2026-09-17/18)

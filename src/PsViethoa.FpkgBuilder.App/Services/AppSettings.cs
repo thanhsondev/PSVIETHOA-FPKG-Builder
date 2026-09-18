@@ -129,8 +129,8 @@ public sealed class AppSettings
     /// <summary>Xoá versionFileUri trong param.json khi tạo gói (mặc định bật).</summary>
     public bool ClearVersionFileUri { get; set; } = true;
 
-    /// <summary>Đặt attribute3 trong param.json về 0 khi tạo gói (mặc định bật, theo hướng dẫn sửa lỗi PlayGo).</summary>
-    public bool ClearPlayGoAttributes { get; set; } = true;
+    /// <summary>Đặt attribute3 trong param.json về 0 khi tạo gói (mặc định tắt từ 2.2.1: giữ cờ PS5 Pro / 120 Hz / VRR).</summary>
+    public bool ClearPlayGoAttributes { get; set; }
 
 
     /// <summary>Dọn tàn dư AMPR emu (ampr_emu.index) khỏi gói.</summary>

@@ -74,6 +74,8 @@ public sealed class PlayGoCleanupTests : IDisposable
     private BuildRequest Request(string source, string suffix, string contentId = "UP9000-PPSA26344_00-PSVIETHOAPLAYGO0") => new()
     {
         UseSonySdk = false,
+        // Các test này kiểm tra cơ chế vá attribute3 (mặc định tắt từ 2.2.1) nên bật rõ.
+        ClearPlayGoAttributes = true,
         SourcePath = source,
         OutputFolder = Path.Combine(_root, "out-" + suffix),
         TemporaryFolder = Path.Combine(_root, "tmp-" + suffix),
@@ -157,7 +159,8 @@ public sealed class PlayGoCleanupTests : IDisposable
         var request = new BuildRequest();
         Assert.True(request.RemovePlayGoFiles);
         Assert.True(request.ClearVersionFileUri);
-        Assert.True(request.ClearPlayGoAttributes);
+        // 2.2.1: attribute3 giữ nguyên mặc định — cờ PS5 Pro Enhanced / 120 Hz / VRR nằm ở đây.
+        Assert.False(request.ClearPlayGoAttributes);
         Assert.True(request.ForceStandardDrm);
         Assert.True(request.ParamPatch.Any);
         Assert.False(ParamJsonPatchOptions.None.Any);

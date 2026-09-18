@@ -631,6 +631,12 @@ internal static class CommandLine
             request.ClearVersionFileUri = false;
         }
 
+        // 2.2.1: attribute3 được giữ nguyên mặc định (cờ PS5 Pro / 120 Hz / VRR); --keep-attribute3 cũ vẫn nhận, --clear-attribute3 để xoá.
+        if (arguments.Has("clear-attribute3"))
+        {
+            request.ClearPlayGoAttributes = true;
+        }
+
         if (arguments.Has("keep-attribute3"))
         {
             request.ClearPlayGoAttributes = false;

@@ -117,8 +117,8 @@ public sealed class SonySdkPlayGoTests : IDisposable
             "        <chunk id=\"2\" languages=\"fr-FR\" label=\"Voice FR\" />\n" +
             "      </chunks>\n" +
             "      <scenarios default_id=\"0\">\n" +
-            "        <scenario id=\"0\" type=\"playmode\" initial_chunk_count=\"1\" label=\"Scenario #0\">0 2 1</scenario>\n" +
-            "        <scenario id=\"1\" type=\"playmode\" initial_chunk_count=\"2\" label=\"Scenario #1\">0 1 2</scenario>\n" +
+            "        <scenario id=\"0\" type=\"playmode\" initial_chunk_count=\"3\" label=\"Scenario #0\">0 2 1</scenario>\n" +
+            "        <scenario id=\"1\" type=\"playmode\" initial_chunk_count=\"3\" label=\"Scenario #1\">0 1 2</scenario>\n" +
             "      </scenarios>\n" +
             "    </chunk_info>\n",
             SonySdkPlayGo.ChunkInfoXml(structure));
@@ -404,7 +404,8 @@ public sealed class SonySdkPlayGoTests : IDisposable
         Assert.Equal(masks, rebuilt.Chunks.Select(chunk => chunk.LanguageMask));
         Assert.Equal(chunks.Select(chunk => chunk.Label), rebuilt.Chunks.Select(chunk => chunk.Label));
         var rebuiltScenario = Assert.Single(rebuilt.Scenarios);
-        Assert.Equal(32, rebuiltScenario.InitialChunkCount);
+        // Mọi chunk initial (35) thay vì 32 của gói gốc — tránh hộp CE-108111-2 khi game hỏi chunk "tải sau".
+        Assert.Equal(35, rebuiltScenario.InitialChunkCount);
         Assert.Equal(scenario.ChunkOrder, rebuiltScenario.ChunkOrder);
         Assert.Equal("scenario0", rebuiltScenario.Label);
         foreach (var (relative, chunk) in expected)

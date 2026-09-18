@@ -692,8 +692,8 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Xoá versionFileUri trong param.json khi tạo gói (bước 2 của hướng dẫn sửa lỗi PlayGo).</summary>
     [ObservableProperty] private bool _clearVersionFileUri = true;
 
-    /// <summary>Đặt attribute3 trong param.json về 0 khi tạo gói (bước 2 của hướng dẫn sửa lỗi PlayGo).</summary>
-    [ObservableProperty] private bool _clearPlayGoAttributes = true;
+    /// <summary>Đặt attribute3 trong param.json về 0 khi tạo gói (mặc định tắt từ 2.2.1: attribute3 giữ cờ PS5 Pro / 120 Hz / VRR).</summary>
+    [ObservableProperty] private bool _clearPlayGoAttributes;
 
 
     public bool IsPfsV3 => PfsIndex == 1;
@@ -1445,7 +1445,15 @@ public sealed partial class MainViewModel : ObservableObject
                     s.PlayGoChunks = BuildRequest.DefaultPlayGoChunks;
                 }
 
-                s.PlayGoDefaultsRevision = 1;
+                s.PlayGoDefaultsRevision = 2;
+            }
+
+            if (s.PlayGoDefaultsRevision < 2)
+            {
+                // 2.2.1: mặc định "xoá attribute3" đổi thành tắt — cấu hình cũ lưu "bật" là mặc định cũ, không phải lựa chọn chủ động.
+                s.ClearPlayGoAttributes = false;
+                ClearPlayGoAttributes = false;
+                s.PlayGoDefaultsRevision = 2;
             }
 
             PlayGoChunks = Math.Clamp(s.PlayGoChunks, BuildRequest.MinPlayGoChunks, BuildRequest.MaxPlayGoChunks);

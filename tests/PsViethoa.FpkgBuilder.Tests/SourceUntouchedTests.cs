@@ -110,6 +110,8 @@ public sealed class SourceUntouchedTests : IDisposable
     private BuildRequest Request(string source, string suffix, string contentId) => new()
     {
         UseSonySdk = false,
+        // Test này kiểm tra cơ chế vá attribute3 (mặc định tắt từ 2.2.1) nên bật rõ.
+        ClearPlayGoAttributes = true,
         SourcePath = source,
         OutputFolder = Path.Combine(_root, "out-" + suffix),
         TemporaryFolder = Path.Combine(_root, "tmp-" + suffix),

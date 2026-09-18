@@ -103,11 +103,11 @@ public sealed class BuildRequest
 
     /// <summary>
     /// Đặt <c>attribute3</c> trong param.json về 0 lúc tạo gói — bước "xoá cờ PlayGo trong attribute3" của hướng dẫn sửa lỗi
-    /// màn hình đen. Mặc định bật. Lưu ý: tài liệu công khai (psdevwiki) không mô tả bit PlayGo nào trong attribute3, nên cả
-    /// trường được đặt về 0 đúng như thao tác "bỏ tích hết cờ" trong trình sửa param — các cờ đã biết (nhận thông tin
-    /// video-out, Share Library Capture API, HFR, High Framerate Mode, Auto Scaling) cũng tắt theo trong gói.
+    /// màn hình đen cũ. <b>Mặc định tắt từ 2.2.1</b>: attribute3 chứa các cờ tính năng (bit 7 = 120 Hz, bit 19 = VRR, bit 23 =
+    /// PS5 Pro Enhanced…), đặt về 0 làm PS5 Pro không nhận "PS5 Pro Enhanced" và mất 120 Hz/VRR; tài liệu công khai không mô tả
+    /// bit PlayGo nào ở đây, còn lỗi PlayGo thật đã được xử lý ở bảng playgo. Bộ công cụ Sony gốc cũng giữ nguyên trường này.
     /// </summary>
-    public bool ClearPlayGoAttributes { get; set; } = true;
+    public bool ClearPlayGoAttributes { get; set; }
 
     /// <summary>
     /// Hạ requiredSystemSoftwareVersion về đúng SDK của game khi nó đang cao hơn (fpkg-gui 0.6.8: "Automatic downgrading of the

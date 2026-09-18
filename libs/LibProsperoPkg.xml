@@ -479,8 +479,8 @@
         <member name="M:LibProsperoPkg.GP5.Gp5Project.EnsureDefaultPlayGoScenario(LibProsperoPkg.GP5.Gp5Project)">
             <summary>
             Publishing Tools requires at least one scenario whenever <c>chunk_info</c> is present.
-            Complete malformed/minimal projects with the SDK's conventional play-mode scenario: chunk
-            zero is initial and every declared chunk remains reachable later in the scenario order.
+            Complete malformed/minimal projects with a conventional play-mode scenario in which every
+            declared chunk is both reachable and required before launch.
             </summary>
         </member>
         <member name="T:LibProsperoPkg.GP5.Gp5Volume">
@@ -7164,12 +7164,13 @@
         </member>
         <member name="P:LibProsperoPkg.PKG.ProsperoPkgBuildProperties.PlayGoChunkCount">
             <summary>
-            Number of automatically generated PlayGo chunks (1..255, default 100). Supplied PlayGo headers
-            override the fallback counts; all tables are rebuilt, including empty logical chunks.
+            Number of generated PlayGo chunks (1..255, default 100). Supplied PlayGo headers override
+            the fallback counts. Every scenario requires every chunk; most data stays in chunk zero and
+            selected languages receive small non-zero extents. Valid source scenario JSON is retained.
             </summary>
         </member>
         <member name="P:LibProsperoPkg.PKG.ProsperoPkgBuildProperties.PlayGoLanguageMask">
-            <summary>Scenario presentation languages only. Generated chunks always support all languages.</summary>
+            <summary>Generated scenario and data-bearing chunk languages.</summary>
         </member>
         <member name="P:LibProsperoPkg.PKG.ProsperoPkgBuildProperties.SdkVersionOverride">
             <summary>
@@ -7258,6 +7259,20 @@
             architecture and validation boundary.
             </summary>
         </member>
+        <member name="T:LibProsperoPkg.PKG.ProsperoPkgBuilder.PlayGoSourceConfiguration">
+            <summary>
+            Source PlayGo values retained while rebuilding image-dependent tables. When
+            <see cref="P:LibProsperoPkg.PKG.ProsperoPkgBuilder.PlayGoSourceConfiguration.ScenarioJson"/> is non-null, its localized scenario presentation is copied
+            unchanged into the new package.
+            </summary>
+        </member>
+        <member name="M:LibProsperoPkg.PKG.ProsperoPkgBuilder.PlayGoSourceConfiguration.#ctor(LibProsperoPkg.PlayGo.ProsperoPlayGo.Counts,System.Int32,System.Byte[],System.Collections.Generic.IReadOnlyList{System.String},System.Nullable{System.UInt64},System.String)">
+            <summary>
+            Source PlayGo values retained while rebuilding image-dependent tables. When
+            <see cref="P:LibProsperoPkg.PKG.ProsperoPkgBuilder.PlayGoSourceConfiguration.ScenarioJson"/> is non-null, its localized scenario presentation is copied
+            unchanged into the new package.
+            </summary>
+        </member>
         <member name="M:LibProsperoPkg.PKG.ProsperoPkgBuilder.ContentTypeFor(LibProsperoPkg.PKG.ProsperoVolumeType)">
             <summary>The content-type code for a PS5 volume kind.</summary>
         </member>
@@ -7326,8 +7341,15 @@
             matching <see cref="M:LibProsperoPkg.PKG.ProsperoPkgBuilder.BuildInnerTree(System.String,System.String,LibProsperoPkg.PKG.ProsperoVolumeType,System.Nullable{System.UInt64},LibProsperoPkg.ProsperoSourceMode,System.String,System.Threading.CancellationToken,System.Action{System.String})"/>; otherwise the loose source tree is used.
             </summary>
         </member>
+        <member name="M:LibProsperoPkg.PKG.ProsperoPkgBuilder.ResolvePlayGoConfiguration(System.String,System.Int32,LibProsperoPkg.ProsperoSourceMode,System.String)">
+            <summary>
+            Resolves PlayGo counts plus reusable scenario presentation. Binary source tables are never
+            reused because they refer to the old image; a valid scenario JSON is retained verbatim.
+            GP5 chunk metadata remains authoritative when no source chunk descriptor is mapped.
+            </summary>
+        </member>
         <member name="M:LibProsperoPkg.PKG.ProsperoPkgBuilder.ResolvePlayGoCounts(System.String,System.Int32,LibProsperoPkg.ProsperoSourceMode,System.String)">
-            <summary>Imports only source PlayGo counters. GP5 mapping remains authoritative.</summary>
+            <summary>Compatibility view returning only resolved PlayGo counts.</summary>
         </member>
         <member name="T:LibProsperoPkg.PKG.ProsperoPkgType">
             <summary>The kind of PS5 package, distinguished by its 4-byte magic / signed byte.</summary>
@@ -8269,14 +8291,33 @@
             pipeline. See the file header for the layouts and the boundary.
             </summary>
         </member>
+        <member name="T:LibProsperoPkg.PlayGo.ProsperoPlayGo.ScenarioMetadata">
+            <summary>Validated presentation metadata read from an existing scenario JSON.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.ScenarioMetadata.#ctor(System.Int32,System.Int32,System.String,System.Collections.Generic.IReadOnlyList{System.String},System.Nullable{System.UInt64},System.String)">
+            <summary>Validated presentation metadata read from an existing scenario JSON.</summary>
+        </member>
+        <member name="T:LibProsperoPkg.PlayGo.ProsperoPlayGo.LanguageChunkLayout">
+            <summary>Generated main-image extents and per-chunk language masks.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.LanguageChunkLayout.#ctor(System.Collections.Generic.IReadOnlyList{System.UInt64},System.Collections.Generic.IReadOnlyList{System.UInt64})">
+            <summary>Generated main-image extents and per-chunk language masks.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.ReadScenarioMetadata(System.ReadOnlySpan{System.Byte})">
+            <summary>
+            Validates an existing <c>playgo-scenario.json</c> and returns the values needed when
+            regenerating its binary descriptor. The JSON itself can then be retained verbatim so its
+            localized titles, descriptions and scenario types are not lost.
+            </summary>
+        </member>
         <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.ReadSourceCounts(System.String,System.String,System.Int32)">
             <summary>Reads counts only; no source layout or scenario content is reused.</summary>
         </member>
         <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.ReadChunkCounts(System.ReadOnlySpan{System.Byte})">
             <summary>Reads PlayGo counts directly from an in-memory <c>playgo-chunk.dat</c> entry.</summary>
         </member>
-        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.BuildScenarioJson(System.Int32,System.UInt64)">
-            <summary>Fresh generic scenario presentation; language selection does not control chunk availability.</summary>
+        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.BuildScenarioJson(System.Int32,System.UInt64,System.Int32)">
+            <summary>Fresh generic scenario presentation plus explicit chunk-language metadata.</summary>
         </member>
         <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.BuildScenarioPng">
             <summary>Neutral presentation for regenerated scenarios; no source PlayGo artwork is reused.</summary>
@@ -8311,7 +8352,7 @@
             complete mount image; the original position is restored.
             </summary>
         </member>
-        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.BuildChunkDat(System.String,System.UInt64,System.UInt64,System.Boolean,System.Boolean,System.Int32,System.Int32,System.Int32,System.UInt64)">
+        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.BuildChunkDat(System.String,System.UInt64,System.UInt64,System.Boolean,System.Boolean,System.Int32,System.Int32,System.Int32,System.UInt64,System.Int32,System.Collections.Generic.IReadOnlyList{System.String})">
             <summary>
             Builds the PS5 <c>sce_sys/playgo-chunk.dat</c> (<c>plgx</c> container, version 0x1000) for the
             single-image / single-chunk / single-scenario profile used by PS5 system applications.
@@ -8331,13 +8372,23 @@
             Keeps the standard <c>Chunk #0</c>/<c>Scenario #0</c> labels for publisher APP. Publisher
             AC uses one-byte empty label tables.
             </param>
-            <param name="chunkCount">Number of automatic chunks. One preserves the byte-exact verified profile.</param>
+            <param name="chunkCount">Number of chunks. Chunk zero owns the image; later chunks are empty placeholders.</param>
             <param name="scenarioCount">Number of fresh scenarios, each listing all chunks.</param>
             <param name="initialChunkCount">Number of chunks required before starting each scenario.</param>
             <param name="languageMask">Supported PlayGo languages for the header and every chunk.</param>
+            <param name="defaultScenarioId">Scenario selected by default.</param>
+            <param name="scenarioLabels">Optional presentation labels retained in the binary descriptor.</param>
             <returns>The generated <c>playgo-chunk.dat</c> payload.</returns>
         </member>
-        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.BuildMultiChunkDat(System.String,System.Collections.Generic.IReadOnlyList{System.UInt64},System.UInt64,System.Boolean,System.Boolean,System.UInt64,System.Int32,System.Int32)">
+        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.BuildLanguageChunkLayout(System.UInt64,System.Int32,System.UInt64)">
+            <summary>
+            Keeps most image bytes in the common first chunk and gives every selected language a
+            data-bearing chunk (up to the available chunk count). This makes per-language install sizes
+            non-zero without changing the total PlayGo coverage. All scenarios may still mark every
+            chunk as initial when partial launch is not desired.
+            </summary>
+        </member>
+        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.BuildMultiChunkDat(System.String,System.Collections.Generic.IReadOnlyList{System.UInt64},System.UInt64,System.Boolean,System.Boolean,System.UInt64,System.Int32,System.Int32,System.Int32,System.Collections.Generic.IReadOnlyList{System.String},System.Collections.Generic.IReadOnlyList{System.UInt64},System.Nullable{System.Int32})">
             <summary>
             Builds PlayGo descriptors with contiguous main-image extents and regenerated scenarios.
             Chunk zero owns its main extent plus the common trailing metadata extent; every later chunk
@@ -8803,13 +8854,15 @@
         <member name="P:LibProsperoPkg.ProsperoBuildOptions.PlayGoChunkCount">
             <summary>
             Fallback number of generated PlayGo chunks (100 by default, 1..255).
-            A supplied PlayGo header overrides counts only. All tables and scenarios are regenerated
-            for the current image. Each generic scenario starts with chunk zero and keeps all remaining
-            chunks in its later download order.
+            A supplied PlayGo header overrides the counts. Image-dependent tables are regenerated for
+            the current image, while a valid source <c>playgo-scenario.json</c> retains its names,
+            localizations, types, default scenario and chunk-language selection. Every scenario requires
+            every declared chunk. Most data remains in chunk zero; selected languages receive small
+            non-zero extents so package information does not report zero-byte language payloads.
             </summary>
         </member>
         <member name="P:LibProsperoPkg.ProsperoBuildOptions.PlayGoLanguageMask">
-            <summary>Scenario presentation languages only. Generated chunks always support all languages.</summary>
+            <summary>Generated scenario and data-bearing chunk languages.</summary>
         </member>
         <member name="P:LibProsperoPkg.ProsperoBuildOptions.SdkVersionOverride">
             <summary>
