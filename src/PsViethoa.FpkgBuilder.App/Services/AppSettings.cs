@@ -61,6 +61,9 @@ public sealed class AppSettings
     /// <summary>SDK Sony trên Windows: quét trước song song tệp nguồn (Windows Defender) trước Publishing Tools — mặc định bật.</summary>
     public bool SdkPrescan { get; set; } = true;
 
+    /// <summary>SDK Sony: giữ .gp5 / scenario / .gp5-assets cạnh gói sau khi tạo xong (mặc định xoá như bộ fix6).</summary>
+    public bool SdkKeepIntermediate { get; set; }
+
     /// <summary>SDK Sony: PlayGo dự phòng cho nguồn không còn playgo-chunk.dat — mặc định tắt (như bộ công cụ gốc).</summary>
     public bool SdkPlayGoFallback { get; set; } = true;
 
@@ -105,6 +108,9 @@ public sealed class AppSettings
 
     /// <summary>Chế độ cuối cùng: true = giải nén gói, false = tạo gói.</summary>
     public bool ExtractMode { get; set; }
+
+    /// <summary>Hàng chờ: số lượt tạo gói chạy cùng lúc (1..4).</summary>
+    public int QueueConcurrency { get; set; } = 2;
 
     /// <summary>Tệp .pkg mở gần nhất trong chế độ giải nén.</summary>
     public string ExtractPackagePath { get; set; } = string.Empty;

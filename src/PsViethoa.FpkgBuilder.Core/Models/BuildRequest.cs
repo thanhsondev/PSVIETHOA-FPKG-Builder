@@ -121,7 +121,20 @@ public sealed class BuildRequest
     /// cần khi không chọn SDK riêng.
     /// </summary>
     public Services.ParamJsonPatchOptions ParamPatch =>
-        new(SonySdkActive, ClearVersionFileUri, ClearPlayGoAttributes, LowerRequiredFirmware && SdkMajorOverride is null);
+        new(
+            SonySdkActive,
+            ClearVersionFileUri,
+            ClearPlayGoAttributes,
+            LowerRequiredFirmware && SdkMajorOverride is null,
+            SonySdkActive && SdkApplyPackageDetails ? Version : null,
+            SonySdkActive && SdkApplyPackageDetails ? Title : null);
+
+    /// <summary>
+    /// SDK Sony: ghi <see cref="Version"/> (contentVersion) và <see cref="Title"/> (titleName của ngôn ngữ mặc định) vào bản
+    /// param.json chuẩn hoá khi chúng khác nguồn — để đổi phiên bản/tên ngay trong công cụ (cần cho bản vá). Giao diện luôn bật
+    /// (hai ô tự điền từ nguồn nên không sửa thì không đổi gì); mã gọi trực tiếp mặc định tắt vì Version có giá trị mặc định.
+    /// </summary>
+    public bool SdkApplyPackageDetails { get; set; }
 
     /// <summary>
     /// Tạo gói bằng SDK Sony (Publishing Tools 2.79 đã vá, bộ công cụ sdk-fpkg729-fix) thay vì engine tích hợp. Mặc định bật.
@@ -141,6 +154,33 @@ public sealed class BuildRequest
     /// dùng mức 7 — đúng như bộ công cụ gốc. Mức thấp nén nhanh hơn nhưng gói lớn hơn (tuỳ chọn opt-in, xem docs/research).
     /// </summary>
     public int? SdkCompressionLevel { get; set; }
+
+    /// <summary>
+    /// SDK Sony: giữ .gp5, .playgo-scenario.json và .gp5-assets cạnh gói sau khi tạo xong (mặc định xoá như build-from-folder.ps1
+    /// của bộ fix6; thư mục -build-logs luôn được giữ).
+    /// </summary>
+    public bool SdkKeepIntermediate { get; set; }
+
+    /// <summary>
+    /// SDK Sony (bộ fix8): gói .pkg gốc đã cài trên máy để tạo BẢN VÁ thay vì gói đầy đủ (<c>img_create --ref_pkg_path</c>). Kết quả là
+    /// &lt;tên&gt;.pkg (delta, cài đè lên gói gốc) và &lt;tên&gt;.pkg.remastered.pkg (gói đầy đủ đi kèm để kiểm tra/giải nén).
+    /// contentVersion của nguồn phải cao hơn gói gốc. Null = gói đầy đủ.
+    /// </summary>
+    public string? SdkReferencePackage { get; set; }
+
+    /// <summary>
+    /// Bản vá (có <see cref="SdkReferencePackage"/>) từ nguồn là thư mục: công cụ so đường dẫn tệp của nguồn với gói gốc; tệp gói gốc
+    /// có mà nguồn KHÔNG có được lấy lại từ gói gốc (chỉ giải nén đúng những tệp thiếu vào thư mục tạm, hoặc đọc từ
+    /// <see cref="SdkPatchBaseFolder"/>) — nên nguồn có thể chỉ là "thư mục update" gồm tệp thay đổi/thêm như Patch Builder của PS4.
+    /// Bật cờ này để coi nguồn là bản ĐẦY ĐỦ đúng như nó có: tệp thiếu = đã xoá khỏi phiên bản mới (hành vi của bộ công cụ gốc).
+    /// </summary>
+    public bool SdkPatchExactSource { get; set; }
+
+    /// <summary>Bản vá: giữ lại tệp nào sau khi Publishing Tools tạo xong (nó luôn ghi cả hai; tệp không chọn bị xoá sau khi kiểm tra cấu trúc).</summary>
+    public SdkPatchOutput SdkPatchOutput { get; set; } = SdkPatchOutput.Both;
+
+    /// <summary>Thư mục game gốc đầy đủ (bản dump đã dùng để tạo gói gốc) để lấy tệp thiếu mà không phải giải nén gói gốc; chỉ đọc. Null = lấy từ gói gốc.</summary>
+    public string? SdkPatchBaseFolder { get; set; }
 
     /// <summary>
     /// SDK Sony: khi nguồn KHÔNG còn <c>sce_sys/playgo-chunk.dat</c> (đa số bản dump) thì tạo <see cref="PlayGoChunks"/> chunk và số kịch
@@ -185,4 +225,17 @@ public sealed class BuildRequest
     public bool PreventSleep { get; set; } = true;
 
     public BuildRequest Clone() => (BuildRequest)MemberwiseClone();
+}
+
+/// <summary>Tệp xuất ra của một lượt tạo gói Update.</summary>
+public enum SdkPatchOutput
+{
+    /// <summary>UPDATE_….pkg (delta, cài đè lên gói base) và ….remastered.pkg (cả game bản mới).</summary>
+    Both,
+
+    /// <summary>Chỉ UPDATE_….pkg.</summary>
+    UpdateOnly,
+
+    /// <summary>Chỉ ….remastered.pkg — gói game đầy đủ đã kèm update.</summary>
+    FullOnly,
 }

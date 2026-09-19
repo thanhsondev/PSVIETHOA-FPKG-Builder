@@ -36,6 +36,36 @@ public static class SonySdkConverter
 
     private readonly record struct Entry(uint Id, uint Flags, uint Offset, uint Size);
 
+    /// <summary>
+    /// Gói đã ở dạng PLAINTEXT_NOAUTH (dấu <c>PPRPLAIN-NOAUTH!</c> ở superblock ngoài @0x370)? Bộ công cụ fix6 (profile
+    /// sdk279-plaintext-direct-v3) ghi thẳng dạng này trong img_create nên không còn bước chuyển đổi; bộ cũ thì chưa có dấu.
+    /// </summary>
+    public static bool IsAlreadyPlaintext(string path)
+    {
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var fih = ReadExact(stream, 0, BlockSize);
+            if (!fih.AsSpan(0, 4).SequenceEqual(FihMagic))
+            {
+                return false;
+            }
+
+            var superblockOffset = (long)BinaryPrimitives.ReadUInt64LittleEndian(fih.AsSpan(0x20));
+            if (superblockOffset <= 0 || superblockOffset + BlockSize > stream.Length)
+            {
+                return false;
+            }
+
+            var superblock = ReadExact(stream, superblockOffset, 0x380);
+            return superblock.AsSpan(0x370, PlaintextSeed.Length).SequenceEqual(PlaintextSeed);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            return false;
+        }
+    }
+
     /// <summary>Chuyển đổi tại chỗ. <paramref name="progress"/> nhận phần trăm 0..100 của bước này.</summary>
     public static SonySdkConversionReport ConvertInPlace(string path, Action<double, string>? progress = null, CancellationToken cancellationToken = default)
     {

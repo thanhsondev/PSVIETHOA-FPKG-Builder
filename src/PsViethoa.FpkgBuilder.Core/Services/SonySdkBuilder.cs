@@ -11,7 +11,7 @@ namespace PsViethoa.FpkgBuilder.Core.Services;
 /// <param name="OutputPath">Tệp .pkg cuối.</param>
 /// <param name="ProjectPath">Tệp .gp5 giữ lại cạnh gói (như build-from-folder.ps1).</param>
 /// <param name="LogFolder">Thư mục &lt;tên&gt;-build-logs với 01-create-gp5.log, 02-img-create.log, 03-postprocess.log.</param>
-public sealed record SonySdkBuildResult(string OutputPath, string ProjectPath, string LogFolder, IReadOnlyList<string> Warnings, SonySdkConversionReport Report);
+public sealed record SonySdkBuildResult(string OutputPath, string ProjectPath, string LogFolder, IReadOnlyList<string> Warnings, SonySdkConversionReport? Report, string? RemasteredPath = null);
 
 /// <summary>
 /// Tạo gói theo chuẩn của bộ sdk-fpkg729-fix (profile <c>sdk279-plaintext-unsigned-v2</c>), đúng ba bước và đúng tên tệp của
@@ -22,6 +22,8 @@ public sealed record SonySdkBuildResult(string OutputPath, string ProjectPath, s
 /// </summary>
 public static class SonySdkBuilder
 {
+    private static readonly SemaphoreSlim VcInstallGate = new(1, 1);
+
     /// <summary>
     /// Lượt tạo gói này dùng được SDK Sony không. Bộ công cụ chỉ hỗ trợ gói ứng dụng (APP/nwonly) dạng lớp ngoài không mã hoá,
     /// dựng từ thư mục (dự án GP5 có sẵn của người dùng đi qua engine tích hợp).
@@ -38,17 +40,29 @@ public static class SonySdkBuilder
         return reason == null;
     }
 
-    /// <summary>Tên tệp gói giống engine tích hợp: &lt;contentId&gt;-A&lt;vv&gt;-V&lt;vv&gt;.pkg.</summary>
-    public static string PackageFileName(string contentId, string version)
+    /// <summary>Tiền tố tên tệp của bản vá, để gói update không trùng tên / không bị nhầm với gói gốc.</summary>
+    public const string PatchPrefix = "UPDATE_";
+
+    /// <summary>
+    /// Gói đầy đủ đi kèm bản vá: tên gói thường (không tiền tố UPDATE_) với đuôi .remastered.pkg —
+    /// &lt;contentId&gt;-A&lt;vv&gt;-V&lt;vv&gt;.remastered.pkg. Publishing Tools ghi nó ra là &lt;gói&gt;.pkg.remastered.pkg; công cụ đổi tên khi hoàn tất.
+    /// </summary>
+    public static string CompanionFileName(string contentId, string version) =>
+        Path.GetFileNameWithoutExtension(PackageFileName(contentId, version)) + CompanionExtension;
+
+    public const string CompanionExtension = ".remastered.pkg";
+
+    /// <summary>Tên tệp gói giống engine tích hợp: &lt;contentId&gt;-A&lt;vv&gt;-V&lt;vv&gt;.pkg; bản vá thêm <see cref="PatchPrefix"/> ở đầu.</summary>
+    public static string PackageFileName(string contentId, string version, bool patch = false)
     {
         var component = ProsperoContentVersion.ParseOrDefault(version).PackageNameComponent;
-        return $"{contentId}-A{component}-V{component}.pkg";
+        return $"{(patch ? PatchPrefix : string.Empty)}{contentId}-A{component}-V{component}.pkg";
     }
 
     /// <summary>Các tệp phụ mà một lượt SDK để lại cạnh gói: .gp5, .playgo-scenario.json, thư mục -build-logs, .gp5-assets/&lt;tên&gt;.</summary>
-    public static IEnumerable<string> Artifacts(string outputFolder, string contentId, string version)
+    public static IEnumerable<string> Artifacts(string outputFolder, string contentId, string version, bool patch = false)
     {
-        var stem = Path.GetFileNameWithoutExtension(PackageFileName(contentId, version));
+        var stem = Path.GetFileNameWithoutExtension(PackageFileName(contentId, version, patch));
         yield return Path.Combine(outputFolder, stem + ".gp5");
         yield return Path.Combine(outputFolder, stem + ".playgo-scenario.json");
         yield return Path.Combine(outputFolder, stem + "-build-logs");
@@ -76,13 +90,25 @@ public static class SonySdkBuilder
         }
         else if (!SonySdkToolchain.VcRuntimeInstalled)
         {
-            log(new LogEntry(LogLevel.Warning, Loc.T("Sdk.VcRuntimeInstalling")));
-            var installed = await Task.Run(
-                () => SonySdkToolchain.InstallVcRuntime(message => log(new LogEntry(LogLevel.Info, message)), TimeSpan.FromMinutes(10)),
-                cancellationToken).ConfigureAwait(false);
-            if (!installed)
+            // Hàng chờ chạy song song: chỉ một lượt cài Visual C++ (vc_redist từ chối chạy hai bản cài cùng lúc), các lượt khác chờ.
+            await VcInstallGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
             {
-                throw new InvalidOperationException(Loc.T("Sdk.VcRuntimeMissing"));
+                if (!SonySdkToolchain.VcRuntimeInstalled)
+                {
+                    log(new LogEntry(LogLevel.Warning, Loc.T("Sdk.VcRuntimeInstalling")));
+                    var installed = await Task.Run(
+                        () => SonySdkToolchain.InstallVcRuntime(message => log(new LogEntry(LogLevel.Info, message)), TimeSpan.FromMinutes(10)),
+                        cancellationToken).ConfigureAwait(false);
+                    if (!installed)
+                    {
+                        throw new InvalidOperationException(Loc.T("Sdk.VcRuntimeMissing"));
+                    }
+                }
+            }
+            finally
+            {
+                VcInstallGate.Release();
             }
         }
 
@@ -90,11 +116,11 @@ public static class SonySdkBuilder
         cancellationToken.ThrowIfCancellationRequested();
 
         // Tên tệp như build-from-folder.ps1: mọi thứ nằm cạnh gói cuối trong thư mục xuất, gốc tên = tên gói.
-        var finalPath = Path.Combine(request.OutputFolder, PackageFileName(request.ContentId, request.Version));
+        var finalPath = Path.Combine(request.OutputFolder, PackageFileName(request.ContentId, request.Version, patch: !string.IsNullOrWhiteSpace(request.SdkReferencePackage)));
         var stem = Path.GetFileNameWithoutExtension(finalPath);
         var projectPath = Path.Combine(request.OutputFolder, stem + ".gp5");
         var scenarioPath = Path.Combine(request.OutputFolder, stem + ".playgo-scenario.json");
-        var rawPath = Path.Combine(request.OutputFolder, stem + ".sdk-plaintext.pkg");
+        var rawPath = Path.Combine(request.OutputFolder, stem + ".partial.pkg");
         var metricPath = rawPath + ".naps_metric.json";
         var logFolder = Path.Combine(request.OutputFolder, stem + "-build-logs");
         var assetsFolder = Path.Combine(request.OutputFolder, SonySdkProject.AssetsFolderName, stem);
@@ -107,6 +133,36 @@ public static class SonySdkBuilder
         var realOutput = SonySdkProject.RealPath(request.OutputFolder);
         aliases.Add(realSource, "src");
         aliases.Add(realOutput, "out");
+        if (!string.IsNullOrWhiteSpace(plan.OverlayRoot))
+        {
+            // Thư mục update của bản vá: tệp của nó cũng được GP5 trỏ thẳng tới.
+            aliases.Add(SonySdkProject.RealPath(plan.OverlayRoot), "upd");
+        }
+
+        // Bản vá: gói gốc phải hợp lệ (cùng Content ID, phiên bản thấp hơn) và không trùng tệp sẽ ghi; thư mục của nó cũng qua bí danh.
+        string? referencePath = null;
+        if (!string.IsNullOrWhiteSpace(request.SdkReferencePackage))
+        {
+            var reference = await Task.Run(() => SonySdkPatchReference.Inspect(request.SdkReferencePackage!, request.Passcode, cancellationToken), cancellationToken).ConfigureAwait(false);
+            // Phiên bản của bản mới: ô "Phiên bản" khi công cụ ghi nó vào gói; không thì param.json của thư mục update (nếu có) hoặc của nguồn.
+            var newVersion = request.SdkApplyPackageDetails && !string.IsNullOrWhiteSpace(request.Version)
+                ? request.Version
+                : (plan.OverlayRoot is { } overlay ? SonySdkPatchReference.SourceContentVersion(overlay) : null) ?? SonySdkPatchReference.SourceContentVersion(appFolder);
+            if (SonySdkPatchReference.Mismatch(reference, request.ContentId, newVersion) is { } mismatch)
+            {
+                throw new InvalidDataException(mismatch);
+            }
+
+            referencePath = SonySdkProject.RealPath(reference.Path);
+            if (string.Equals(referencePath, SonySdkProject.RealPath(finalPath), StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(referencePath, SonySdkProject.RealPath(Path.Combine(request.OutputFolder, CompanionFileName(request.ContentId, request.Version))), StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(Loc.F("Patch.ReferenceIsOutput", referencePath));
+            }
+
+            aliases.Add(Path.GetDirectoryName(referencePath)!, "ref");
+            log(new LogEntry(LogLevel.Info, Loc.F("Patch.Building", reference.Path, reference.ContentVersion ?? "—", Formatters.Size(reference.Length))));
+        }
 
         // KHÔNG giải liên kết (RealPath) cho từng tệp ở đây: 95 000 tệp × mở handle từng thành phần đường dẫn trên ổ USB là hàng phút.
         // Thư mục gốc đã được giải sẵn, mọi đường dẫn tệp do bộ duyệt sinh ra đều nằm dưới gốc đó nên chỉ cần thay tiền tố bí danh.
@@ -136,6 +192,7 @@ public static class SonySdkBuilder
             log(new LogEntry(LogLevel.Info, Loc.T("Sdk.AliasNote")));
         }
 
+        string? sdkTemp = null;
         try
         {
             foreach (var stale in new[] { projectPath, scenarioPath, rawPath, metricPath })
@@ -170,9 +227,20 @@ public static class SonySdkBuilder
 
             log(new LogEntry(LogLevel.Info, Loc.F("Sdk.Step1", project.FileCount, Formatters.Size(project.TotalBytes), project.ProjectPath)));
             log(new LogEntry(LogLevel.Info, Loc.F("Sdk.ParamNormalized", Path.GetRelativePath(request.OutputFolder, project.ParamJsonPath), project.ParamChanges.Count == 0 ? Loc.T("Sdk.ParamUnchanged") : string.Join(" · ", project.ParamChanges))));
+            if (plan.OverlayRoot != null)
+            {
+                log(new LogEntry(LogLevel.Success, Loc.F("Patch.OverlaySummary", project.OverlayReplaced.Count, project.OverlayAdded.Count, Summarize(project.OverlayReplaced.Concat(project.OverlayAdded).ToList()))));
+                if (project.OverlayReplaced.Count + project.OverlayAdded.Count == 0)
+                {
+                    throw new InvalidDataException(Loc.F("Patch.OverlayEmpty", plan.OverlayRoot));
+                }
+            }
+
             foreach (var png in project.RecoveredPngs)
             {
-                log(new LogEntry(LogLevel.Info, Loc.F("Sdk.PngRecovered", png.Destination, png.DdsName)));
+                log(png.ReplacedInvalid
+                    ? new LogEntry(LogLevel.Warning, Loc.F("Sdk.PngInvalidRecovered", png.Destination, png.DdsName))
+                    : new LogEntry(LogLevel.Info, Loc.F("Sdk.PngRecovered", png.Destination, png.DdsName)));
             }
 
             if (plan.PlayGo is { IsTrivial: false } structure)
@@ -215,6 +283,13 @@ public static class SonySdkBuilder
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
+            // Thư mục tạm riêng cho tiến trình SDK (Windows): TEMP/TMP của img_create trỏ vào thư mục tạm người dùng chọn.
+            if (!runtime.UsesWine)
+            {
+                sdkTemp = Path.Combine(request.TemporaryFolder, "sdk-tmp-" + Guid.NewGuid().ToString("N")[..8]);
+                Directory.CreateDirectory(sdkTemp);
+            }
+
             // [2/3] Gói thô từ Publishing Tools
             log(new LogEntry(LogLevel.Info, Loc.T("Sdk.Step2")));
             progress(PhaseCatalog.SdkImage, 0, null);
@@ -244,7 +319,9 @@ public static class SonySdkBuilder
                         var written = sdkProgress.BytesWritten > 0 ? Loc.F("Sdk.Written", Formatters.Size(sdkProgress.BytesWritten)) : null;
                         progress(PhaseCatalog.SdkImage, sdkProgress.Percent, written);
                     },
-                    cancellationToken).ConfigureAwait(false);
+                    cancellationToken,
+                    temporaryFolder: sdkTemp,
+                    referencePackagePath: referencePath).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -262,7 +339,38 @@ public static class SonySdkBuilder
             log(new LogEntry(LogLevel.Info, Loc.F("Sdk.Step2Done", Formatters.Size(new FileInfo(rawPath).Length), Formatters.Duration(imageWatch.Elapsed))));
             cancellationToken.ThrowIfCancellationRequested();
 
-            // [3/3] Chuyển sang gói tương thích LibProsperoPkg (sửa tại chỗ rồi đổi tên — cùng kết quả với copy + sửa của script gốc)
+            // Bản vá: gói delta không có header FIH (không chuyển đổi/kiểm tra kiểu gói đầy đủ được); SDK đã ghi kèm gói đầy đủ
+            // <đầu ra>.remastered.pkg — đổi tên cả hai như build-from-folder.ps1 của fix8.
+            if (referencePath != null)
+            {
+                var rawRemastered = rawPath + SonySdkPatchReference.RemasteredSuffix;
+                if (!File.Exists(rawRemastered))
+                {
+                    throw new InvalidOperationException(Loc.F("Patch.NoRemastered", Path.GetFileName(rawRemastered)));
+                }
+
+                var finalRemastered = Path.Combine(request.OutputFolder, CompanionFileName(request.ContentId, request.Version));
+                File.Move(rawPath, finalPath, overwrite: true);
+                File.Move(rawRemastered, finalRemastered, overwrite: true);
+                DeleteQuietly(metricPath);
+                log(new LogEntry(LogLevel.Success, Loc.F("Patch.Done", Path.GetFileName(finalPath), Formatters.Size(new FileInfo(finalPath).Length), Path.GetFileName(finalRemastered), Formatters.Size(new FileInfo(finalRemastered).Length))));
+                progress(PhaseCatalog.SdkConvert, 100, null);
+                CleanIntermediate(request, projectPath, scenarioPath, assetsFolder, logFolder, stem, log);
+                return new SonySdkBuildResult(finalPath, projectPath, logFolder, warnings, null, finalRemastered);
+            }
+
+            // Bộ công cụ fix6 (profile direct-v3): img_create đã ghi thẳng gói PLAINTEXT_NOAUTH — chỉ đổi tên, không còn bước chuyển đổi.
+            if (SonySdkConverter.IsAlreadyPlaintext(rawPath))
+            {
+                File.Move(rawPath, finalPath, overwrite: true);
+                DeleteQuietly(metricPath);
+                log(new LogEntry(LogLevel.Info, Loc.T("Sdk.Step3Direct")));
+                progress(PhaseCatalog.SdkConvert, 100, null);
+                CleanIntermediate(request, projectPath, scenarioPath, assetsFolder, logFolder, stem, log);
+                return new SonySdkBuildResult(finalPath, projectPath, logFolder, warnings, null);
+            }
+
+            // [3/3] Bộ công cụ cũ (chưa có dấu plaintext): chuyển sang gói tương thích LibProsperoPkg (sửa tại chỗ rồi đổi tên)
             log(new LogEntry(LogLevel.Info, Loc.T("Sdk.Step3")));
             progress(PhaseCatalog.SdkConvert, 0, null);
             var convertStarted = DateTime.UtcNow;
@@ -294,7 +402,7 @@ public static class SonySdkBuilder
                 $"Rebuilt {report.CntHeaderWrapBytes}-byte deterministic CNT RSA-3072 header wrap.",
                 $"Repaired {report.PlayGoCrcBlocks} changed PlayGo mount-image CRC block(s).");
             log(new LogEntry(LogLevel.Info, Loc.F("Sdk.Step3Done", report.OuterBlocks, report.ClearedEncryptionFlags, report.CntHeaderWrapBytes, report.PlayGoCrcBlocks)));
-            log(new LogEntry(LogLevel.Info, Loc.F("Sdk.Artifacts", Path.GetFileName(projectPath), Path.GetFileName(logFolder), SonySdkProject.AssetsFolderName + "/" + stem)));
+            CleanIntermediate(request, projectPath, scenarioPath, assetsFolder, logFolder, stem, log);
             progress(PhaseCatalog.SdkConvert, 100, null);
             return new SonySdkBuildResult(finalPath, projectPath, logFolder, warnings, report);
         }
@@ -302,9 +410,47 @@ public static class SonySdkBuilder
         {
             // Gói thô dở dang bỏ đi; GP5 và nhật ký giữ lại để tra lỗi (script gốc cũng để lại).
             DeleteQuietly(rawPath);
+            DeleteQuietly(rawPath + SonySdkPatchReference.RemasteredSuffix);
             DeleteQuietly(metricPath);
             throw;
         }
+        finally
+        {
+            if (sdkTemp != null)
+            {
+                BuildEngine.TryDeleteDirectory(sdkTemp);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Như build-from-folder.ps1 của fix6: .gp5, .playgo-scenario.json và .gp5-assets/&lt;tên&gt; là đầu vào do công cụ tạo — xoá sau
+    /// khi tạo gói xong (nhật ký giữ lại); <see cref="BuildRequest.SdkKeepIntermediate"/> giữ chúng cạnh gói để tra cứu.
+    /// </summary>
+    private static void CleanIntermediate(BuildRequest request, string projectPath, string scenarioPath, string assetsFolder, string logFolder, string stem, Action<LogEntry> log)
+    {
+        if (request.SdkKeepIntermediate)
+        {
+            log(new LogEntry(LogLevel.Info, Loc.F("Sdk.Artifacts", Path.GetFileName(projectPath), Path.GetFileName(logFolder), SonySdkProject.AssetsFolderName + "/" + stem)));
+            return;
+        }
+
+        DeleteQuietly(projectPath);
+        DeleteQuietly(scenarioPath);
+        BuildEngine.TryDeleteDirectory(assetsFolder);
+        try
+        {
+            var assetsRoot = Path.GetDirectoryName(assetsFolder);
+            if (assetsRoot != null && Directory.Exists(assetsRoot) && !Directory.EnumerateFileSystemEntries(assetsRoot).Any())
+            {
+                Directory.Delete(assetsRoot);
+            }
+        }
+        catch (Exception)
+        {
+        }
+
+        log(new LogEntry(LogLevel.Info, Loc.F("Sdk.Cleaned", Path.GetFileName(logFolder))));
     }
 
     private static string Quote(string value) => "\"" + value + "\"";

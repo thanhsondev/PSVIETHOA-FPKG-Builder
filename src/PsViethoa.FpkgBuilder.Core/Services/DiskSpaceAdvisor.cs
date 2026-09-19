@@ -197,12 +197,35 @@ public static partial class DiskSpaceAdvisor
         }
     }
 
+    private static readonly object DrivesGate = new();
+    private static DriveInfo[]? _drivesCache;
+    private static long _drivesCacheAt;
+
+    /// <summary>
+    /// DriveInfo.GetDrives() tuần tự hoá + nhớ 2 giây. Trên macOS .NET gọi getmntinfo(), hàm dùng chung một vùng đệm tĩnh: hai luồng
+    /// gọi cùng lúc (hàng chờ chạy song song nhiều game) làm tiến trình sập với AccessViolationException — lỗi không bắt được.
+    /// </summary>
+    internal static DriveInfo[] AllDrives(bool fresh = false)
+    {
+        lock (DrivesGate)
+        {
+            var now = Environment.TickCount64;
+            if (fresh || _drivesCache == null || now - _drivesCacheAt > 2000)
+            {
+                _drivesCache = DriveInfo.GetDrives();
+                _drivesCacheAt = now;
+            }
+
+            return _drivesCache;
+        }
+    }
+
     private static IEnumerable<DriveInfo> SafeDrives()
     {
         DriveInfo[] drives;
         try
         {
-            drives = DriveInfo.GetDrives();
+            drives = AllDrives();
         }
         catch (Exception)
         {

@@ -94,6 +94,66 @@ public partial class MainWindow : Window
             ViewModel.IsExtractMode = true;
         }
 
+        // Khối bản vá khi khởi động (chụp màn hình/kiểm thử): PSVIETHOA_SOURCE=thư mục nguồn, PSVIETHOA_PATCH_REF=gói gốc .pkg
+        var hookSource = Environment.GetEnvironmentVariable("PSVIETHOA_SOURCE");
+        if (ViewModel != null && !string.IsNullOrWhiteSpace(hookSource))
+        {
+            ViewModel.SetSource(hookSource);
+        }
+
+        var patchReference = Environment.GetEnvironmentVariable("PSVIETHOA_PATCH_REF");
+        if (ViewModel != null && !string.IsNullOrWhiteSpace(patchReference))
+        {
+            ViewModel.IsUpdateMode = true;
+            ViewModel.ReferencePackagePath = patchReference;
+            // PSVIETHOA_PATCH_BASE=thư mục game gốc (tuỳ chọn).
+            ViewModel.PatchBaseFolder = Environment.GetEnvironmentVariable("PSVIETHOA_PATCH_BASE") ?? string.Empty;
+        }
+
+        // Tab Update khi khởi động (chụp màn hình/kiểm thử): PSVIETHOA_MODE=update, PSVIETHOA_UPDATE_KIND=0|1|2, PSVIETHOA_PATCH_BASE=thư mục game gốc
+        if (ViewModel != null && string.Equals(Environment.GetEnvironmentVariable("PSVIETHOA_MODE"), "update", StringComparison.OrdinalIgnoreCase))
+        {
+            ViewModel.IsUpdateMode = true;
+            ViewModel.PatchBaseFolder = Environment.GetEnvironmentVariable("PSVIETHOA_PATCH_BASE") ?? string.Empty;
+            if (int.TryParse(Environment.GetEnvironmentVariable("PSVIETHOA_UPDATE_KIND"), out var kind) && kind is >= 0 and <= 2)
+            {
+                ViewModel.UpdateKind = kind;
+            }
+        }
+
+        // PSVIETHOA_BUILD_START=<giây>: tự bấm nút tạo gói sau chừng đó giây (kiểm thử đầu-cuối tab Tạo gói / Tạo gói Update).
+        if (ViewModel != null && double.TryParse(Environment.GetEnvironmentVariable("PSVIETHOA_BUILD_START"), System.Globalization.CultureInfo.InvariantCulture, out var startDelay))
+        {
+            var viewModel = ViewModel;
+            Avalonia.Threading.DispatcherTimer.RunOnce(() =>
+            {
+                if (viewModel.BuildCommand.CanExecute(null))
+                {
+                    viewModel.BuildCommand.Execute(null);
+                }
+            }, TimeSpan.FromSeconds(Math.Clamp(startDelay, 1, 120)));
+        }
+
+        // Chế độ hàng chờ khi khởi động (chụp màn hình/kiểm thử): PSVIETHOA_MODE=queue, PSVIETHOA_QUEUE_ADD=nguồn1;nguồn2, PSVIETHOA_QUEUE_START=1
+        if (ViewModel != null && string.Equals(Environment.GetEnvironmentVariable("PSVIETHOA_MODE"), "queue", StringComparison.OrdinalIgnoreCase))
+        {
+            ViewModel.IsQueueMode = true;
+            var queueAdd = Environment.GetEnvironmentVariable("PSVIETHOA_QUEUE_ADD");
+            if (!string.IsNullOrWhiteSpace(queueAdd))
+            {
+                var queueOwner = ViewModel;
+                var autoStart = Environment.GetEnvironmentVariable("PSVIETHOA_QUEUE_START") == "1";
+                Avalonia.Threading.DispatcherTimer.RunOnce(async () =>
+                {
+                    await queueOwner.Queue.AddPathsAsync(queueAdd.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+                    if (autoStart)
+                    {
+                        queueOwner.Queue.StartCommand.Execute(null);
+                    }
+                }, TimeSpan.FromMilliseconds(300));
+            }
+        }
+
         var extractPackage = Environment.GetEnvironmentVariable("PSVIETHOA_EXTRACT_PKG");
         if (ViewModel != null && !string.IsNullOrWhiteSpace(extractPackage))
         {
@@ -167,7 +227,9 @@ public partial class MainWindow : Window
     {
         try
         {
-            await Task.Delay(TimeSpan.FromSeconds(2.5));
+            // PSVIETHOA_SCREENSHOT_DELAY=<giây>: chờ lâu hơn để chụp lúc đang chạy (mặc định 2,5 s).
+            var delay = double.TryParse(Environment.GetEnvironmentVariable("PSVIETHOA_SCREENSHOT_DELAY"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var seconds) ? seconds : 2.5;
+            await Task.Delay(TimeSpan.FromSeconds(delay));
             if (Environment.GetEnvironmentVariable("PSVIETHOA_SHOW_HELP") == "1")
             {
                 // Chụp cửa sổ Hướng dẫn thay vì cửa sổ chính.
@@ -342,6 +404,13 @@ public partial class MainWindow : Window
 
     private void OnDragEnter(object? sender, DragEventArgs e)
     {
+        if (ViewModel is { IsQueueMode: true })
+        {
+            e.DragEffects = QueueView.GetDroppedPaths(e).Count > 0 ? DragDropEffects.Copy : DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
         if (ViewModel is { IsBuilding: false } && GetDroppedSource(e) != null)
         {
             e.DragEffects = DragDropEffects.Copy;
@@ -357,6 +426,13 @@ public partial class MainWindow : Window
 
     private void OnDragOver(object? sender, DragEventArgs e)
     {
+        if (ViewModel is { IsQueueMode: true })
+        {
+            e.DragEffects = QueueView.GetDroppedPaths(e).Count > 0 ? DragDropEffects.Copy : DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
         e.DragEffects = ViewModel is { IsBuilding: false } && GetDroppedSource(e) != null
             ? DragDropEffects.Copy
             : DragDropEffects.None;
@@ -371,6 +447,18 @@ public partial class MainWindow : Window
     private void OnDrop(object? sender, DragEventArgs e)
     {
         DropOverlay.IsVisible = false;
+        if (ViewModel is { IsQueueMode: true } queueOwner)
+        {
+            var paths = QueueView.GetDroppedPaths(e);
+            if (paths.Count > 0)
+            {
+                e.Handled = true;
+                _ = queueOwner.Queue.AddPathsAsync(paths);
+            }
+
+            return;
+        }
+
         if (ViewModel is not { IsBuilding: false })
         {
             return;

@@ -120,7 +120,9 @@ public static class BuildPreparer
                 errors.Add(new ValidationError(FieldSource, Loc.T("Val.SourceMissing")));
                 break;
             case SourceKind.Folder:
-                if (!Directory.Exists(Path.Combine(normalized.SourcePath, "sce_sys")))
+                // Thư mục update của bản vá có thể chỉ gồm eboot.bin / tệp Việt hoá: sce_sys lấy từ gói gốc.
+                var updateFolder = !normalized.SdkPatchExactSource && !string.IsNullOrWhiteSpace(normalized.SdkReferencePackage);
+                if (!updateFolder && !Directory.Exists(Path.Combine(normalized.SourcePath, "sce_sys")))
                 {
                     errors.Add(new ValidationError(FieldSource, Loc.T("Val.SourceNoSceSys")));
                 }

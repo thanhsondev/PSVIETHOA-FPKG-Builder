@@ -157,17 +157,32 @@
                                 <TextBlock Text="{l:T Mode.Build}" FontWeight="SemiBold" />
                             </StackPanel>
                         </RadioButton>
+                        <RadioButton Theme="{StaticResource SegmentRadio}" GroupName="mode" MinWidth="200" IsChecked="{Binding IsUpdateMode, Mode=TwoWay}" AutomationProperties.Name="{l:T Mode.Update}">
+                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                <PathIcon Classes="sm" Data="{StaticResource IconRefresh}" />
+                                <TextBlock Text="{l:T Mode.Update}" FontWeight="SemiBold" />
+                            </StackPanel>
+                        </RadioButton>
                         <RadioButton Theme="{StaticResource SegmentRadio}" GroupName="mode" MinWidth="170" IsChecked="{Binding IsExtractMode, Mode=TwoWay}" AutomationProperties.Name="{l:T Mode.Extract}">
                             <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
                                 <PathIcon Classes="sm" Data="{StaticResource IconPackageDown}" />
                                 <TextBlock Text="{l:T Mode.Extract}" FontWeight="SemiBold" />
                             </StackPanel>
                         </RadioButton>
+                        <RadioButton Theme="{StaticResource SegmentRadio}" GroupName="mode" MinWidth="170" IsChecked="{Binding IsQueueMode, Mode=TwoWay}" AutomationProperties.Name="{l:T Mode.Queue}">
+                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                                <PathIcon Classes="sm" Data="{StaticResource IconFileTree}" />
+                                <TextBlock Text="{l:T Mode.Queue}" FontWeight="SemiBold" />
+                                <Border Classes="chip accent" IsVisible="{Binding Queue.IsBusy}" Padding="6,1">
+                                    <TextBlock Text="{Binding Queue.RunningCount}" />
+                                </Border>
+                            </StackPanel>
+                        </RadioButton>
                     </StackPanel>
                 </Border>
             </Border>
 
-            <Grid Grid.Row="2" ColumnDefinitions="580,18,*" Margin="22,18,22,12" IsVisible="{Binding !IsExtractMode}">
+            <Grid Grid.Row="2" ColumnDefinitions="580,18,*" Margin="22,18,22,12" IsVisible="{Binding ShowBuildView}">
 
                 <!-- ~~~ CỘT TRÁI: CẤU HÌNH ~~~ -->
                 <ScrollViewer Grid.Column="0" Name="SettingsScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsEnabled="{Binding CanEdit}">
@@ -336,6 +351,92 @@
                                         <TextBlock Classes="small diskinfo" Classes.warning="{Binding DiskWarning}" Text="{Binding DiskSummary}" TextWrapping="Wrap" MaxWidth="480" />
                                     </StackPanel>
                                 </StackPanel>
+
+                                <!-- Bản vá cập nhật (SDK Sony fix8): tuỳ chọn, mở ra ô chọn gói gốc; thông tin/lỗi hiện ngay dưới ô -->
+                                <Border Classes="surface" Padding="14,12" CornerRadius="10" IsVisible="{Binding IsUpdateMode}">
+                                    <StackPanel Spacing="10">
+                                        <StackPanel Spacing="2">
+                                            <WrapPanel Orientation="Horizontal">
+                                                <TextBlock Text="{l:T Patch.Toggle}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,8,2" VerticalAlignment="Center" />
+                                                <Border Classes="chip accent" VerticalAlignment="Center"><TextBlock Text="Sony SDK" /></Border>
+                                            </WrapPanel>
+                                            <TextBlock Classes="xs muted" Text="{l:T Patch.Hint}" TextWrapping="Wrap" />
+                                        </StackPanel>
+
+                                        <!-- Tệp xuất ra: chỉ gói Update / chỉ gói game đầy đủ đã kèm update / cả hai (đầu vào luôn là gói base .pkg) -->
+                                        <TextBlock Classes="label" Text="{l:T Update.OutputLabel}" />
+                                        <Border Background="{DynamicResource MutedBrush}" CornerRadius="10" Padding="4" HorizontalAlignment="Left">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <RadioButton Theme="{StaticResource SegmentRadio}" GroupName="updatekind" IsChecked="{Binding UpdateKindUpdateOnly, Mode=TwoWay}" AutomationProperties.Name="{l:T Update.KindUpdate}">
+                                                    <TextBlock Text="{l:T Update.KindUpdate}" FontWeight="SemiBold" Margin="10,0" />
+                                                </RadioButton>
+                                                <RadioButton Theme="{StaticResource SegmentRadio}" GroupName="updatekind" IsChecked="{Binding UpdateKindFullOnly, Mode=TwoWay}" AutomationProperties.Name="{l:T Update.KindFull}">
+                                                    <TextBlock Text="{l:T Update.KindFull}" FontWeight="SemiBold" Margin="10,0" />
+                                                </RadioButton>
+                                                <RadioButton Theme="{StaticResource SegmentRadio}" GroupName="updatekind" IsChecked="{Binding UpdateKindBoth, Mode=TwoWay}" AutomationProperties.Name="{l:T Update.KindBoth}">
+                                                    <TextBlock Text="{l:T Update.KindBoth}" FontWeight="SemiBold" Margin="10,0" />
+                                                </RadioButton>
+                                            </StackPanel>
+                                        </Border>
+                                        <TextBlock Classes="small" Text="{Binding UpdateKindHint}" TextWrapping="Wrap" />
+                                        <TextBlock Classes="small warning" Text="{l:T Patch.NeedsSdk}" TextWrapping="Wrap" IsVisible="{Binding ShowPatchNeedsSdk}" />
+
+                                        <StackPanel Spacing="6">
+                                            <TextBlock Classes="label" Text="{l:T Patch.FieldLabel}" />
+                                            <Grid ColumnDefinitions="*,8,Auto,8,Auto">
+                                                <TextBox Name="ReferenceBox" Text="{Binding ReferencePackagePath, Mode=TwoWay}" Classes.error="{Binding HasReferenceError}" Watermark="game-A0100-V0100.pkg" IsEnabled="{Binding PatchAvailable}" AutomationProperties.Name="{l:T Patch.FieldLabel}" />
+                                                <Button Grid.Column="2" Command="{Binding BrowseReferenceCommand}" IsEnabled="{Binding PatchAvailable}">
+                                                    <StackPanel Classes="btn">
+                                                        <PathIcon Data="{StaticResource IconPackage}" />
+                                                        <TextBlock Text="{l:T Patch.Browse}" />
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Grid.Column="4" Classes="ghost" Command="{Binding ClearReferenceCommand}" IsEnabled="{Binding HasReferencePath}" ToolTip.Tip="{l:T Patch.Clear}" AutomationProperties.Name="{l:T Patch.Clear}">
+                                                    <PathIcon Classes="sm" Data="{StaticResource IconClose}" />
+                                                </Button>
+                                            </Grid>
+                                            <ProgressBar Classes="thin" IsIndeterminate="True" IsVisible="{Binding IsReadingReference}" />
+                                            <Grid ColumnDefinitions="Auto,8,*" IsVisible="{Binding HasReferenceInfo}">
+                                                <PathIcon Classes="sm" Data="{StaticResource IconCheckCircle}" Foreground="{DynamicResource SuccessBrush}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                                                <TextBlock Grid.Column="2" Classes="small mono" Text="{Binding ReferenceInfoText}" TextWrapping="Wrap" />
+                                            </Grid>
+                                            <TextBlock Classes="error" Text="{Binding ReferenceError}" TextWrapping="Wrap" IsVisible="{Binding HasReferenceError}" />
+                                        </StackPanel>
+
+                                        <StackPanel Spacing="6">
+                                            <Button Classes="link" Command="{Binding BumpVersionCommand}" IsVisible="{Binding CanBumpVersion}" HorizontalAlignment="Left">
+                                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                                    <PathIcon Classes="sm" Data="{StaticResource IconSparkle}" />
+                                                    <TextBlock Text="{Binding BumpVersionText}" FontSize="12.5" />
+                                                </StackPanel>
+                                            </Button>
+
+                                            <!-- Thư mục game gốc (tuỳ chọn): nguồn thiếu tệp nào so với gói gốc thì đọc từ đây, khỏi giải nén gói gốc -->
+                                            <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,6,0,2" Opacity="0.6" />
+                                            <StackPanel Spacing="6">
+                                                <TextBlock Classes="label" Text="{l:T Patch.BaseFolderLabel}" />
+                                                <Grid ColumnDefinitions="*,8,Auto,8,Auto">
+                                                    <TextBox Text="{Binding PatchBaseFolder, Mode=TwoWay}" Watermark="{l:T Patch.BaseFolderWatermark}" IsEnabled="{Binding PatchAvailable}" AutomationProperties.Name="{l:T Patch.BaseFolderLabel}" />
+                                                    <Button Grid.Column="2" Command="{Binding BrowsePatchBaseFolderCommand}" IsEnabled="{Binding PatchAvailable}">
+                                                        <StackPanel Classes="btn">
+                                                            <PathIcon Data="{StaticResource IconFolder}" />
+                                                            <TextBlock Text="{l:T Patch.BaseFolderBrowse}" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <Button Grid.Column="4" Classes="ghost" Command="{Binding ClearPatchBaseFolderCommand}" IsEnabled="{Binding HasPatchBaseFolder}" ToolTip.Tip="{l:T Patch.Clear}" AutomationProperties.Name="{l:T Patch.Clear}">
+                                                        <PathIcon Classes="sm" Data="{StaticResource IconClose}" />
+                                                    </Button>
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,8,*" IsVisible="{Binding HasBaseFolderInfo}">
+                                                    <PathIcon Classes="sm" Data="{StaticResource IconCheckCircle}" Foreground="{DynamicResource SuccessBrush}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                                                    <TextBlock Grid.Column="2" Classes="small mono" Text="{Binding BaseFolderInfoText}" TextWrapping="Wrap" />
+                                                </Grid>
+                                                <TextBlock Classes="error" Text="{Binding BaseFolderError}" TextWrapping="Wrap" IsVisible="{Binding HasBaseFolderError}" />
+                                                <TextBlock Classes="hint" Text="{l:T Patch.BaseFolderHint}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Border>
 
@@ -503,6 +604,14 @@
                                                 <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
                                                     <TextBlock Text="{l:T Advanced.SdkPrescan}" TextWrapping="Wrap" />
                                                     <TextBlock Classes="xs muted" Text="{l:T Advanced.SdkPrescanHint}" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <Grid ColumnDefinitions="Auto,12,*">
+                                                <ToggleSwitch IsChecked="{Binding SdkKeepIntermediate, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" VerticalAlignment="Top" />
+                                                <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{l:T Advanced.SdkKeepIntermediate}" TextWrapping="Wrap" />
+                                                    <TextBlock Classes="xs muted" Text="{l:T Advanced.SdkKeepIntermediateHint}" TextWrapping="Wrap" />
                                                 </StackPanel>
                                             </Grid>
                                         </StackPanel>
@@ -907,7 +1016,16 @@
                             <Border Classes="banner warning" IsVisible="{Binding ShowSdkUnavailable}">
                                 <Grid ColumnDefinitions="Auto,*">
                                     <PathIcon Classes="warning" Data="{StaticResource IconAlert}" VerticalAlignment="Top" Margin="0,2,10,0" />
-                                    <TextBlock Grid.Column="1" Classes="small" Text="{Binding SdkUnavailableText}" TextWrapping="Wrap" />
+                                    <StackPanel Grid.Column="1" Spacing="8">
+                                        <TextBlock Classes="small" Text="{Binding SdkUnavailableText}" TextWrapping="Wrap" />
+                                        <Button Classes="btn" Command="{Binding InstallRosettaCommand}" IsVisible="{Binding ShowInstallRosetta}" HorizontalAlignment="Left">
+                                            <StackPanel Classes="btn" Orientation="Horizontal" Spacing="8">
+                                                <PathIcon Classes="sm" Data="{StaticResource IconUpdate}" />
+                                                <TextBlock Text="{l:T Rosetta.Install}" />
+                                            </StackPanel>
+                                        </Button>
+                                        <ProgressBar Classes="thin" IsIndeterminate="True" IsVisible="{Binding IsInstallingRosetta}" />
+                                    </StackPanel>
                                 </Grid>
                             </Border>
                             <Border Classes="banner info" IsVisible="{Binding ShowSdkGp5Note}">
@@ -921,7 +1039,7 @@
                                 <Button Name="BuildButton" Classes="primary" Command="{Binding BuildCommand}" IsVisible="{Binding !IsBuilding}" HorizontalAlignment="Stretch" ToolTip.Tip="{l:T Build.ButtonTip}">
                                     <StackPanel Classes="btn" HorizontalAlignment="Center">
                                         <PathIcon Classes="lg" Data="{StaticResource IconPlay}" />
-                                        <TextBlock Text="{l:T Build.Button}" />
+                                        <TextBlock Text="{Binding BuildButtonText}" />
                                     </StackPanel>
                                 </Button>
                                 <Button Name="CancelButton" Classes="danger" MinHeight="46" Command="{Binding CancelCommand}" IsVisible="{Binding IsBuilding}" HorizontalAlignment="Stretch" ToolTip.Tip="Esc">
@@ -1013,6 +1131,11 @@
             <!-- ============ CHẾ ĐỘ GIẢI NÉN GÓI ============ -->
             <Panel Grid.Row="2" IsVisible="{Binding IsExtractMode}">
                 <views:ExtractionView DataContext="{Binding Extraction}" />
+            </Panel>
+
+            <!-- ============ CHẾ ĐỘ HÀNG CHỜ ============ -->
+            <Panel Grid.Row="2" IsVisible="{Binding IsQueueMode}">
+                <views:QueueView DataContext="{Binding Queue}" />
             </Panel>
 
             <!-- ============ FOOTER ============ -->

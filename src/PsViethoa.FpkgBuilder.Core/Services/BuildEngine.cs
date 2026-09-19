@@ -57,7 +57,7 @@ public sealed class BuildEngine
         // Thư viện luôn ghi đè tệp trùng tên — hỏi trước để người dùng giữ được bản cũ.
         // Chạy trên luồng nền: người gọi chờ đồng bộ hộp thoại trên luồng giao diện, nếu chỗ này đang ở luồng giao diện
         // thì hai bên chờ nhau và ứng dụng treo cứng.
-        await Task.Run(() => ResolveOutputConflict(normalized.OutputFolder, normalized.ContentId, onOutputConflict, log, cancellationToken), cancellationToken)
+        await Task.Run(() => ResolveOutputConflict(normalized.OutputFolder, normalized.ContentId, onOutputConflict, log, cancellationToken, normalized.SdkReferencePackage), cancellationToken)
             .ConfigureAwait(false);
 
         // SDK Sony (chuẩn mới, mặc định bật): chỉ gói ứng dụng lớp ngoài không mã hoá dựng từ thư mục/ảnh. Không dùng được
@@ -77,7 +77,8 @@ public sealed class BuildEngine
                 sdkNotApplicable = true;
             }
 
-            if (sdkRuntime != null)
+            // Bản vá từ thư mục: nguồn có thể chỉ là thư mục update không có keystone — keystone lấy từ gói gốc, kiểm tra khi dựng GP5.
+            if (sdkRuntime != null && !PatchMergeApplies(normalized, source))
             {
                 await Task.Run(() => RequireKeystone(source), cancellationToken).ConfigureAwait(false);
             }
@@ -91,6 +92,17 @@ public sealed class BuildEngine
         var exFatPhase = source.IsExFat
             ? strategy == ExFatStrategy.Mount ? PhaseCatalog.Mount : PhaseCatalog.Extract
             : source.IsUfs ? PhaseCatalog.Extract : null;
+        // Bản vá từ thư mục: so đường dẫn tệp của nguồn với gói gốc. Tệp gói gốc có mà nguồn không có (nguồn là "thư mục update") được
+        // lấy từ thư mục game gốc, hoặc giải nén riêng những tệp đó từ gói gốc vào thư mục tạm (dùng chung pha "giải nén").
+        PatchMerge? patchMerge = null;
+        if (sdkRuntime != null && PatchMergeApplies(normalized, source))
+        {
+            patchMerge = await Task.Run(() => PlanPatchMerge(normalized, source.Path, cancellationToken), cancellationToken).ConfigureAwait(false);
+            if (patchMerge is { FromPackage: true })
+            {
+                exFatPhase ??= PhaseCatalog.Extract;
+            }
+        }
 
         var stopwatch = Stopwatch.StartNew();
         var tracker = new ProgressTracker(stopwatch, PhaseCatalog.Sequence(normalized.ComputeSha256, exFatPhase, normalized.FullVerify, sdkRuntime != null));
@@ -101,6 +113,11 @@ public sealed class BuildEngine
             log(normalized.SdkCompressionLevel is { } sdkLevel
                 ? new LogEntry(LogLevel.Warning, Loc.F("Sdk.PlanLevelCustom", sdkLevel))
                 : new LogEntry(LogLevel.Info, Loc.T("Sdk.PlanLevel")));
+        }
+        else if (!string.IsNullOrWhiteSpace(normalized.SdkReferencePackage))
+        {
+            // Bản vá chỉ Publishing Tools làm được: không âm thầm chuyển sang engine tích hợp rồi cho ra gói đầy đủ.
+            throw new InvalidOperationException(Loc.F("Patch.SdkRequired", normalized.UseSonySdk ? sdkUnavailable ?? "?" : Loc.T("Patch.NeedsSdk")));
         }
         else if (normalized.UseSonySdk)
         {
@@ -121,6 +138,7 @@ public sealed class BuildEngine
 
         ImageMount? mount = null;
         string? staging = null;
+        string? patchBase = null;
         try
         {
             // Dự án GP5: thư viện đọc manifest qua ProjectFilePath, SourceFolder là thư mục chứa tệp .gp5.
@@ -211,6 +229,51 @@ public sealed class BuildEngine
             // SDK Sony: GP5 phẳng trỏ thẳng vào từng tệp nguồn (như build-from-folder.ps1 với --absolute-paths), nên không cần
             // thư mục gương — tệp cần bỏ chỉ việc không liệt kê, param.json đã sửa trỏ sang bản trong thư mục tạm. Ổ ảo Dokan đã
             // tự ẩn tệp và đè param.json khi gắn nên dùng nguyên như script gốc.
+            if (sdkRuntime != null && patchMerge != null)
+            {
+                // Nguồn thiếu tệp so với gói gốc ("thư mục update"): ghép nguồn lên nội dung gói gốc (thư mục game gốc, hoặc các tệp thiếu giải nén từ gói gốc).
+                var updateFolder = sourceFolder;
+                string baseFolder;
+                if (!string.IsNullOrWhiteSpace(normalized.SdkPatchBaseFolder))
+                {
+                    baseFolder = Path.GetFullPath(normalized.SdkPatchBaseFolder);
+                    if (!File.Exists(Path.Combine(baseFolder, "sce_sys", "param.json")))
+                    {
+                        throw new InvalidDataException(Loc.F("Patch.BaseFolderInvalid", baseFolder));
+                    }
+
+                    if (PathsOverlap(baseFolder, updateFolder))
+                    {
+                        throw new InvalidDataException(Loc.F("Patch.BaseFolderIsSource", baseFolder));
+                    }
+
+                    log(new LogEntry(LogLevel.Info, Loc.F("Patch.BaseFolderUsed", baseFolder)));
+                }
+                else
+                {
+                    patchBase = Path.Combine(normalized.TemporaryFolder, "patch-base-" + StagingName(normalized.SdkReferencePackage!) + "-" + Environment.ProcessId.ToString("x"));
+                    TryDeleteDirectory(patchBase);
+                    baseFolder = patchBase;
+                    var showProgress = exFatPhase == PhaseCatalog.Extract && !source.IsExFat && !source.IsUfs;
+                    if (showProgress)
+                    {
+                        progress?.Report(tracker.EnterPhase(PhaseCatalog.Extract));
+                    }
+
+                    await Task.Run(
+                        () => ExtractPatchBase(normalized, patchMerge, patchBase, log, showProgress ? percent => progress?.Report(tracker.UpdatePhasePercent(percent)) : null, cancellationToken),
+                        cancellationToken).ConfigureAwait(false);
+                }
+
+                var overlayPlan = await Task.Run(() => PlanSonySdkSource(normalized, baseFolder, log, updateFolder), cancellationToken).ConfigureAwait(false) with
+                {
+                    OverlayRoot = updateFolder,
+                    OverlayBasePaths = patchMerge.FromPackage ? patchMerge.BasePaths : null,
+                };
+                log(new LogEntry(LogLevel.Info, Loc.F("Patch.OverlayMode", updateFolder)));
+                return await BuildWithSonySdkAsync(normalized, sdkRuntime, baseFolder, overlayPlan, tracker, stopwatch, log, progress, cancellationToken).ConfigureAwait(false);
+            }
+
             if (sdkRuntime != null)
             {
                 var plan = mount is { Backend: MountBackend.Dokan }
@@ -292,7 +355,148 @@ public sealed class BuildEngine
                 await Task.Run(() => TryDeleteDirectory(staging)).ConfigureAwait(false);
                 log(new LogEntry(LogLevel.Info, Loc.T("Plan.StagingRemoved")));
             }
+
+            if (patchBase != null)
+            {
+                await Task.Run(() => TryDeleteDirectory(patchBase)).ConfigureAwait(false);
+                log(new LogEntry(LogLevel.Info, Loc.T("Patch.BaseRemoved")));
+            }
         }
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
+    /// <summary>Bản vá tự ghép với gói gốc: có gói gốc, nguồn là thư mục thường và người dùng không ép "nguồn là bản đầy đủ".</summary>
+    private static bool PatchMergeApplies(BuildRequest request, SourceInfo source) =>
+        !string.IsNullOrWhiteSpace(request.SdkReferencePackage) && !request.SdkPatchExactSource && source.Kind == SourceKind.Folder;
+
+    /// <summary>Kết quả so nguồn với gói gốc: những tệp phải lấy lại từ gói gốc (<see cref="FromPackage"/>) hoặc từ thư mục game gốc.</summary>
+    private sealed record PatchMerge(bool FromPackage, IReadOnlySet<string> MissingPaths, int MissingFiles, long MissingBytes, IReadOnlyCollection<string>? BasePaths = null);
+
+    /// <summary>
+    /// So đường dẫn tệp (không phân biệt hoa thường) của thư mục nguồn với danh sách tệp trong gói gốc. Null = nguồn đã đầy đủ (mọi tệp
+    /// thật của gói gốc đều có, có param.json) → tạo bản vá thẳng từ nguồn như bộ công cụ gốc. Tệp sce_sys do SDK tự sinh (playgo-*.dat…)
+    /// không tính là "thiếu", nhưng khi đã phải lấy tệp từ gói gốc thì lấy cả chúng để giữ đúng cấu trúc PlayGo của gói gốc.
+    /// </summary>
+    private static PatchMerge? PlanPatchMerge(BuildRequest request, string sourceFolder, CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(request.SdkPatchBaseFolder))
+        {
+            return new PatchMerge(false, new HashSet<string>(), 0, 0);
+        }
+
+        var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var file in Directory.EnumerateFiles(sourceFolder, "*", SearchOption.AllDirectories))
+        {
+            present.Add(Path.GetRelativePath(sourceFolder, file).Replace('\\', '/'));
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        var keep = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { SonySdkProject.KeystonePath };
+        var missing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var basePaths = new List<string>();
+        var significant = 0;
+        long bytes = 0;
+        using (var reader = PackageReader.Open(Path.GetFullPath(request.SdkReferencePackage!), request.Passcode, request.TemporaryFolder, cancellationToken))
+        {
+            foreach (var entry in reader.Entries)
+            {
+                var relative = entry.Path.Replace('\\', '/').TrimStart('/');
+                if (entry.IsDirectory)
+                {
+                    continue;
+                }
+
+                basePaths.Add(relative);
+                if (present.Contains(relative))
+                {
+                    continue;
+                }
+
+                missing.Add(relative);
+                bytes += entry.Size;
+                // "Thiếu thật" = dữ liệu game. sce_sys (SDK tự sinh bảng PlayGo, PNG khôi phục từ .dds…) và tệp giữ chỗ ngôn ngữ do công cụ
+                // thêm lúc tạo gói gốc không có trong bản dump đầy đủ nên không tính.
+                if (!relative.StartsWith("sce_sys/", StringComparison.OrdinalIgnoreCase) &&
+                    !relative.StartsWith(SonySdkPlayGo.LanguagePayloadFolder + "/", StringComparison.OrdinalIgnoreCase) &&
+                    SonySdkProject.SkipReason(relative, keep) == null)
+                {
+                    significant++;
+                }
+            }
+        }
+
+        var hasParam = present.Contains("sce_sys/param.json");
+        return significant == 0 && hasParam ? null : new PatchMerge(true, missing, significant, bytes, basePaths);
+    }
+
+    private static bool PathsOverlap(string first, string second)
+    {
+        static string Normalize(string path) => Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)) + Path.DirectorySeparatorChar;
+        var a = Normalize(first);
+        var b = Normalize(second);
+        var comparison = OperatingSystem.IsLinux() ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+        return a.StartsWith(b, comparison) || b.StartsWith(a, comparison);
+    }
+
+    /// <summary>
+    /// Giải nén từ gói gốc ĐÚNG những tệp nguồn không có (+ sce_sys trong CNT) vào <paramref name="target"/> trong thư mục tạm để ghép với
+    /// nguồn. Chỗ trống cần = tổng dung lượng các tệp thiếu; gói gốc chỉ được đọc.
+    /// </summary>
+    private static void ExtractPatchBase(BuildRequest request, PatchMerge merge, string target, Action<LogEntry> log, Action<double>? percent, CancellationToken cancellationToken)
+    {
+        var package = Path.GetFullPath(request.SdkReferencePackage!);
+        var watch = Stopwatch.StartNew();
+        long? free = null;
+        try
+        {
+            free = new DriveInfo(DiskSpaceAdvisor.ResolveMountPoint(request.TemporaryFolder) ?? Path.GetPathRoot(Path.GetFullPath(request.TemporaryFolder)) ?? request.TemporaryFolder).AvailableFreeSpace;
+        }
+        catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException)
+        {
+        }
+
+        if (free is { } available && available < merge.MissingBytes + (256L << 20))
+        {
+            throw new IOException(Loc.F("Patch.BaseNoSpace", Formatters.Size(merge.MissingBytes), request.TemporaryFolder, Formatters.Size(available)));
+        }
+
+        log(new LogEntry(LogLevel.Info, Loc.F("Patch.BaseExtracting", merge.MissingFiles, Formatters.Size(merge.MissingBytes), target)));
+        Directory.CreateDirectory(target);
+        using (var reader = PackageReader.Open(package, request.Passcode, request.TemporaryFolder, cancellationToken))
+        {
+            var wanted = reader.Entries.Where(entry => !entry.IsDirectory && merge.MissingPaths.Contains(entry.Path.Replace('\\', '/').TrimStart('/'))).ToList();
+            if (wanted.Count > 0)
+            {
+                var result = reader.Extract(
+                    wanted,
+                    target,
+                    percent == null ? null : new SyncProgress<ExtractProgress>(p => percent(p.DoneBytes * 100.0 / Math.Max(1, p.TotalBytes))),
+                    cancellationToken);
+                foreach (var warning in result.Warnings.Take(5))
+                {
+                    log(new LogEntry(LogLevel.Warning, warning));
+                }
+            }
+        }
+
+        PackageReader.ExportSceSys(package, target, request.Passcode, cancellationToken);
+        log(new LogEntry(LogLevel.Info, Loc.F("Patch.BaseExtracted", Formatters.Duration(watch.Elapsed))));
+    }
+
+    /// <summary>IProgress gọi thẳng (không qua SynchronizationContext như Progress&lt;T&gt;).</summary>
+    private sealed class SyncProgress<T>(Action<T> handler) : IProgress<T>
+    {
+        public void Report(T value) => handler(value);
     }
 
     /// <summary>
@@ -300,10 +504,19 @@ public sealed class BuildEngine
     /// bộ playgo*, ampr_emu.index và hai module giả lập trong fakelib vì script gốc (fixdss3) tự loại; param.json được script
     /// chuẩn hoá (DRM standard) rồi công cụ áp thêm các sửa đổi tuỳ chọn. Thư mục nguồn chỉ được đọc.
     /// </summary>
-    private static SonySdkSourcePlan PlanSonySdkSource(BuildRequest request, string appFolder, Action<LogEntry> log)
+    private static SonySdkSourcePlan PlanSonySdkSource(BuildRequest request, string appFolder, Action<LogEntry> log, string? overlayFolder = null)
     {
+        // Bản vá ghép thư mục update: tệp cần bỏ có thể nằm ở bên nào cũng được; bảng PlayGo lấy ở bên nào còn playgo-chunk.dat (ưu tiên gói gốc).
+        var cleanup = overlayFolder == null
+            ? FolderCleanupPaths(request, appFolder)
+            : FolderCleanupPaths(request, appFolder).Concat(FolderCleanupPaths(request, overlayFolder)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (overlayFolder != null && !File.Exists(Path.Combine(appFolder, "sce_sys", "playgo-chunk.dat")) && File.Exists(Path.Combine(overlayFolder, "sce_sys", "playgo-chunk.dat")))
+        {
+            appFolder = overlayFolder;
+        }
+
         var skip = new HashSet<string>(
-            FolderCleanupPaths(request, appFolder)
+            cleanup
                 .Where(path => !PlayGoCleanup.IsCandidate(path))
                 .Where(path => SonySdkProject.SkipReason(path, new HashSet<string>(StringComparer.OrdinalIgnoreCase)) == null),
             StringComparer.OrdinalIgnoreCase);
@@ -342,13 +555,16 @@ public sealed class BuildEngine
 
             if (request.SdkPlayGoFallback)
             {
-                var scenarios = SonySdkPlayGo.SourceScenarioCount(sceSys);
-                var fallback = SonySdkPlayGo.Fallback(request.PlayGoChunks, scenarios ?? 1);
-                if (!fallback.IsTrivial)
+                // Bố cục của script fix6: 100 chunk, mỗi ngôn ngữ trong playgo-scenario.json một chunk có tệp giữ chỗ 1 MiB (máy báo
+                // ngôn ngữ "đã cài"), kịch bản/tiêu đề của nguồn, mọi chunk initial.
+                var fallback = SonySdkPlayGo.ScriptFallback(sceSys, SonySdkProject.DefaultLanguageOf(Path.Combine(sceSys, "param.json")), out var scenarioWarning, request.PlayGoChunks);
+                if (scenarioWarning != null)
                 {
-                    log(new LogEntry(LogLevel.Warning, Loc.F("Sdk.PlayGoFallback", fallback.Chunks.Count, fallback.Scenarios.Count, scenarios.HasValue ? Loc.T("Sdk.PlayGoFallbackScenarios") : string.Empty)));
-                    return fallback;
+                    log(new LogEntry(LogLevel.Warning, Loc.F("Sdk.PlayGoScenarioInvalid", scenarioWarning)));
                 }
+
+                log(new LogEntry(LogLevel.Info, Loc.F("Sdk.PlayGoScriptFallback", fallback.Chunks.Count, fallback.LanguagePayloads.Count, fallback.SupportedLanguagesText, fallback.Scenarios.Count)));
+                return fallback;
             }
 
             return null;
@@ -417,6 +633,40 @@ public sealed class BuildEngine
             (phase, percent, detail) => progress?.Report(tracker.Report(phase, percent, detail)),
             cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
+        if (result.RemasteredPath != null)
+        {
+            // Bản vá: gói delta không có header FIH; kiểm tra cấu trúc trên gói đầy đủ đi kèm (.remastered.pkg — như GUI của fix8). Kiểm tra
+            // nội dung của LibProsperoPkg không áp dụng được: ảnh của gói remastered tham chiếu dữ liệu nằm trong gói gốc.
+            log(new LogEntry(LogLevel.Info, Loc.T("Patch.Verifying")));
+            progress?.Report(tracker.EnterPhase(PhaseCatalog.Verify));
+            var verification = await Task.Run(() => PackageVerifier.Verify(result.RemasteredPath, request.ImageMode, false, cancellationToken, null), cancellationToken).ConfigureAwait(false);
+            LogSdkVersionChange(appFolder, result.RemasteredPath, request.Passcode, log);
+
+            // Người dùng chọn tệp xuất ra: Publishing Tools luôn ghi cả hai, tệp không cần bị xoá SAU khi đã kiểm tra cấu trúc. Hai tệp chuyển
+            // đổi qua lại được bằng img_convert (remastered ⇄ patch + gói base), nên không mất gì.
+            var keptPath = result.OutputPath;
+            if (request.SdkPatchOutput == SdkPatchOutput.UpdateOnly)
+            {
+                TryDeleteFile(result.RemasteredPath);
+                log(new LogEntry(LogLevel.Info, Loc.F("Patch.RemovedFull", Path.GetFileName(result.RemasteredPath))));
+            }
+            else if (request.SdkPatchOutput == SdkPatchOutput.FullOnly)
+            {
+                TryDeleteFile(result.OutputPath);
+                keptPath = result.RemasteredPath;
+                log(new LogEntry(LogLevel.Info, Loc.F("Patch.RemovedUpdate", Path.GetFileName(result.OutputPath))));
+            }
+
+            if (request.SdkPatchOutput != SdkPatchOutput.FullOnly)
+            {
+                log(new LogEntry(LogLevel.Warning, Loc.T("Patch.InstallNote")));
+            }
+
+            stopwatch.Stop();
+            progress?.Report(tracker.Complete());
+            return new BuildOutcome(keptPath, result.Warnings.ToArray(), verification with { Length = new FileInfo(keptPath).Length }, stopwatch.Elapsed);
+        }
+
         var outcome = await VerifyOutputAsync(request, result.OutputPath, result.Warnings.ToArray(), tracker, stopwatch, log, progress, cancellationToken).ConfigureAwait(false);
         LogSdkVersionChange(appFolder, result.OutputPath, request.Passcode, log);
         return outcome;
@@ -567,14 +817,16 @@ public sealed class BuildEngine
     }
 
     /// <summary>Gói cùng Content ID đã có trong thư mục xuất: hỏi ghi đè / giữ bản cũ / huỷ.</summary>
-    internal static void ResolveOutputConflict(string outputFolder, string contentId, Func<IReadOnlyList<string>, OutputConflictChoice>? ask, Action<LogEntry> log, CancellationToken cancellationToken = default)
+    internal static void ResolveOutputConflict(string outputFolder, string contentId, Func<IReadOnlyList<string>, OutputConflictChoice>? ask, Action<LogEntry> log, CancellationToken cancellationToken = default, string? patchReference = null)
     {
         if (ask == null)
         {
             return;
         }
 
-        var existing = OutputConflict.Find(outputFolder, contentId);
+        // Bản vá ghi ra UPDATE_<contentId>-….pkg: chỉ bản vá cũ cùng tên mới là trùng; gói gốc (thường nằm ngay trong thư mục xuất) không bao giờ bị hỏi ghi đè.
+        var patch = !string.IsNullOrWhiteSpace(patchReference);
+        var existing = OutputConflict.Find(outputFolder, contentId, patch ? SonySdkBuilder.PatchPrefix : string.Empty, patch ? patchReference : null);
         if (existing.Count == 0)
         {
             return;

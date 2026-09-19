@@ -1,0 +1,278 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PsViethoa.FpkgBuilder.App.ViewModels"
+             xmlns:models="using:PsViethoa.FpkgBuilder.Core.Models"
+             xmlns:l="using:PsViethoa.FpkgBuilder.App.Localization"
+             x:Class="PsViethoa.FpkgBuilder.App.Views.QueueView"
+             x:DataType="vm:QueueViewModel"
+             DragDrop.AllowDrop="True">
+
+    <UserControl.Styles>
+        <!-- Danh sách hàng chờ: hàng cao ≥ 56px, virtualized, hàng đang chạy có viền nhấn -->
+        <Style Selector="ListBox.queue">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        </Style>
+        <Style Selector="ListBox.queue ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="ListBox.queue ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ListBox.queue ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ListBox.queue ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.qrow">
+            <Setter Property="Background" Value="{DynamicResource MutedBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="12,10" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="BorderBrush" Duration="0:0:0.15" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="ListBox.queue ListBoxItem:pointerover Border.qrow">
+            <Setter Property="Background" Value="{DynamicResource MutedHoverBrush}" />
+        </Style>
+        <Style Selector="ListBox.queue ListBoxItem:selected Border.qrow">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="Border.qrow.running">
+            <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+        </Style>
+        <Style Selector="Border.qrow.failed">
+            <Setter Property="BorderBrush" Value="{DynamicResource DangerBrush}" />
+        </Style>
+        <!-- Chấm trạng thái -->
+        <Style Selector="Border.qdot">
+            <Setter Property="Width" Value="10" />
+            <Setter Property="Height" Value="10" />
+            <Setter Property="CornerRadius" Value="5" />
+            <Setter Property="Background" Value="{DynamicResource FgFaintBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Border.qdot.running">
+            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="Border.qdot.done">
+            <Setter Property="Background" Value="{DynamicResource SuccessBrush}" />
+        </Style>
+        <Style Selector="Border.qdot.failed">
+            <Setter Property="Background" Value="{DynamicResource DangerBrush}" />
+        </Style>
+        <Style Selector="Border.qdot.canceled">
+            <Setter Property="Background" Value="{DynamicResource WarningBrush}" />
+        </Style>
+        <Style Selector="Button.qaction">
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid ColumnDefinitions="*,18,440" Margin="22,18,22,12">
+
+        <!-- ~~~ CỘT TRÁI: HÀNG CHỜ ~~~ -->
+        <Border Grid.Column="0" Classes="card" Padding="0" ClipToBounds="True">
+            <Grid RowDefinitions="Auto,Auto,Auto,*">
+
+                <!-- Tiêu đề + tóm tắt -->
+                <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="18,16,18,0">
+                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <PathIcon Classes="accent" Data="{StaticResource IconFileTree}" />
+                        <TextBlock Classes="h2" Text="{l:T Queue.Title}" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="12,0,0,0">
+                        <Border Classes="chip" ToolTip.Tip="{l:T Queue.Status.Waiting}">
+                            <TextBlock Text="{Binding WaitingCount, StringFormat='⏳ {0}'}" />
+                        </Border>
+                        <Border Classes="chip accent" ToolTip.Tip="{l:T Queue.Status.Running}">
+                            <TextBlock Text="{Binding RunningCount, StringFormat='▶ {0}'}" />
+                        </Border>
+                        <Border Classes="chip success" ToolTip.Tip="{l:T Queue.Status.Done}">
+                            <TextBlock Text="{Binding DoneCount, StringFormat='✓ {0}'}" />
+                        </Border>
+                        <Border Classes="chip danger" ToolTip.Tip="{l:T Queue.Status.Failed}">
+                            <TextBlock Text="{Binding FailedCount, StringFormat='✕ {0}'}" />
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Thanh công cụ: hai hàng để không tràn ở cửa sổ hẹp -->
+                <StackPanel Grid.Row="1" Margin="18,12,18,0" Spacing="8">
+                    <WrapPanel Orientation="Horizontal" ItemHeight="38">
+                        <Button Classes="btn" Command="{Binding AddFolderCommand}" Margin="0,0,8,0" ToolTip.Tip="{l:T Queue.AddFolderTip}">
+                            <StackPanel Classes="btn" Orientation="Horizontal" Spacing="8">
+                                <PathIcon Classes="sm" Data="{StaticResource IconFolder}" />
+                                <TextBlock Text="{l:T Queue.AddFolder}" />
+                            </StackPanel>
+                        </Button>
+                        <Button Classes="btn" Command="{Binding AddImageCommand}" Margin="0,0,16,0" ToolTip.Tip="{l:T Queue.AddImageTip}">
+                            <StackPanel Classes="btn" Orientation="Horizontal" Spacing="8">
+                                <PathIcon Classes="sm" Data="{StaticResource IconDisk}" />
+                                <TextBlock Text="{l:T Queue.AddImage}" />
+                            </StackPanel>
+                        </Button>
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <TextBlock Classes="label" Text="{l:T Queue.Concurrency}" VerticalAlignment="Center" Margin="0" />
+                            <ComboBox MinWidth="150" ItemsSource="{Binding ConcurrencyOptions}" SelectedIndex="{Binding ConcurrencyIndex, Mode=TwoWay}" ToolTip.Tip="{l:T Queue.ConcurrencyHint}" />
+                        </StackPanel>
+                    </WrapPanel>
+                    <WrapPanel Orientation="Horizontal" ItemHeight="38">
+                        <Button Classes="primary" Command="{Binding StartCommand}" IsEnabled="{Binding CanStart}" MinWidth="130" Margin="0,0,8,0">
+                            <StackPanel Classes="btn" Orientation="Horizontal" Spacing="8">
+                                <PathIcon Classes="sm" Data="{StaticResource IconPlay}" />
+                                <TextBlock Text="{l:T Queue.Start}" FontWeight="SemiBold" />
+                            </StackPanel>
+                        </Button>
+                        <Button Classes="btn" Command="{Binding PauseCommand}" IsEnabled="{Binding CanPause}" Margin="0,0,8,0" ToolTip.Tip="{l:T Queue.PauseTip}">
+                            <TextBlock Text="{l:T Queue.Pause}" />
+                        </Button>
+                        <Button Classes="danger" Command="{Binding CancelAllCommand}" IsEnabled="{Binding CanCancelAll}" Margin="0,0,8,0">
+                            <StackPanel Classes="btn" Orientation="Horizontal" Spacing="8">
+                                <PathIcon Classes="sm" Data="{StaticResource IconStop}" />
+                                <TextBlock Text="{l:T Queue.CancelAll}" />
+                            </StackPanel>
+                        </Button>
+                        <Button Classes="ghost" Command="{Binding ClearFinishedCommand}" IsEnabled="{Binding HasFinished}" ToolTip.Tip="{l:T Queue.ClearFinishedTip}">
+                            <StackPanel Classes="btn" Orientation="Horizontal" Spacing="8">
+                                <PathIcon Classes="sm" Data="{StaticResource IconBroom}" />
+                                <TextBlock Text="{l:T Queue.ClearFinished}" />
+                            </StackPanel>
+                        </Button>
+                    </WrapPanel>
+                </StackPanel>
+
+                <!-- Tiến trình chung -->
+                <StackPanel Grid.Row="2" Margin="18,12,18,10" Spacing="6">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Classes="small" Text="{Binding HeadlineText}" />
+                        <TextBlock Grid.Column="1" Classes="small mono muted" Text="{Binding ElapsedText}" />
+                    </Grid>
+                    <ProgressBar Classes="thin" Minimum="0" Maximum="100" Value="{Binding OverallPercent}" />
+                    <TextBlock Classes="hint" Margin="0" Text="{l:T Queue.SettingsNote}" TextWrapping="Wrap" />
+                </StackPanel>
+
+                <!-- Danh sách -->
+                <Panel Grid.Row="3">
+                    <!-- Trống: vùng thả -->
+                    <Border IsVisible="{Binding IsEmpty}" Margin="18,4,18,18" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="2" CornerRadius="12" Background="Transparent">
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10" Margin="24">
+                            <PathIcon Classes="lg" Data="{StaticResource IconDrop}" HorizontalAlignment="Center" Foreground="{DynamicResource FgMutedBrush}" />
+                            <TextBlock Classes="h3" Text="{l:T Queue.Empty}" HorizontalAlignment="Center" TextAlignment="Center" />
+                            <TextBlock Classes="small muted" Text="{l:T Queue.EmptyHint}" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="520" />
+                        </StackPanel>
+                    </Border>
+
+                    <ListBox Name="QueueList" Classes="queue" IsVisible="{Binding HasItems}" ItemsSource="{Binding Items}" SelectedItem="{Binding SelectedItem, Mode=TwoWay}" SelectionMode="Single" Margin="18,4,18,18">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:QueueItemViewModel">
+                                <Border Classes="qrow" Classes.running="{Binding IsRunning}" Classes.failed="{Binding IsFailed}">
+                                    <Grid ColumnDefinitions="Auto,Auto,*,Auto" RowDefinitions="Auto,Auto,Auto">
+
+                                        <!-- Chấm trạng thái -->
+                                        <Border Grid.Row="0" Grid.RowSpan="3" Classes="qdot" Classes.running="{Binding IsRunning}" Classes.done="{Binding IsDone}" Classes.failed="{Binding IsFailed}" Classes.canceled="{Binding IsCanceled}" Margin="2,0,12,0" VerticalAlignment="Top" />
+
+                                        <!-- Ảnh game (icon0.png) -->
+                                        <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="1" Width="52" Height="52" CornerRadius="10" ClipToBounds="True" Background="{DynamicResource BgElevatedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Margin="0,0,12,0" VerticalAlignment="Top">
+                                            <Panel>
+                                                <PathIcon Data="{StaticResource IconImage}" Foreground="{DynamicResource FgFaintBrush}" Width="20" Height="20" IsVisible="{Binding !HasIcon}" />
+                                                <Image Source="{Binding Icon}" Stretch="UniformToFill" IsVisible="{Binding HasIcon}" />
+                                            </Panel>
+                                        </Border>
+
+                                        <!-- Tên + trạng thái -->
+                                        <Grid Grid.Row="0" Grid.Column="2" ColumnDefinitions="*,Auto">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                <PathIcon Classes="sm" Data="{StaticResource IconAlert}" Foreground="{DynamicResource WarningBrush}" IsVisible="{Binding MetadataWarning}" ToolTip.Tip="{l:T Queue.MetaWarning}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <Border Grid.Column="1" Classes="chip" Classes.accent="{Binding IsRunning}" Classes.success="{Binding IsDone}" Classes.danger="{Binding IsFailed}" Classes.warning="{Binding IsCanceled}" Margin="8,0,0,0">
+                                                <TextBlock Text="{Binding StatusText}" />
+                                            </Border>
+                                        </Grid>
+                                        <TextBlock Grid.Row="1" Grid.Column="2" Classes="xs muted mono" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+
+                                        <!-- Tiến trình / kết quả -->
+                                        <StackPanel Grid.Row="2" Grid.Column="2" Margin="0,6,0,0" Spacing="4">
+                                            <ProgressBar Classes="thin" Minimum="0" Maximum="100" Value="{Binding Percent}" IsVisible="{Binding IsRunning}" />
+                                            <Grid ColumnDefinitions="*,Auto,Auto" IsVisible="{Binding IsRunning}">
+                                                <TextBlock Classes="xs" Text="{Binding PhaseText}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Grid.Column="1" Classes="xs muted" Text="{Binding EtaText}" Margin="10,0,0,0" />
+                                                <TextBlock Grid.Column="2" Classes="xs mono muted" Text="{Binding ElapsedText}" Margin="10,0,0,0" />
+                                            </Grid>
+                                            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasResult}">
+                                                <PathIcon Classes="sm" Data="{StaticResource IconCheckCircle}" Foreground="{DynamicResource SuccessBrush}" VerticalAlignment="Center" />
+                                                <TextBlock Classes="xs mono" Text="{Binding ResultPath}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                <TextBlock Classes="xs muted" Text="{Binding ResultSize}" VerticalAlignment="Center" />
+                                                <TextBlock Classes="xs muted mono" Text="{Binding ElapsedText}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <TextBlock Classes="xs error" Text="{Binding ErrorText}" TextWrapping="Wrap" IsVisible="{Binding HasError}" />
+                                        </StackPanel>
+
+                                        <!-- Hành động -->
+                                        <StackPanel Grid.Row="0" Grid.RowSpan="3" Grid.Column="3" Orientation="Horizontal" Spacing="2" VerticalAlignment="Top" Margin="10,0,0,0">
+                                            <Button Classes="icon qaction" Command="{Binding $parent[UserControl].((vm:QueueViewModel)DataContext).MoveUpCommand}" CommandParameter="{Binding}" IsVisible="{Binding IsWaiting}" ToolTip.Tip="{l:T Queue.MoveUp}">
+                                                <PathIcon Classes="sm" Data="{StaticResource IconChevronDown}" RenderTransform="rotate(180deg)" />
+                                            </Button>
+                                            <Button Classes="icon qaction" Command="{Binding $parent[UserControl].((vm:QueueViewModel)DataContext).MoveDownCommand}" CommandParameter="{Binding}" IsVisible="{Binding IsWaiting}" ToolTip.Tip="{l:T Queue.MoveDown}">
+                                                <PathIcon Classes="sm" Data="{StaticResource IconChevronDown}" />
+                                            </Button>
+                                            <Button Classes="icon qaction" Command="{Binding $parent[UserControl].((vm:QueueViewModel)DataContext).RetryCommand}" CommandParameter="{Binding}" IsVisible="{Binding CanRetry}" ToolTip.Tip="{l:T Queue.Retry}">
+                                                <PathIcon Classes="sm" Data="{StaticResource IconRefresh}" />
+                                            </Button>
+                                            <Button Classes="icon qaction" Command="{Binding $parent[UserControl].((vm:QueueViewModel)DataContext).OpenOutputCommand}" CommandParameter="{Binding}" IsVisible="{Binding IsDone}" ToolTip.Tip="{l:T Queue.OpenFolder}">
+                                                <PathIcon Classes="sm" Data="{StaticResource IconFolderOpen}" />
+                                            </Button>
+                                            <Button Classes="icon qaction" Command="{Binding $parent[UserControl].((vm:QueueViewModel)DataContext).CancelItemCommand}" CommandParameter="{Binding}" IsVisible="{Binding CanCancel}" ToolTip.Tip="{l:T Queue.Cancel}">
+                                                <PathIcon Classes="sm" Data="{StaticResource IconStop}" Foreground="{DynamicResource DangerBrush}" />
+                                            </Button>
+                                            <Button Classes="icon qaction" Command="{Binding $parent[UserControl].((vm:QueueViewModel)DataContext).RemoveCommand}" CommandParameter="{Binding}" IsVisible="{Binding CanRemove}" ToolTip.Tip="{l:T Queue.Remove}">
+                                                <PathIcon Classes="sm" Data="{StaticResource IconTrash}" />
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Panel>
+            </Grid>
+        </Border>
+
+        <!-- ~~~ CỘT PHẢI: NHẬT KÝ MỤC ĐANG CHỌN ~~~ -->
+        <Border Grid.Column="2" Classes="card" Padding="0" ClipToBounds="True">
+            <Grid RowDefinitions="Auto,*">
+                <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="18,12,12,10">
+                    <PathIcon Data="{StaticResource IconTerminal}" Margin="0,0,10,0" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Classes="h3" Text="{Binding SelectedLogTitle}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    <Button Grid.Column="2" Classes="icon" Command="{Binding CopyLogCommand}" IsEnabled="{Binding HasSelection}" ToolTip.Tip="{l:T Log.CopyTip}">
+                        <PathIcon Data="{StaticResource IconCopy}" />
+                    </Button>
+                </Grid>
+                <ListBox Grid.Row="1" Name="QueueLogList" Classes="log" ItemsSource="{Binding SelectedItem.LogEntries}" SelectionMode="Multiple">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="models:LogEntry">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <TextBlock Classes="logtime" Text="{Binding TimeText}" />
+                                <TextBlock Grid.Column="1" Classes="logmsg" Classes.warn="{Binding IsWarning}" Classes.err="{Binding IsError}" Classes.ok="{Binding IsSuccess}" Text="{Binding Message}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

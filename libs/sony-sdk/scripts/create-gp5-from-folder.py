@@ -11,10 +11,15 @@ excluded by default.
 The source tree is never modified. A normalized param.json with
 applicationDrmType=standard and any pic*.png files recovered from DDS-only sce_sys media
 are written below a .gp5-assets directory beside the generated GP5.
+Application projects use 100 PlayGo chunks by default. Game files remain in chunk zero;
+each language declared by playgo-scenario.json gets a small generated, uncompressed payload
+in its own chunk so Publishing Tools records a non-zero language size. Remaining chunks are
+empty placeholders. Source scenarios and localized presentation strings are retained, and
+every scenario contains all 100 chunks and marks all of them as initial/required.
 
 With --build, the output is a new directory containing the GP5, a verified copy of
-the patched SDK runtime, build logs, the raw SDK package, the LibProsperoPkg-compatible
-post-processed package, reproducibility scripts, and a SHA-256 manifest. This mode uses
+the patched SDK runtime, build logs, the directly generated LibProsperoPkg-compatible
+package, reproducibility scripts, and a SHA-256 manifest. This mode uses
 the custom-keystone profile and therefore always includes an exact 96-byte source
 sce_sys/keystone instead of asking Publishing Tools to generate one.
 """
@@ -59,6 +64,16 @@ PROJECT_SUFFIXES = frozenset({".gp4", ".gp5", ".esbak"})
 EXCLUDED_ROOT_FILES = frozenset({"ampr_emu.index"})
 EXCLUDED_FAKE_LIBRARIES = frozenset({"libsceampr.sprx", "libsceplaygo.sprx"})
 GENERATED_ASSET_DIRECTORY = ".gp5-assets"
+DEFAULT_PLAYGO_CHUNK_COUNT = 100
+PLAYGO_LANGUAGE_PAYLOAD_SIZE = 1024 * 1024
+PLAYGO_LANGUAGES = (
+    "ja-JP", "en-US", "fr-FR", "es-ES", "de-DE", "it-IT", "nl-NL", "pt-PT",
+    "ru-RU", "ko-KR", "zh-Hant", "zh-Hans", "fi-FI", "sv-SE", "da-DK", "no-NO",
+    "pl-PL", "pt-BR", "en-GB", "tr-TR", "es-419", "ar-AE", "fr-CA", "cs-CZ",
+    "hu-HU", "el-GR", "ro-RO", "th-TH", "vi-VN", "id-ID", "uk-UA",
+)
+# Runtime API limit in the supported Prospero SDK (SCE_PLAYGO_MAX_SCENARIO).
+MAX_PLAYGO_SCENARIO_COUNT = 5
 VOLUME_TYPES = {
     "app": "prospero_app",
     "patch": "prospero_patch",
@@ -66,10 +81,10 @@ VOLUME_TYPES = {
     "al": "prospero_al",
 }
 DEFAULT_PUBLISHING_TOOLS = Path(
-    r"C:\SCE\Prospero\Tools\Publishing Tools_2.7.9-plaintext-custom-keystone-v2\bin")
+    r"C:\SCE\Prospero\Tools\Publishing Tools_2.7.9-plaintext-custom-keystone-v3\bin")
 SUPPORTED_PATCH_PROFILES = frozenset({
-    "sdk279-plaintext-unsigned-v2",
-    "sdk313-plaintext-unsigned-v2",
+    "sdk279-plaintext-direct-v3",
+    "sdk313-plaintext-direct-v3",
 })
 CONTENT_ID_PATTERN = re.compile(
     r"^[A-Z]{2}[0-9]{4}-[A-Z]{4}[0-9]{5}_[0-9]{2}-[A-Z0-9]{16}$")
@@ -256,8 +271,10 @@ def recover_presentation_pngs(
     return recovered
 
 
-def write_default_scenario(path: Path, language: str) -> None:
-    scenario = {
+def default_scenario(language: str) -> dict[str, object]:
+    return {
+        "chunkDefaultLanguage": language,
+        "chunkSupportedLanguages": [language],
         "scenarioCount": 1,
         "scenarioDefaultId": 0,
         "scenarioDefaultLanguage": language,
@@ -267,8 +284,122 @@ def write_default_scenario(path: Path, language: str) -> None:
             language: {"title": "Scenario #0", "description": "Default play scenario"},
         }],
     }
+
+
+def write_scenario(
+    path: Path, source: Path, fallback_language: str,
+) -> tuple[int, int, list[tuple[int, str, str]], str, list[str]]:
+    if source.is_file():
+        try:
+            value = json.loads(source.read_text(encoding="utf-8-sig"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise ValueError(f"cannot parse {source}: {error}") from error
+    else:
+        value = default_scenario(fallback_language)
+    if not isinstance(value, dict):
+        raise ValueError(f"{source} must contain a JSON object")
+
+    count = value.get("scenarioCount")
+    default_id = value.get("scenarioDefaultId")
+    language = value.get("scenarioDefaultLanguage")
+    scenarios = value.get("scenarios")
+    if type(count) is not int or not 1 <= count <= MAX_PLAYGO_SCENARIO_COUNT:
+        raise ValueError(
+            f"{source} scenarioCount must be between 1 and {MAX_PLAYGO_SCENARIO_COUNT}")
+    if type(default_id) is not int or not 0 <= default_id < count:
+        raise ValueError(f"{source} scenarioDefaultId is outside the scenario table")
+    if not isinstance(language, str) or not language.strip():
+        raise ValueError(f"{source} has no valid scenarioDefaultLanguage")
+    language = language.strip()
+    language_codes = {item.casefold(): item for item in PLAYGO_LANGUAGES}
+    if language.casefold() not in language_codes:
+        raise ValueError(f"{source} has unsupported scenarioDefaultLanguage: {language!r}")
+    language = language_codes[language.casefold()]
+    if not isinstance(scenarios, list) or len(scenarios) != count:
+        raise ValueError(f"{source} scenarios must contain exactly {count} entries")
+
+    definitions: list[tuple[int, str, str]] = []
+    ids: set[int] = set()
+    for scenario in scenarios:
+        if not isinstance(scenario, dict):
+            raise ValueError(f"{source} contains a non-object scenario entry")
+        scenario_id = scenario.get("id")
+        scenario_type = scenario.get("type")
+        if (type(scenario_id) is not int or not 0 <= scenario_id < count or
+                scenario_id in ids):
+            raise ValueError(f"{source} has an invalid or duplicate scenario id: {scenario_id!r}")
+        if not isinstance(scenario_type, str) or not scenario_type.strip():
+            raise ValueError(f"{source} scenario {scenario_id} has no valid type")
+        localized = scenario.get(language)
+        if not isinstance(localized, dict):
+            raise ValueError(
+                f"{source} scenario {scenario_id} has no {language!r} localization")
+        title = localized.get("title")
+        label = (title.strip() if isinstance(title, str) and title.strip()
+                 else f"Scenario #{scenario_id}")
+        ids.add(scenario_id)
+        definitions.append((scenario_id, scenario_type, label))
+    if ids != set(range(count)):
+        raise ValueError(f"{source} scenario ids must be contiguous from 0 through {count - 1}")
+
+    chunk_default_language = value.get("chunkDefaultLanguage", language)
+    if not isinstance(chunk_default_language, str) or not chunk_default_language.strip():
+        raise ValueError(f"{source} has no valid chunkDefaultLanguage")
+    chunk_default_language = chunk_default_language.strip()
+    if chunk_default_language.casefold() not in language_codes:
+        raise ValueError(
+            f"{source} has unsupported chunkDefaultLanguage: {chunk_default_language!r}")
+    chunk_default_language = language_codes[chunk_default_language.casefold()]
+    supported = value.get("chunkSupportedLanguages")
+    if supported is None:
+        # Older scenario files omit the explicit chunk list. Retain every localization key
+        # common to at least one scenario and always include the scenario default language.
+        supported = [chunk_default_language]
+        for scenario in scenarios:
+            for key, localized in scenario.items():
+                canonical = language_codes.get(key.casefold())
+                if (canonical is not None and isinstance(localized, dict) and
+                        canonical not in supported):
+                    supported.append(canonical)
+    if (not isinstance(supported, list) or not supported or
+            any(not isinstance(item, str) or not item.strip() for item in supported)):
+        raise ValueError(f"{source} chunkSupportedLanguages must be a non-empty string array")
+    unsupported = [item for item in supported if item.strip().casefold() not in language_codes]
+    if unsupported:
+        raise ValueError(f"{source} contains unsupported chunk languages: {unsupported}")
+    chunk_languages = [language_codes[item.strip().casefold()] for item in supported]
+    if len({item.casefold() for item in chunk_languages}) != len(chunk_languages):
+        raise ValueError(f"{source} chunkSupportedLanguages contains duplicates")
+    if chunk_default_language.casefold() not in {item.casefold() for item in chunk_languages}:
+        raise ValueError(
+            f"{source} chunkDefaultLanguage is not present in chunkSupportedLanguages")
+    if len(chunk_languages) >= DEFAULT_PLAYGO_CHUNK_COUNT:
+        raise ValueError(
+            f"{source} declares too many chunk languages for "
+            f"{DEFAULT_PLAYGO_CHUNK_COUNT} PlayGo chunks")
+
     path.write_text(
-        json.dumps(scenario, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return (count, default_id, sorted(definitions),
+            chunk_default_language, chunk_languages)
+
+
+def write_language_payloads(
+    generated_root: Path, languages: list[str],
+) -> list[tuple[str, Path, int]]:
+    """Create harmless per-language chunk members outside reserved sce_sys paths."""
+    result: list[tuple[str, Path, int]] = []
+    payload_directory = generated_root / "playgo-languages"
+    for index, language in enumerate(languages, start=1):
+        safe_language = re.sub(r"[^A-Za-z0-9._-]", "_", language)
+        payload = payload_directory / f"{index:02d}-{safe_language}.bin"
+        if payload.exists() or payload.is_symlink():
+            raise FileExistsError(f"generated PlayGo language payload already exists: {payload}")
+        payload.parent.mkdir(parents=True, exist_ok=True)
+        payload.write_bytes(bytes(PLAYGO_LANGUAGE_PAYLOAD_SIZE))
+        destination = f"playgo-languages/{index:02d}-{safe_language}.bin"
+        result.append((destination, payload, index))
+    return result
 
 
 def sha256_file(path: Path) -> str:
@@ -315,14 +446,19 @@ def build_gp5(
         reason = "excluded as a service artifact" if param.exists() else "missing"
         raise ValueError(f"required sce_sys/param.json is {reason}")
     package_content_id = content_id(param)
-    write_default_scenario(scenario_input, default_language(param))
-    generated_system = output.parent / GENERATED_ASSET_DIRECTORY / output.stem / "sce_sys"
+    (scenario_count, scenario_default_id, scenario_definitions,
+     chunk_default_language, chunk_languages) = write_scenario(
+        scenario_input, root / "sce_sys" / "playgo-scenario.json", default_language(param))
+    generated_root = output.parent / GENERATED_ASSET_DIRECTORY / output.stem
+    generated_system = generated_root / "sce_sys"
     generated_param = generated_system / "param.json"
     if generated_param.exists() or generated_param.is_symlink():
         raise FileExistsError(f"generated param.json already exists: {generated_param}")
     write_standard_param(param, generated_param)
     recovered_pngs = recover_presentation_pngs(
         missing_presentation_pngs(root), generated_system, converter_path)
+    language_payloads = (write_language_payloads(generated_root, chunk_languages)
+                         if volume == "app" else [])
 
     project = ET.Element("psproject", {"fmt": "gp5"})
     volume_node = ET.SubElement(project, "volume")
@@ -331,33 +467,62 @@ def build_gp5(
     package.set("content_id", package_content_id)
     if volume == "app":
         chunk_info = ET.SubElement(volume_node, "chunk_info", {
-            "chunk_count": "1", "scenario_count": "1"})
-        chunks = ET.SubElement(chunk_info, "chunks")
-        ET.SubElement(chunks, "chunk", {"id": "0", "label": "Chunk #0"})
-        scenarios = ET.SubElement(chunk_info, "scenarios", {"default_id": "0"})
-        scenario = ET.SubElement(scenarios, "scenario", {
-            "id": "0", "type": "playmode", "initial_chunk_count": "1", "label": "Scenario #0"})
-        scenario.text = "0"
+            "chunk_count": str(DEFAULT_PLAYGO_CHUNK_COUNT),
+            "scenario_count": str(scenario_count)})
+        chunks = ET.SubElement(chunk_info, "chunks", {
+            "supported_languages": " ".join(chunk_languages),
+            "default_language": chunk_default_language,
+        })
+        for chunk_id in range(DEFAULT_PLAYGO_CHUNK_COUNT):
+            attributes = {
+                "id": str(chunk_id),
+                "label": f"Chunk #{chunk_id}",
+                "layer_no": "0",
+                "languages": (chunk_languages[chunk_id - 1]
+                              if 1 <= chunk_id <= len(chunk_languages)
+                              else " ".join(chunk_languages)),
+            }
+            ET.SubElement(chunks, "chunk", attributes)
+        scenarios = ET.SubElement(
+            chunk_info, "scenarios", {"default_id": str(scenario_default_id)})
+        for scenario_id, scenario_type, label in scenario_definitions:
+            scenario = ET.SubElement(scenarios, "scenario", {
+                "id": str(scenario_id),
+                "type": scenario_type,
+                "initial_chunk_count": str(DEFAULT_PLAYGO_CHUNK_COUNT),
+                "label": label,
+            })
+            scenario.text = f"0-{DEFAULT_PLAYGO_CHUNK_COUNT - 1}"
 
     files_node = ET.SubElement(project, "files")
     ET.SubElement(files_node, "file", {
         "dst_path": "sce_sys/playgo-scenario.json",
         "src_path": source_path(output.parent, scenario_input, absolute_paths),
+        "chunk": "0",
     })
     for destination, recovered in recovered_pngs:
         ET.SubElement(files_node, "file", {
             "dst_path": destination,
             "src_path": source_path(output.parent, recovered, absolute_paths),
+            "chunk": "0",
+        })
+    for destination, payload, chunk_id in language_payloads:
+        ET.SubElement(files_node, "file", {
+            "dst_path": destination,
+            "src_path": source_path(output.parent, payload, absolute_paths),
+            "chunk": str(chunk_id),
+            "pfs_compression": "disable",
         })
     for file in files:
         actual_source = generated_param if file == param else file
         ET.SubElement(files_node, "file", {
             "dst_path": relative_posix(root, file),
             "src_path": source_path(output.parent, actual_source, absolute_paths),
+            "chunk": "0",
         })
     indent(project)
     ET.ElementTree(project).write(output, encoding="utf-8", xml_declaration=True)
-    return len(files) + len(recovered_pngs) + 1, skipped
+    return len(files) + len(recovered_pngs) + len(language_payloads) + 1, skipped
 
 
 def copy_toolchain(
@@ -412,29 +577,34 @@ def run_logged(command: list[str], log_path: Path, cwd: Path) -> None:
 
 
 def write_rebuild_script(bundle: Path, package_name: str) -> None:
-    script = f'''param([string]$Python = "python", [switch]$Force)
+    script = f'''param([switch]$Force)
 $ErrorActionPreference = "Stop"
 $bundle = $PSScriptRoot
-$raw = Join-Path $bundle "package-sdk-plaintext.pkg"
 $final = Join-Path $bundle "{package_name}"
+$partial = Join-Path $bundle (([IO.Path]::GetFileNameWithoutExtension($final)) + ".partial.pkg")
+$partialMetric = $partial + ".naps_metric.json"
+$finalMetric = $final + ".naps_metric.json"
 $logDir = Join-Path $bundle "logs"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
-if ((Test-Path -LiteralPath $raw) -or (Test-Path -LiteralPath $final)) {{
+if ((Test-Path -LiteralPath $partial) -or (Test-Path -LiteralPath $partialMetric) -or
+    (Test-Path -LiteralPath $final) -or (Test-Path -LiteralPath $finalMetric)) {{
     if (-not $Force) {{ throw "Output PKG already exists; rerun with -Force to replace it." }}
-    Remove-Item -LiteralPath $raw,$final -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $partial,$partialMetric,$final,$finalMetric `
+        -Force -ErrorAction SilentlyContinue
 }}
 & (Join-Path $bundle "toolchain/prospero-pub-cmd.exe") img_create --oformat nwonly `
-    --no_progress_bar (Join-Path $bundle "project.gp5") $raw 2>&1 |
+    --no_progress_bar (Join-Path $bundle "project.gp5") $partial 2>&1 |
     Tee-Object -FilePath (Join-Path $logDir "img-create.log")
 if ($LASTEXITCODE -ne 0) {{ throw "prospero-pub-cmd failed with exit code $LASTEXITCODE" }}
-& $Python (Join-Path $bundle "scripts/postprocess-sdk279-plaintext.py") $raw $final 2>&1 |
-    Tee-Object -FilePath (Join-Path $logDir "postprocess.log")
-if ($LASTEXITCODE -ne 0) {{ throw "postprocess failed with exit code $LASTEXITCODE" }}
+Move-Item -LiteralPath $partial -Destination $final
+if (Test-Path -LiteralPath $partialMetric) {{
+    Move-Item -LiteralPath $partialMetric -Destination $finalMetric
+}}
 $manifestPath = Join-Path $bundle "build-manifest.json"
 if (Test-Path -LiteralPath $manifestPath) {{
     $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
     $outputs = [ordered]@{{}}
-    foreach ($path in @($raw, ($raw + ".naps_metric.json"), $final)) {{
+    foreach ($path in @($final, $finalMetric)) {{
         if (Test-Path -LiteralPath $path) {{
             $item = Get-Item -LiteralPath $path
             $outputs[$item.Name] = [ordered]@{{
@@ -481,32 +651,29 @@ def build_bundle(
     scripts_dir = destination / "scripts"
     scripts_dir.mkdir()
     this_script = Path(__file__).resolve()
-    postprocess = this_script.with_name("postprocess-sdk279-plaintext.py")
-    if not postprocess.is_file():
-        raise FileNotFoundError(postprocess)
     shutil.copy2(this_script, scripts_dir / this_script.name)
-    shutil.copy2(postprocess, scripts_dir / postprocess.name)
 
-    raw_package = destination / "package-sdk-plaintext.pkg"
     final_name = content_id(root / "sce_sys" / "param.json") + "-plaintext.pkg"
     final_package = destination / final_name
+    partial_package = final_package.with_name(final_package.stem + ".partial.pkg")
+    partial_metric = Path(str(partial_package) + ".naps_metric.json")
+    final_metric = Path(str(final_package) + ".naps_metric.json")
     run_logged([
         str(toolchain / "prospero-pub-cmd.exe"), "img_create", "--oformat", "nwonly",
-        "--no_progress_bar", str(project_path), str(raw_package),
+        "--no_progress_bar", str(project_path), str(partial_package),
     ], destination / "logs" / "img-create.log", destination)
-    run_logged([
-        sys.executable, str(scripts_dir / postprocess.name),
-        str(raw_package), str(final_package),
-    ], destination / "logs" / "postprocess.log", destination)
+    partial_package.replace(final_package)
+    if partial_metric.is_file():
+        partial_metric.replace(final_metric)
     write_rebuild_script(destination, final_name)
 
-    output_files = [raw_package, Path(str(raw_package) + ".naps_metric.json"), final_package]
+    output_files = [final_package, final_metric]
     output_records = {
         path.name: {"size": path.stat().st_size, "sha256": sha256_file(path)}
         for path in output_files if path.is_file()
     }
     result = {
-        "profile": toolchain_profile.replace("-unsigned-v2", "-libprospero-bundle-v2"),
+        "profile": toolchain_profile.replace("-v3", "-bundle-v3"),
         "toolchain_profile": toolchain_profile,
         "source": str(root),
         "project": "project.gp5",
@@ -524,9 +691,11 @@ def build_bundle(
         "# Plaintext LibProsperoPkg build bundle\n\n"
         f"Source folder: `{root}`\n\n"
         f"Final package: `{final_name}`\n\n"
-        "The bundle contains the version-locked patched SDK runtime, GP5, postprocessor, logs, "
+        "The bundle contains the version-locked patched SDK runtime, GP5, logs, "
         "hash manifest and `build.ps1`. The source payload is referenced by `project.gp5` and is "
-        "not duplicated. Run `powershell -ExecutionPolicy Bypass -File .\\build.ps1 -Force` to rebuild.\n"
+        "not duplicated. The SDK writes the final plaintext/no-auth representation directly; "
+        "the temporary filename is only atomically renamed. Run "
+        "`powershell -ExecutionPolicy Bypass -File .\\build.ps1 -Force` to rebuild.\n"
     )
     (destination / "README.md").write_text(readme, encoding="utf-8")
     return final_package, count, skipped

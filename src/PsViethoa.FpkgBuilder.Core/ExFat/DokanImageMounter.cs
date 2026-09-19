@@ -281,7 +281,7 @@ public static class DokanImageMounter
         var letters = new List<char>();
         try
         {
-            foreach (var drive in DriveInfo.GetDrives())
+            foreach (var drive in Services.DiskSpaceAdvisor.AllDrives(fresh: true))
             {
                 if (drive.Name.Length > 0)
                 {

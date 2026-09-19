@@ -45,7 +45,7 @@ public static class SonySdkToolchain
     public const string WineEnvironmentVariable = "PSVIETHOA_WINE";
 
     /// <summary>Profile của bản vá SDK mà bước hậu xử lý được viết cho.</summary>
-    public const string Profile = "sdk279-plaintext-unsigned-v2";
+    public const string Profile = "sdk279-plaintext-direct-v3";
 
     public const string VcRedistFileName = "vc_redist.x64.exe";
 
@@ -208,8 +208,68 @@ public static class SonySdkToolchain
     }
 
     /// <summary>Rosetta 2 (bắt buộc để Wine x86-64 chạy trên Apple Silicon).</summary>
-    public static bool RosettaInstalled =>
-        File.Exists("/Library/Apple/usr/libexec/oah/libRosettaRuntime") || Directory.Exists("/Library/Apple/usr/libexec/oah/RosettaLinux");
+    // Chỉ libRosettaRuntime mới chạy được tệp x86-64 của macOS: sau khi nâng cấp macOS lớn, thư mục oah có thể chỉ còn RosettaLinux
+    // (dành cho máy ảo Linux) và Wine báo "Bad CPU type in executable" — khi đó phải cài lại Rosetta 2.
+    public static bool RosettaInstalled => File.Exists("/Library/Apple/usr/libexec/oah/libRosettaRuntime");
+
+    /// <summary>Máy Apple Silicon chưa có (hoặc mất sau khi nâng cấp macOS) Rosetta 2 — SDK Sony qua Wine x86-64 không chạy được.</summary>
+    public static bool RosettaMissing =>
+        OperatingSystem.IsMacOS() && RuntimeInformation.OSArchitecture == Architecture.Arm64 && !RosettaInstalled;
+
+    /// <summary>
+    /// Cài Rosetta 2 bằng công cụ của Apple (<c>softwareupdate --install-rosetta --agree-to-license</c>, không cần quyền quản trị).
+    /// Chỉ gọi khi người dùng đã bấm đồng ý. Trả về true khi cài xong và libRosettaRuntime đã có.
+    /// </summary>
+    public static bool InstallRosetta(Action<string> log, TimeSpan timeout)
+    {
+        if (!OperatingSystem.IsMacOS())
+        {
+            return false;
+        }
+
+        try
+        {
+            var info = new ProcessStartInfo("/usr/sbin/softwareupdate")
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            info.ArgumentList.Add("--install-rosetta");
+            info.ArgumentList.Add("--agree-to-license");
+            using var process = Process.Start(info);
+            if (process == null)
+            {
+                return false;
+            }
+
+            process.OutputDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) { log(e.Data); } };
+            process.ErrorDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) { log(e.Data); } };
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+            if (!process.WaitForExit((int)timeout.TotalMilliseconds))
+            {
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+                catch (Exception)
+                {
+                }
+
+                return false;
+            }
+
+            process.WaitForExit();
+            return process.ExitCode == 0 && RosettaInstalled;
+        }
+        catch (Exception ex)
+        {
+            log(ex.Message);
+            return false;
+        }
+    }
 
     /// <summary>Thư viện Visual C++ 2015-2022 x64 mà prospero-pub-cmd.exe cần (MSVCP140 / VCRUNTIME140).</summary>
     public static bool VcRuntimeInstalled

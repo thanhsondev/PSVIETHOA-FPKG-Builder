@@ -274,6 +274,44 @@ public sealed class SonySdkPlayGoTests : IDisposable
         Assert.DoesNotContain(log, e => e.Message.Contains("3 chunk", StringComparison.Ordinal));
     }
 
+    /// <summary>Bố cục script fix6: mỗi ngôn ngữ một chunk + tệp giữ chỗ, các chunk còn lại "mọi ngôn ngữ", kịch bản "0-N", scenario hỏng → mặc định + cảnh báo.</summary>
+    [Fact]
+    public void ScriptFallback_GivesEveryLanguageItsOwnChunk()
+    {
+        var sceSys = Path.Combine(_root, "script-fallback", "sce_sys");
+        Directory.CreateDirectory(sceSys);
+        File.WriteAllText(Path.Combine(sceSys, "playgo-scenario.json"),
+            "{\"scenarioCount\":1,\"scenarioDefaultId\":0,\"scenarioDefaultLanguage\":\"EN-us\",\"chunkSupportedLanguages\":[\"en-US\",\"vi-VN\"],\"scenarios\":[{\"id\":0,\"type\":\"playmode\",\"en-US\":{\"title\":\"Story\"}}]}");
+        var structure = SonySdkPlayGo.ScriptFallback(sceSys, "ja-JP", out var warning, chunkCount: 4);
+        Assert.Null(warning);
+        Assert.True(structure.ScriptLayout);
+        Assert.Equal(["playgo-languages/01-en-US.bin", "playgo-languages/02-vi-VN.bin"], structure.LanguagePayloads.Select(payload => payload.Destination));
+        Assert.Equal(
+            "    <chunk_info chunk_count=\"4\" scenario_count=\"1\">\n" +
+            "      <chunks supported_languages=\"en-US vi-VN\" default_language=\"en-US\">\n" +
+            "        <chunk id=\"0\" label=\"Chunk #0\" layer_no=\"0\" languages=\"en-US vi-VN\" />\n" +
+            "        <chunk id=\"1\" label=\"Chunk #1\" layer_no=\"0\" languages=\"en-US\" />\n" +
+            "        <chunk id=\"2\" label=\"Chunk #2\" layer_no=\"0\" languages=\"vi-VN\" />\n" +
+            "        <chunk id=\"3\" label=\"Chunk #3\" layer_no=\"0\" languages=\"en-US vi-VN\" />\n" +
+            "      </chunks>\n" +
+            "      <scenarios default_id=\"0\">\n" +
+            "        <scenario id=\"0\" type=\"playmode\" initial_chunk_count=\"4\" label=\"Story\">0-3</scenario>\n" +
+            "      </scenarios>\n" +
+            "    </chunk_info>\n",
+            SonySdkPlayGo.ChunkInfoXml(structure));
+
+        // Không có tệp: kịch bản mặc định với ngôn ngữ của param.json. Tệp hỏng: mặc định + cảnh báo (script gốc dừng).
+        File.Delete(Path.Combine(sceSys, "playgo-scenario.json"));
+        var plain = SonySdkPlayGo.ScriptFallback(sceSys, "ja-JP", out warning);
+        Assert.Null(warning);
+        Assert.Equal(100, plain.Chunks.Count);
+        Assert.Equal("ja-JP", Assert.Single(plain.LanguagePayloads).Language);
+        File.WriteAllText(Path.Combine(sceSys, "playgo-scenario.json"), "{\"scenarioCount\":9}");
+        var broken = SonySdkPlayGo.ScriptFallback(sceSys, "ja-JP", out warning);
+        Assert.NotNull(warning);
+        Assert.Single(broken.Scenarios);
+    }
+
     [Fact]
     public void Fallback_WritesChunksAndScenariosWithoutLanguages()
     {
@@ -337,13 +375,21 @@ public sealed class SonySdkPlayGoTests : IDisposable
         var outcome = await new BuildEngine().BuildAsync(request, log.Add, null, CancellationToken.None);
 
         Assert.Contains(outcome.Verification.Contents!.Checks, check => check.Contains("100 chunks, 2 scenarios", StringComparison.Ordinal));
-        Assert.Contains(log, e => e.Level == LogLevel.Warning && e.Message.Contains("100", StringComparison.Ordinal));
+        Assert.Contains(log, e => e.Message.Contains("100", StringComparison.Ordinal) && e.Message.Contains("en-US fr-FR", StringComparison.Ordinal));
         var cnt = Path.Combine(_root, "cnt-fallback");
         PackageReader.ExportCntEntries(outcome.OutputPath, cnt, Passcode, CancellationToken.None);
-        Assert.Equal(scenarioJson, File.ReadAllBytes(Path.Combine(cnt, "playgo-scenario.json")));
+        // Bố cục script fix6: scenario JSON được ghi lại (json.dumps) với đúng nội dung nguồn; mỗi ngôn ngữ một chunk riêng có tệp giữ chỗ.
+        var packaged = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllBytes(Path.Combine(cnt, "playgo-scenario.json")))!;
+        Assert.Equal(2, packaged["scenarioCount"]!.GetValue<int>());
+        Assert.Equal(["en-US", "fr-FR"], packaged["chunkSupportedLanguages"]!.AsArray().Select(item => item!.GetValue<string>()));
         var rebuilt = SonySdkPlayGo.Parse(File.ReadAllBytes(Path.Combine(cnt, "playgo-chunk.dat")), default, default);
         Assert.Equal(100, rebuilt.Chunks.Count);
+        Assert.Equal(SonySdkPlayGo.LanguageBit(1), rebuilt.Chunks[1].LanguageMask);
+        Assert.Equal(SonySdkPlayGo.LanguageBit(2), rebuilt.Chunks[2].LanguageMask);
+        Assert.Equal(SonySdkPlayGo.LanguageBit(1) | SonySdkPlayGo.LanguageBit(2), rebuilt.Chunks[3].LanguageMask);
         Assert.All(rebuilt.Scenarios, scenario => Assert.Equal(100, scenario.InitialChunkCount));
+        var listing = PackageInspector.Inspect(outcome.OutputPath, Passcode, CancellationToken.None);
+        Assert.NotNull(listing);
     }
 
     /// <summary>

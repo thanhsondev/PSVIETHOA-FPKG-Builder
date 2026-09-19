@@ -198,10 +198,10 @@ download_status=NO_EXTRA_DATA
         var output = Path.Combine(_root, "dlc-out");
         var results = DlcPackageBuilder.BuildAll(entries, output, Path.Combine(_root, "dlc-tmp"), "Stellar Blade", null, CancellationToken.None);
 
+        // Mọi mục [PSAC] đều ra gói (như PS5_DLC_Converter): mục có dữ liệu mà không tìm thấy thư mục thì vẫn ra gói mở khoá quyền.
         Assert.Equal(4, results.Count);
-        Assert.Equal(3, results.Count(r => r.Success));
-        var skipped = Assert.Single(results.Where(r => !r.Success));
-        Assert.False(skipped.Entry.NoExtraData);
+        Assert.All(results, r => Assert.True(r.Success, r.Error));
+        Assert.Contains(results, r => !r.Entry.NoExtraData);
 
         foreach (var result in results.Where(r => r.Success))
         {
@@ -211,6 +211,60 @@ download_status=NO_EXTRA_DATA
             var info = PackageInspector.Inspect(result.OutputPath!, new string('0', 32), CancellationToken.None);
             Assert.Equal(result.Entry.ContentId, info.ContentId);
         }
+    }
+
+    [Fact]
+    public void Parse_ReadsMountPointAndSectionName()
+    {
+        var entries = DlcEmuIni.Parse("[PSAC]\ncontent_id=EP9000-PPSA13197_00-WITHDATA00000000\nmount_point=/app0/dlc01\ndownload_status=INSTALLED\n\n[PSAL]\ncontent_id=EP9000-PPSA13197_00-LICENSE000000000\ndownload_status=NO_EXTRA_DATA\n");
+
+        Assert.Equal(2, entries.Count);
+        Assert.Equal("/app0/dlc01", entries[0].MountPoint);
+        Assert.True(entries[0].IsAdditionalContent);
+        Assert.Equal("PSAL", entries[1].Section);
+        Assert.False(entries[1].IsAdditionalContent);
+
+        var source = Path.Combine(_root, "mount-source");
+        Directory.CreateDirectory(Path.Combine(source, "dlc01"));
+        Assert.Null(entries[0].DataFolderIn(source));
+        File.WriteAllBytes(Path.Combine(source, "dlc01", "pack.bin"), new byte[16]);
+        Assert.Equal(Path.Combine(source, "dlc01"), entries[0].DataFolderIn(source));
+        Assert.Null(entries[0].DataFolderIn(null));
+    }
+
+    /// <summary>Mục có mount_point trỏ vào thư mục dữ liệu trong game: gói DLC mang theo dữ liệu đó; nguồn không bị đụng tới; mục [PSAL] bỏ qua.</summary>
+    [Fact]
+    public void BuildAll_PacksTheMountPointDataAndSkipsOtherSections()
+    {
+        if (!BuildEngine.KeysAvailable)
+        {
+            return;
+        }
+
+        var source = Path.Combine(_root, "dlc-data-source");
+        Directory.CreateDirectory(Path.Combine(source, "dlc01", "sub"));
+        File.WriteAllBytes(Path.Combine(source, "dlc01", "pack.bin"), new byte[70_000]);
+        File.WriteAllBytes(Path.Combine(source, "dlc01", "sub", "More.bin"), new byte[1234]);
+        var before = Directory.EnumerateFileSystemEntries(source, "*", SearchOption.AllDirectories).Select(p => Path.GetRelativePath(source, p)).OrderBy(p => p, StringComparer.Ordinal).ToList();
+
+        var entries = DlcEmuIni.Parse("[PSAC]\ncontent_id=EP9000-PPSA13197_00-WITHDATA00000000\nmount_point=/app0/dlc01\ndownload_status=INSTALLED\n\n[PSAL]\ncontent_id=EP9000-PPSA13197_00-LICENSE000000000\ndownload_status=NO_EXTRA_DATA\n");
+        var log = new List<LogEntry>();
+        var results = DlcPackageBuilder.BuildAll(entries, Path.Combine(_root, "dlc-data-out"), Path.Combine(_root, "dlc-data-tmp"), "Game", log.Add, CancellationToken.None, null, source);
+
+        var built = Assert.Single(results.Where(r => r.Success));
+        Assert.Equal("EP9000-PPSA13197_00-WITHDATA00000000", built.Entry.ContentId);
+        var skipped = Assert.Single(results.Where(r => !r.Success));
+        Assert.Equal("PSAL", skipped.Entry.Section);
+
+        using (var reader = PackageReader.Open(built.OutputPath!, new string('0', 32), Path.Combine(_root, "dlc-data-tmp"), CancellationToken.None))
+        {
+            var paths = reader.Entries.Where(e => !e.IsDirectory).Select(e => e.Path.Replace('\\', '/')).ToList();
+            Assert.Contains(paths, p => p.EndsWith("pack.bin", StringComparison.Ordinal));
+            Assert.Contains(paths, p => p.EndsWith("sub/More.bin", StringComparison.Ordinal));
+        }
+
+        var after = Directory.EnumerateFileSystemEntries(source, "*", SearchOption.AllDirectories).Select(p => Path.GetRelativePath(source, p)).OrderBy(p => p, StringComparer.Ordinal).ToList();
+        Assert.Equal(before, after);
     }
 
     [Fact]

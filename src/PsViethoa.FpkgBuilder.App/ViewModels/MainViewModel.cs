@@ -72,6 +72,14 @@ public sealed partial class MainViewModel : ObservableObject
                 OnPropertyChanged(nameof(FooterStatusText));
             }
         };
+        Queue = new QueueViewModel(settings, dialogs, CreateQueueRequest, OutputFolderForQueue, Log);
+        Queue.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(QueueViewModel.HeadlineText) or nameof(QueueViewModel.IsBusy))
+            {
+                OnPropertyChanged(nameof(FooterStatusText));
+            }
+        };
 
         KeysAvailable = BuildEngine.KeysAvailable;
         LibraryVersion = BuildEngine.LibraryVersion;
@@ -261,6 +269,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>SDK Sony trên Windows: quét trước song song tệp nguồn để Windows Defender không làm chậm pha kiểm tra tệp (mặc định bật).</summary>
     [ObservableProperty] private bool _sdkPrescan = true;
 
+    /// <summary>SDK Sony: giữ .gp5, scenario và .gp5-assets cạnh gói sau khi tạo xong (mặc định xoá như bộ công cụ fix6).</summary>
+    [ObservableProperty] private bool _sdkKeepIntermediate;
+
     /// <summary>SDK Sony: PlayGo dự phòng (N chunk + số kịch bản gốc) khi nguồn không còn playgo-chunk.dat (mặc định bật: hầu hết dump đã mất bảng gốc).</summary>
     [ObservableProperty] private bool _sdkPlayGoFallback = true;
 
@@ -346,6 +357,85 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Trạng thái của chế độ "Giải nén gói" (cột thông tin + danh sách tệp trong gói).</summary>
     public ExtractionViewModel Extraction { get; }
 
+    /// <summary>Hàng chờ tạo nhiều gói (chế độ thứ ba, không lưu vào cài đặt).</summary>
+    public QueueViewModel Queue { get; }
+
+    [ObservableProperty] private bool _isQueueMode;
+
+    partial void OnIsQueueModeChanged(bool value)
+    {
+        OnPropertyChanged(nameof(FooterStatusText));
+        SelectMode(value, nameof(IsQueueMode));
+    }
+
+    /// <summary>Tab "Tạo gói Update": cùng màn hình với Tạo gói nhưng có khối gói gốc / thư mục game gốc và 3 kiểu tạo (update, base, cả hai).</summary>
+    [ObservableProperty] private bool _isUpdateMode;
+
+    partial void OnIsUpdateModeChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowBuildView));
+        OnPropertyChanged(nameof(BuildButtonText));
+        if (PatchEnabled != value)
+        {
+            PatchEnabled = value;
+        }
+
+        SelectMode(value, nameof(IsUpdateMode));
+    }
+
+    /// <summary>Màn hình tạo gói dùng chung cho tab Tạo gói và tab Tạo gói Update.</summary>
+    public bool ShowBuildView => IsBuildMode || IsUpdateMode;
+
+    /// <summary>
+    /// Các nút chế độ là RadioButton cùng nhóm: chỉ phản ứng khi một nút ĐƯỢC bật (tắt các nút kia); không suy ra chế độ từ một nút bị
+    /// tắt — nhóm radio tắt các nút kia theo thứ tự riêng, suy diễn từ "false" khiến các handler đá nhau vô hạn.
+    /// </summary>
+    private void SelectMode(bool value, string mode)
+    {
+        if (_syncingMode || !value)
+        {
+            return;
+        }
+
+        _syncingMode = true;
+        try
+        {
+            IsBuildMode = mode == nameof(IsBuildMode);
+            IsUpdateMode = mode == nameof(IsUpdateMode);
+            IsExtractMode = mode == nameof(IsExtractMode);
+            IsQueueMode = mode == nameof(IsQueueMode);
+        }
+        finally
+        {
+            _syncingMode = false;
+        }
+
+        ApplyModeChanged();
+    }
+
+    /// <summary>Yêu cầu tạo gói cho một mục hàng chờ: thiết lập của tab Tạo gói, nguồn/đích/thông tin gói của mục.</summary>
+    private BuildRequest CreateQueueRequest(QueueItemViewModel item)
+    {
+        var metadata = item.Metadata;
+        var request = CreateRequest();
+        request.SourcePath = item.SourcePath;
+        request.OutputFolder = string.IsNullOrWhiteSpace(item.OutputFolder) ? OutputFolderForQueue(item.SourcePath) : item.OutputFolder;
+        request.ContentId = metadata?.ContentId ?? string.Empty;
+        request.Title = string.IsNullOrWhiteSpace(metadata?.Title) ? item.SourceName : metadata!.Title!;
+        request.Version = metadata?.Version ?? string.Empty;
+        request.SdkMajorOverride = null;
+        // Hàng chờ: tên/phiên bản giữ nguyên của từng nguồn.
+        request.SdkApplyPackageDetails = false;
+        request.SdkPatchBaseFolder = null;
+        // Hàng chờ luôn tạo gói đầy đủ: gói gốc của bản vá là của riêng một game.
+        request.SdkReferencePackage = null;
+        return request;
+    }
+
+    /// <summary>Thư mục xuất cho một nguồn trong hàng chờ: "&lt;nguồn&gt;-pkg" khi tab Tạo gói đang "tự đặt theo nguồn", nếu không thì thư mục xuất đã chọn.</summary>
+    private string OutputFolderForQueue(string source) =>
+        AutoOutputFolder || string.IsNullOrWhiteSpace(OutputFolder) ? BuildPreparer.SuggestOutputFolder(source) : OutputFolder.Trim();
+
     [ObservableProperty] private bool _isExtractMode;
     [ObservableProperty] private bool _isBuildMode = true;
     private bool _syncingMode;
@@ -353,47 +443,18 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnIsExtractModeChanged(bool value)
     {
         OnPropertyChanged(nameof(FooterStatusText));
-        if (_syncingMode)
-        {
-            return;
-        }
-
-        _syncingMode = true;
-        try
-        {
-            IsBuildMode = !value;
-        }
-        finally
-        {
-            _syncingMode = false;
-        }
-
-        ApplyModeChanged();
+        SelectMode(value, nameof(IsExtractMode));
     }
 
     partial void OnIsBuildModeChanged(bool value)
     {
-        if (_syncingMode)
-        {
-            return;
-        }
-
-        _syncingMode = true;
-        try
-        {
-            IsExtractMode = !value;
-        }
-        finally
-        {
-            _syncingMode = false;
-        }
-
-        ApplyModeChanged();
+        OnPropertyChanged(nameof(ShowBuildView));
+        SelectMode(value, nameof(IsBuildMode));
     }
 
     private void ApplyModeChanged()
     {
-        DebugLog.Write($"Mode: extract={IsExtractMode}");
+        DebugLog.Write($"Mode: build={IsBuildMode} update={IsUpdateMode} extract={IsExtractMode} queue={IsQueueMode}");
         BuildCommand.NotifyCanExecuteChanged();
         _settings.ExtractMode = IsExtractMode;
         if (IsExtractMode)
@@ -637,7 +698,7 @@ public sealed partial class MainViewModel : ObservableObject
             ImageModeIndex = 0;
         }
 
-        foreach (var name in new[] { nameof(SdkActive), nameof(EngineOptionsEnabled), nameof(CompressionEnabled), nameof(SdkCheckBoxEnabled), nameof(CanEditPlayGoDrop), nameof(CanEditDrm), nameof(ShowSdkUnavailable), nameof(ShowSdkGp5Note), nameof(RemovePlayGoFilesUi), nameof(ForceStandardDrmUi), nameof(PlayGoChunksEnabled), nameof(PresetFastShort), nameof(PresetBalancedShort), nameof(PresetSmallestShort), nameof(PresetMaximumShort) })
+        foreach (var name in new[] { nameof(SdkActive), nameof(EngineOptionsEnabled), nameof(CompressionEnabled), nameof(SdkCheckBoxEnabled), nameof(CanEditPlayGoDrop), nameof(CanEditDrm), nameof(ShowSdkUnavailable), nameof(ShowSdkGp5Note), nameof(RemovePlayGoFilesUi), nameof(ForceStandardDrmUi), nameof(PlayGoChunksEnabled), nameof(PresetFastShort), nameof(PresetBalancedShort), nameof(PresetSmallestShort), nameof(PresetMaximumShort), nameof(PatchAvailable), nameof(ShowPatchNeedsSdk) })
         {
             OnPropertyChanged(name);
         }
@@ -891,6 +952,372 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _componentsSummary = string.Empty;
 
     /// <summary>Kiểm tra thật từng thành phần (engine, khoá, Kraken, Oodle, gắn ảnh, chống ngủ) trên luồng nền rồi hiển thị.</summary>
+    // ===================== Bản vá (SDK Sony fix8: img_create --ref_pkg_path) =====================
+
+    /// <summary>Tạo bản vá so với gói gốc đã cài thay vì gói đầy đủ (không lưu vào cài đặt: gói gốc khác nhau theo từng game).</summary>
+    [ObservableProperty] private bool _patchEnabled;
+
+    [ObservableProperty] private string _referencePackagePath = string.Empty;
+
+    /// <summary>Thông tin gói gốc đã đọc (Content ID · phiên bản · dung lượng).</summary>
+    [ObservableProperty] private string _referenceInfoText = string.Empty;
+
+    /// <summary>Lỗi của ô gói gốc (hiện ngay dưới ô), rỗng khi hợp lệ.</summary>
+    [ObservableProperty] private string _referenceError = string.Empty;
+
+    [ObservableProperty] private bool _isReadingReference;
+
+    /// <summary>Thư mục game gốc đầy đủ (tuỳ chọn): tệp nguồn không có được đọc từ đây; trống = giải nén riêng các tệp đó từ gói gốc.</summary>
+    [ObservableProperty] private string _patchBaseFolder = string.Empty;
+
+    public bool HasPatchBaseFolder => !string.IsNullOrWhiteSpace(PatchBaseFolder);
+
+    /// <summary>
+    /// Thư mục update không có param.json: Content ID phải là của gói gốc và phiên bản phải cao hơn nó — điền sẵn cả hai (người dùng
+    /// vẫn sửa được). Nguồn có param.json thì giữ nguyên giá trị đọc từ nguồn.
+    /// </summary>
+    private void AdoptReferenceDetails()
+    {
+        if (_referenceInfo is not { } reference || !PatchEnabled || HasParamJson)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(reference.ContentId))
+        {
+            ContentId = reference.ContentId;
+        }
+
+        if (SuggestedPatchVersion is { } next)
+        {
+            Version = next;
+        }
+    }
+
+    partial void OnPatchBaseFolderChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasPatchBaseFolder));
+        RefreshBaseFolder();
+    }
+
+    // ----- Tab Update: đầu vào luôn là gói BASE .pkg; 3 lựa chọn là tệp muốn XUẤT RA — 0 = chỉ gói Update, 1 = chỉ gói game đầy đủ đã kèm update, 2 = cả hai -----
+
+    [ObservableProperty] private int _updateKind;
+
+    public bool UpdateKindUpdateOnly
+    {
+        get => UpdateKind == 0;
+        set { if (value) { UpdateKind = 0; } }
+    }
+
+    public bool UpdateKindFullOnly
+    {
+        get => UpdateKind == 1;
+        set { if (value) { UpdateKind = 1; } }
+    }
+
+    public bool UpdateKindBoth
+    {
+        get => UpdateKind == 2;
+        set { if (value) { UpdateKind = 2; } }
+    }
+
+    public string UpdateKindHint => Loc.T(UpdateKind switch { 1 => "Update.KindFullHint", 2 => "Update.KindBothHint", _ => "Update.KindUpdateHint" });
+
+    public string BuildButtonText => Loc.T(!IsUpdateMode ? "Build.Button" : UpdateKind switch { 1 => "Update.ButtonFull", 2 => "Update.ButtonBoth", _ => "Update.ButtonUpdate" });
+
+    partial void OnUpdateKindChanged(int value)
+    {
+        foreach (var name in new[] { nameof(UpdateKindUpdateOnly), nameof(UpdateKindFullOnly), nameof(UpdateKindBoth), nameof(UpdateKindHint), nameof(BuildButtonText) })
+        {
+            OnPropertyChanged(name);
+        }
+    }
+
+    // ----- Thư mục game gốc: đọc param.json ở nền, hiện Content ID · phiên bản ngay dưới ô -----
+
+    [ObservableProperty] private string _baseFolderInfoText = string.Empty;
+
+    [ObservableProperty] private string _baseFolderError = string.Empty;
+
+    public bool HasBaseFolderInfo => !string.IsNullOrEmpty(BaseFolderInfoText) && string.IsNullOrEmpty(BaseFolderError);
+
+    public bool HasBaseFolderError => !string.IsNullOrEmpty(BaseFolderError);
+
+    partial void OnBaseFolderInfoTextChanged(string value) => OnPropertyChanged(nameof(HasBaseFolderInfo));
+
+    partial void OnBaseFolderErrorChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasBaseFolderError));
+        OnPropertyChanged(nameof(HasBaseFolderInfo));
+    }
+
+    private SourceMetadata? _baseFolderMetadata;
+    private CancellationTokenSource? _baseFolderCancellation;
+
+    private void RefreshBaseFolder()
+    {
+        _baseFolderCancellation?.Cancel();
+        _baseFolderCancellation?.Dispose();
+        _baseFolderCancellation = null;
+        _baseFolderMetadata = null;
+        BaseFolderInfoText = string.Empty;
+        BaseFolderError = string.Empty;
+        if (!HasPatchBaseFolder)
+        {
+            ApplyReferenceMismatch();
+            return;
+        }
+
+        var cancellation = new CancellationTokenSource();
+        _baseFolderCancellation = cancellation;
+        _ = ReadBaseFolderAsync(PatchBaseFolder.Trim(), cancellation.Token);
+    }
+
+    private async Task ReadBaseFolderAsync(string folder, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var metadata = await Task.Run(() => Directory.Exists(folder) ? MetadataReader.Read(folder, cancellationToken) : null, cancellationToken);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            if (metadata is not { HasParamJson: true } || string.IsNullOrWhiteSpace(metadata.ContentId))
+            {
+                BaseFolderError = Loc.F("Patch.BaseFolderInvalid", folder);
+                return;
+            }
+
+            _baseFolderMetadata = metadata;
+            BaseFolderInfoText = Loc.F("Update.BaseFolderInfo", metadata.ContentId, metadata.Version ?? "—", string.IsNullOrWhiteSpace(metadata.Title) ? "—" : metadata.Title);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                BaseFolderError = ex.Message;
+            }
+        }
+    }
+
+    [RelayCommand]
+    private async Task BrowsePatchBaseFolderAsync()
+    {
+        var folder = await _dialogs.PickFolderAsync(Loc.T("Patch.PickBaseFolder"), HasPatchBaseFolder ? PatchBaseFolder.Trim() : null);
+        if (folder != null)
+        {
+            PatchBaseFolder = folder;
+        }
+    }
+
+    [RelayCommand]
+    private void ClearPatchBaseFolder() => PatchBaseFolder = string.Empty;
+
+    /// <summary>Phiên bản gợi ý (gói gốc + 1) khi ô "Phiên bản" chưa cao hơn gói gốc; null thì ẩn nút.</summary>
+    private string? SuggestedPatchVersion =>
+        _referenceInfo?.ContentVersion is { } baseVersion &&
+        (!VersionHelper.TryCanonicalize(Version, out var current) || SonySdkPatchReference.CompareVersions(current, baseVersion) <= 0)
+            ? SonySdkPatchReference.NextVersion(baseVersion)
+            : null;
+
+    public bool CanBumpVersion => PatchEnabled && SuggestedPatchVersion != null;
+
+    public string BumpVersionText => Loc.F("Patch.Bump", SuggestedPatchVersion ?? string.Empty);
+
+    [RelayCommand]
+    private void BumpVersion()
+    {
+        if (SuggestedPatchVersion is { } next)
+        {
+            Version = next;
+        }
+    }
+
+    private void RefreshBumpVersion()
+    {
+        OnPropertyChanged(nameof(CanBumpVersion));
+        OnPropertyChanged(nameof(BumpVersionText));
+    }
+
+    private CancellationTokenSource? _referenceCancellation;
+    private SonySdkReferenceInfo? _referenceInfo;
+
+    public bool HasReferenceInfo => !string.IsNullOrEmpty(ReferenceInfoText) && string.IsNullOrEmpty(ReferenceError);
+
+    public bool HasReferenceError => !string.IsNullOrEmpty(ReferenceError);
+
+    public bool HasReferencePath => !string.IsNullOrWhiteSpace(ReferencePackagePath);
+
+    /// <summary>Bản vá chỉ làm được bằng SDK Sony: bật khối chọn gói gốc khi SDK đang hoạt động.</summary>
+    public bool PatchAvailable => SdkActive;
+
+    public bool ShowPatchNeedsSdk => PatchEnabled && !SdkActive;
+
+    /// <summary>Gói gốc dùng cho lượt tạo gói này; null = gói đầy đủ.</summary>
+    private string? ActiveReferencePackage => PatchEnabled && SdkActive && HasReferencePath ? ReferencePackagePath.Trim() : null;
+
+    /// <summary>Thẻ nguồn của thư mục không có sce_sys đổi giữa "thiếu sce_sys" và "thư mục update"; nguồn có param.json thì không đụng (giữ ô đã sửa).</summary>
+    private void RefreshUpdateFolderCard()
+    {
+        if (_lastMetadata is { HasSceSys: false } metadata && HasSource)
+        {
+            ApplyMetadata(SourcePath.Trim(), metadata);
+        }
+    }
+
+    partial void OnPatchEnabledChanged(bool value)
+    {
+        RefreshUpdateFolderCard();
+        OnPropertyChanged(nameof(ShowPatchNeedsSdk));
+        RefreshReference();
+        RefreshValidation();
+    }
+
+    partial void OnReferencePackagePathChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasReferencePath));
+        RefreshReference();
+    }
+
+    partial void OnReferenceInfoTextChanged(string value) => OnPropertyChanged(nameof(HasReferenceInfo));
+
+    partial void OnReferenceErrorChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasReferenceError));
+        OnPropertyChanged(nameof(HasReferenceInfo));
+    }
+
+    [RelayCommand]
+    private async Task BrowseReferenceAsync()
+    {
+        var initial = HasReferencePath ? Path.GetDirectoryName(ReferencePackagePath) : OutputFolder;
+        var file = await _dialogs.PickFileAsync(Loc.T("Patch.PickTitle"), initial, new FilePickerFileType(Loc.T("Patch.PickFilter")) { Patterns = ["*.pkg"] });
+        if (file != null)
+        {
+            ReferencePackagePath = file;
+        }
+    }
+
+    [RelayCommand]
+    private void ClearReference() => ReferencePackagePath = string.Empty;
+
+    /// <summary>Đọc gói gốc ở nền (header/CNT) và đối chiếu Content ID + contentVersion với nguồn hiện tại; kết quả hiện dưới ô.</summary>
+    private void RefreshReference()
+    {
+        _referenceCancellation?.Cancel();
+        _referenceCancellation?.Dispose();
+        _referenceCancellation = null;
+        _referenceInfo = null;
+        ReferenceInfoText = string.Empty;
+        ReferenceError = string.Empty;
+        IsReadingReference = false;
+        RefreshBumpVersion();
+        if (!PatchEnabled || !HasReferencePath)
+        {
+            return;
+        }
+
+        var cancellation = new CancellationTokenSource();
+        _referenceCancellation = cancellation;
+        _ = ReadReferenceAsync(ReferencePackagePath.Trim(), Passcode, cancellation.Token);
+    }
+
+    private async Task ReadReferenceAsync(string path, string passcode, CancellationToken cancellationToken)
+    {
+        IsReadingReference = true;
+        try
+        {
+            var info = await Task.Run(() => SonySdkPatchReference.Inspect(path, passcode, cancellationToken), cancellationToken);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            _referenceInfo = info;
+            ReferenceInfoText = Loc.F("Patch.Info", info.ContentId, info.ContentVersion ?? "—", Formatters.Size(info.Length));
+            if (string.IsNullOrWhiteSpace(ContentId) && !string.IsNullOrEmpty(info.ContentId))
+            {
+                ContentId = info.ContentId;
+            }
+
+            AdoptReferenceDetails();
+
+            ApplyReferenceMismatch();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                ReferenceError = ex.Message;
+            }
+        }
+        finally
+        {
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                IsReadingReference = false;
+            }
+        }
+    }
+
+    /// <summary>So gói gốc với nguồn đang chọn (Content ID, contentVersion của param.json nguồn khi là thư mục).</summary>
+    private void ApplyReferenceMismatch()
+    {
+        RefreshBumpVersion();
+        if (_referenceInfo == null)
+        {
+            return;
+        }
+
+        // Phiên bản của bản mới = ô "Phiên bản" (công cụ ghi nó vào contentVersion của gói, không cần sửa param.json bằng tay).
+        var newVersion = VersionHelper.TryCanonicalize(Version, out var canonical) ? canonical : null;
+        ReferenceError = SonySdkPatchReference.Mismatch(_referenceInfo, ContentId.Trim(), newVersion) ?? string.Empty;
+    }
+
+    /// <summary>macOS Apple Silicon thiếu Rosetta 2 (thường gặp sau khi nâng cấp macOS lớn): hiện nút cài ngay trong cảnh báo SDK.</summary>
+    public bool ShowInstallRosetta => UseSonySdk && !SdkAvailable && !IsInstallingRosetta && SonySdkToolchain.RosettaMissing;
+
+    [ObservableProperty] private bool _isInstallingRosetta;
+
+    partial void OnIsInstallingRosettaChanged(bool value) => OnPropertyChanged(nameof(ShowInstallRosetta));
+
+    [RelayCommand]
+    private async Task InstallRosettaAsync()
+    {
+        if (IsInstallingRosetta)
+        {
+            return;
+        }
+
+        var proceed = await _dialogs.ConfirmAsync(Loc.T("Rosetta.Title"), Loc.T("Rosetta.Body"), Loc.T("Rosetta.Yes"), Loc.T("Common.Cancel"));
+        if (!proceed)
+        {
+            return;
+        }
+
+        IsInstallingRosetta = true;
+        Log(LogLevel.Info, Loc.T("Rosetta.Installing"));
+        try
+        {
+            var installed = await Task.Run(() => SonySdkToolchain.InstallRosetta(line => Log(LogLevel.Info, "softwareupdate: " + line), TimeSpan.FromMinutes(15)));
+            Log(installed ? LogLevel.Success : LogLevel.Error, Loc.T(installed ? "Rosetta.Done" : "Rosetta.Failed"));
+        }
+        finally
+        {
+            IsInstallingRosetta = false;
+        }
+
+        await RefreshComponentsAsync();
+    }
+
     [RelayCommand]
     private async Task RefreshComponentsAsync()
     {
@@ -907,6 +1334,7 @@ public sealed partial class MainViewModel : ObservableObject
             var sdkProblem = await Task.Run(() => SonySdkToolchain.Resolve(out var problem) != null ? null : problem ?? "?");
             SdkUnavailableReason = sdkProblem ?? string.Empty;
             SdkAvailable = sdkProblem == null;
+            OnPropertyChanged(nameof(ShowInstallRosetta));
             Components.Clear();
             foreach (var row in rows)
             {
@@ -994,7 +1422,10 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _statusText = string.Empty;
 
     /// <summary>Dòng trạng thái ở chân cửa sổ: theo chế độ đang dùng (tạo gói hoặc giải nén gói).</summary>
-    public string FooterStatusText => IsExtractMode && !string.IsNullOrWhiteSpace(Extraction.HeadlineText) ? Extraction.HeadlineText : StatusText;
+    public string FooterStatusText =>
+        IsQueueMode && !string.IsNullOrWhiteSpace(Queue.HeadlineText) ? Queue.HeadlineText
+        : IsExtractMode && !string.IsNullOrWhiteSpace(Extraction.HeadlineText) ? Extraction.HeadlineText
+        : StatusText;
 
     partial void OnStatusTextChanged(string value) => OnPropertyChanged(nameof(FooterStatusText));
 
@@ -1192,8 +1623,18 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshDiskInfo();
     }
 
-    partial void OnContentIdChanged(string value) => RefreshValidation();
-    partial void OnVersionChanged(string value) => RefreshValidation();
+    partial void OnContentIdChanged(string value)
+    {
+        RefreshValidation();
+        ApplyReferenceMismatch();
+    }
+
+    partial void OnVersionChanged(string value)
+    {
+        RefreshValidation();
+        // Bản vá so phiên bản trong ô này (được ghi vào param.json của gói) với gói gốc.
+        ApplyReferenceMismatch();
+    }
     partial void OnPasscodeChanged(string value) => RefreshValidation();
     partial void OnThreadsChanged(decimal? value) => RefreshValidation();
     partial void OnPublishingToolsPathChanged(string value) => RefreshValidation();
@@ -1462,6 +1903,7 @@ public sealed partial class MainViewModel : ObservableObject
             FullVerify = s.FullVerify;
             LowerRequiredFirmware = s.LowerRequiredFirmware;
             SdkPrescan = s.SdkPrescan;
+            SdkKeepIntermediate = s.SdkKeepIntermediate;
             SdkPlayGoFallback = s.SdkPlayGoFallback;
             SdkCompressionIndex = SdkIndexFromLevel(s.SdkCompressionLevel);
             PreventSleep = s.PreventSleep;
@@ -1538,6 +1980,7 @@ public sealed partial class MainViewModel : ObservableObject
         s.FullVerify = d.FullVerify;
         s.LowerRequiredFirmware = d.LowerRequiredFirmware;
         s.SdkPrescan = d.SdkPrescan;
+        s.SdkKeepIntermediate = d.SdkKeepIntermediate;
         s.SdkPlayGoFallback = d.SdkPlayGoFallback;
         s.SdkCompressionLevel = d.SdkCompressionLevel;
         s.PreventSleep = d.PreventSleep;
@@ -1604,6 +2047,7 @@ public sealed partial class MainViewModel : ObservableObject
         s.FullVerify = FullVerify;
         s.LowerRequiredFirmware = LowerRequiredFirmware;
         s.SdkPrescan = SdkPrescan;
+        s.SdkKeepIntermediate = SdkKeepIntermediate;
         s.SdkPlayGoFallback = SdkPlayGoFallback;
         s.SdkCompressionLevel = SdkLevelFromIndex(SdkCompressionIndex);
         s.PreventSleep = PreventSleep;
@@ -1958,28 +2402,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    private static Bitmap? LoadBitmap(SourceMetadata metadata)
-    {
-        try
-        {
-            if (metadata.IconBytes is { Length: > 0 } bytes)
-            {
-                using var memory = new MemoryStream(bytes);
-                return Bitmap.DecodeToWidth(memory, 256);
-            }
-
-            if (metadata.IconPath != null && File.Exists(metadata.IconPath))
-            {
-                using var stream = File.OpenRead(metadata.IconPath);
-                return Bitmap.DecodeToWidth(stream, 256);
-            }
-        }
-        catch (Exception)
-        {
-        }
-
-        return null;
-    }
+    private static Bitmap? LoadBitmap(SourceMetadata metadata) => IconLoader.Load(metadata);
 
     /// <summary>Dự án GP5 mang passcode 32 ký tự ASCII: điền vào trường Passcode ngay khi vừa đọc metadata (không đụng tới khi chỉ đổi ngôn ngữ).</summary>
     private void ApplyProjectPasscode(SourceMetadata metadata)
@@ -2059,9 +2482,11 @@ public sealed partial class MainViewModel : ObservableObject
         if (!metadata.HasSceSys)
         {
             HasParamJson = false;
-            MetadataWarning = true;
-            MetaTitle = Loc.T(metadata.IsExFat ? "Val.ExFatNoApp" : metadata.IsGp5 ? "Val.Gp5NoParam" : "Meta.NoSceSys");
-            MetaSubtitle = Loc.T("Meta.NoSceSysHint");
+            // Thư mục update của bản vá không cần sce_sys: thông tin game lấy từ gói gốc.
+            var updateFolder = PatchEnabled && !metadata.IsImage && !metadata.IsGp5;
+            MetadataWarning = !updateFolder;
+            MetaTitle = Loc.T(updateFolder ? "Meta.UpdateFolder" : metadata.IsExFat ? "Val.ExFatNoApp" : metadata.IsGp5 ? "Val.Gp5NoParam" : "Meta.NoSceSys");
+            MetaSubtitle = Loc.T(updateFolder ? "Meta.UpdateFolderHint" : "Meta.NoSceSysHint");
             MetaVersion = string.Empty;
             MetaSdk = string.Empty;
             return;
@@ -2178,7 +2603,8 @@ public sealed partial class MainViewModel : ObservableObject
             var temporary = string.IsNullOrWhiteSpace(TemporaryFolder) ? BuildPreparer.SuggestTemporaryFolder(output) : TemporaryFolder.Trim();
             var entries = _dlcEntries;
             var title = Title;
-            var results = await Task.Run(() => DlcPackageBuilder.BuildAll(entries, output, temporary, title, e => Log(e.Level, e.Message), CancellationToken.None, AskOutputConflict));
+            var dlcSource = Directory.Exists(SourcePath.Trim()) ? SourcePath.Trim() : null;
+            var results = await Task.Run(() => DlcPackageBuilder.BuildAll(entries, output, temporary, title, e => Log(e.Level, e.Message), CancellationToken.None, AskOutputConflict, dlcSource));
             var ok = results.Count(r => r.Success);
             await _dialogs.ShowInfoAsync(Loc.T("Dlc.DoneTitle"), Loc.F("Dlc.DoneBody", ok, results.Count, output));
         }
@@ -2308,6 +2734,11 @@ public sealed partial class MainViewModel : ObservableObject
         ForceStandardDrm = ForceStandardDrm,
         UseSonySdk = UseSonySdk,
         SdkPrescan = SdkPrescan,
+        SdkKeepIntermediate = SdkKeepIntermediate,
+        SdkReferencePackage = ActiveReferencePackage,
+        SdkPatchBaseFolder = ActiveReferencePackage != null && HasPatchBaseFolder ? PatchBaseFolder.Trim() : null,
+        SdkPatchOutput = UpdateKind switch { 1 => SdkPatchOutput.FullOnly, 2 => SdkPatchOutput.Both, _ => SdkPatchOutput.UpdateOnly },
+        SdkApplyPackageDetails = true,
         SdkPlayGoFallback = SdkPlayGoFallback,
         SdkCompressionLevel = SdkLevelFromIndex(SdkCompressionIndex),
         RemoveAmprLeftovers = RemoveAmprLeftovers,
@@ -2394,6 +2825,20 @@ public sealed partial class MainViewModel : ObservableObject
             ErrorBanner = Loc.T("Build.NoKeysBanner");
             SetStatus(StatusKind.Error, "Status.NoKeys");
             return;
+        }
+
+        // Bản vá: lỗi của ô gói gốc chặn lượt tạo gói ngay tại đây (SDK chỉ báo sau khi nén xong).
+        if (PatchEnabled)
+        {
+            ApplyReferenceMismatch();
+            var patchProblem = !SdkActive ? Loc.T("Patch.NeedsSdk") : !HasReferencePath ? Loc.T("Patch.NeedsFile") : HasReferenceError ? ReferenceError : HasPatchBaseFolder && HasBaseFolderError ? BaseFolderError : null;
+            if (patchProblem != null)
+            {
+                SetStatus(StatusKind.Error, "Status.Invalid");
+                ErrorBanner = patchProblem;
+                Log(LogLevel.Warning, patchProblem);
+                return;
+            }
         }
 
         if (DiskWarning)
@@ -2573,17 +3018,18 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Gọi khi cửa sổ đóng; trả về true nếu được phép đóng.</summary>
     public async Task<bool> ConfirmCloseAsync()
     {
-        if (!IsBuilding)
+        if (!IsBuilding && !Queue.IsRunning)
         {
             _metadataCancellation?.Cancel();
             SaveSettings();
             Extraction.Shutdown();
+            Queue.Shutdown();
             return true;
         }
 
         var close = await _dialogs.ConfirmAsync(
             Loc.T("Close.Title"),
-            Loc.T("Close.Body"),
+            Queue.IsRunning ? Loc.F("Queue.CloseBody", Queue.RunningCount) : Loc.T("Close.Body"),
             Loc.T("Close.Yes"),
             Loc.T("Close.No"),
             destructive: true);
@@ -2596,6 +3042,7 @@ public sealed partial class MainViewModel : ObservableObject
         _metadataCancellation?.Cancel();
         SaveSettings();
         Extraction.Shutdown();
+        Queue.Shutdown();
         return true;
     }
 

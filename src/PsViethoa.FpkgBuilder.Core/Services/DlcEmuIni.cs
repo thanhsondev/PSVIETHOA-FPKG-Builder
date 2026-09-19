@@ -3,8 +3,42 @@ using PsViethoa.FpkgBuilder.Core.ExFat;
 namespace PsViethoa.FpkgBuilder.Core.Services;
 
 /// <summary>Một mục DLC trong dlc_emu.ini.</summary>
-public sealed record DlcEmuEntry(string ContentId, string DownloadStatus)
+/// <param name="MountPoint">mount_point của khối (ví dụ <c>/app0/addcont0</c>): nơi game tìm dữ liệu riêng của DLC, null khi không ghi.</param>
+/// <param name="Section">Tên khối trong ini (PSAC = additional content; PSAL/PSCONS… là loại khác, không đóng thành gói DLC).</param>
+public sealed record DlcEmuEntry(string ContentId, string DownloadStatus, string? MountPoint = null, string Section = "PSAC")
 {
+    /// <summary>Khối additional content (hoặc ini cũ không ghi tên khối).</summary>
+    public bool IsAdditionalContent => Section.Length == 0 || Section.Equals("PSAC", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Thư mục dữ liệu riêng của DLC trong bản dump: mount_point <c>/app0/xyz</c> → <c>&lt;nguồn&gt;/xyz</c>. Null khi không có
+    /// mount_point dưới /app0, thư mục không tồn tại hoặc rỗng.
+    /// </summary>
+    public string? DataFolderIn(string? sourceFolder)
+    {
+        if (string.IsNullOrWhiteSpace(sourceFolder) || string.IsNullOrWhiteSpace(MountPoint))
+        {
+            return null;
+        }
+
+        var mount = MountPoint.Trim().Replace('\\', '/').TrimEnd('/');
+        const string prefix = "/app0/";
+        if (!mount.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || mount.Length == prefix.Length || mount.Contains("..", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        try
+        {
+            var folder = Path.GetFullPath(Path.Combine(sourceFolder, mount[prefix.Length..].Replace('/', Path.DirectorySeparatorChar)));
+            return Directory.Exists(folder) && Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories).Any() ? folder : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
     /// <summary>DLC chỉ cần quyền sở hữu, không có dữ liệu kèm theo — tạo được gói DLC rỗng để cài.</summary>
     public bool NoExtraData => string.Equals(DownloadStatus, "NO_EXTRA_DATA", StringComparison.OrdinalIgnoreCase);
 
@@ -58,16 +92,19 @@ public static class DlcEmuIni
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         string? contentId = null;
         var status = string.Empty;
+        string? mountPoint = null;
+        var section = string.Empty;
 
         void Flush()
         {
             if (!string.IsNullOrWhiteSpace(contentId) && seen.Add(contentId))
             {
-                entries.Add(new DlcEmuEntry(contentId.Trim(), status.Trim()));
+                entries.Add(new DlcEmuEntry(contentId.Trim(), status.Trim(), string.IsNullOrWhiteSpace(mountPoint) ? null : mountPoint.Trim(), section));
             }
 
             contentId = null;
             status = string.Empty;
+            mountPoint = null;
         }
 
         foreach (var raw in text.Split('\n'))
@@ -81,6 +118,7 @@ public static class DlcEmuIni
             if (line[0] == '[')
             {
                 Flush();
+                section = line.Trim('[', ']', ' ');
                 continue;
             }
 
@@ -99,6 +137,10 @@ public static class DlcEmuIni
             else if (key.Equals("download_status", StringComparison.OrdinalIgnoreCase))
             {
                 status = value;
+            }
+            else if (key.Equals("mount_point", StringComparison.OrdinalIgnoreCase))
+            {
+                mountPoint = value;
             }
         }
 

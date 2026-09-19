@@ -1226,13 +1226,50 @@ internal sealed class NapsImageReader : IMemoryReader
             Layout = layout;
         }
 
-        public NapsLayoutDocument? Layout { get; set; }
+        private NapsLayoutDocument? _layout;
+        private Stream? _logical;
+
+        public NapsLayoutDocument? Layout
+        {
+            get => _layout;
+            set
+            {
+                _layout = value;
+                _logical?.Dispose();
+                _logical = null;
+            }
+        }
 
         public NapsLayoutDocument ReadLayout() =>
             ProsperoNapsLayout.Parse(FindFile(_outerPfs, "naps_pkg_layout.dat").ReadAllBytes());
 
-        public byte[] DecompressRange(long offset, int length) =>
-            ProsperoNapsImage.DecompressRange(_image, Layout ?? throw new InvalidOperationException("layout"), offset, length);
+        /// <summary>
+        /// Giải một khoảng của ảnh logic. ProsperoNapsImage.DecompressRange dựng lại toàn bộ kế hoạch span và quét tuyến tính ở MỖI lần gọi
+        /// — gói 127 GB có ~500 000 span × ~32 000 khối 4 MiB là hàng chục tỉ bước (giải nén chỉ còn ~20 MB/s). Luồng OpenRead của thư viện
+        /// dựng kế hoạch một lần và tìm span bằng tìm nhị phân; mỗi kênh giữ một luồng (kênh chỉ do một luồng dùng tại một thời điểm).
+        /// </summary>
+        public byte[] DecompressRange(long offset, int length)
+        {
+            var layout = Layout ?? throw new InvalidOperationException("layout");
+            try
+            {
+                _logical ??= ProsperoNapsImage.OpenRead(_image, layout, CancellationToken.None);
+                if (offset >= 0 && offset + length <= _logical.Length)
+                {
+                    var buffer = new byte[length];
+                    _logical.Position = offset;
+                    _logical.ReadExactly(buffer);
+                    return buffer;
+                }
+            }
+            catch (Exception ex) when (ex is NotSupportedException or EndOfStreamException)
+            {
+                _logical?.Dispose();
+                _logical = null;
+            }
+
+            return ProsperoNapsImage.DecompressRange(_image, layout, offset, length);
+        }
 
         private static PfsReader.File FindFile(PfsReader outerPfs, string name) =>
             outerPfs.GetAllFiles().FirstOrDefault(f => string.Equals(f.name, name, StringComparison.OrdinalIgnoreCase))
@@ -1240,6 +1277,7 @@ internal sealed class NapsImageReader : IMemoryReader
 
         public void Dispose()
         {
+            _logical?.Dispose();
             _image.Dispose();
             _imageView.Dispose();
             _outerReader.Dispose();

@@ -78,6 +78,10 @@ public sealed class SonySdkTests : IDisposable
     [InlineData("sce_sys/icon0.dds", true)]
     [InlineData("sce_sys/license.dat", true)]
     [InlineData("sce_sys/LICENSE.INFO", true)]
+    [InlineData("sce_sys/origin-param.json", true)]
+    [InlineData("sce_sys/target-param.json", true)]
+    [InlineData("sce_sys/nptitle.dat", false)]
+    [InlineData("sce_sys/npbind.dat", false)]
     [InlineData("sce_sys/nptitle.dat", false)]
     [InlineData("sce_sys/trophy2/trophy00.ucp", false)]
     [InlineData("sce_sys/icon0.png", false)]
@@ -282,6 +286,8 @@ public sealed class SonySdkTests : IDisposable
         {
             SourcePath = source,
             OutputFolder = Path.Combine(_root, "out"),
+            // Giữ .gp5 / .gp5-assets cạnh gói để kiểm tra (mặc định xoá như bộ fix6).
+            SdkKeepIntermediate = true,
             TemporaryFolder = Path.Combine(_root, "tmp"),
             ContentId = ContentId,
             PreventSleep = false,
@@ -299,13 +305,16 @@ public sealed class SonySdkTests : IDisposable
         var stem = ContentId + "-A0100-V0100";
         Assert.Equal([stem + ".gp5", stem + ".pkg", stem + ".playgo-scenario.json"], Directory.EnumerateFiles(request.OutputFolder).Select(Path.GetFileName).Order(StringComparer.Ordinal));
         var logs = Path.Combine(request.OutputFolder, stem + "-build-logs");
-        Assert.Equal(["01-create-gp5.log", "02-img-create.log", "03-postprocess.log"], Directory.EnumerateFiles(logs).Select(Path.GetFileName).Order(StringComparer.Ordinal));
+        // Bộ fix6 (direct-v3) ghi thẳng gói plaintext: chỉ còn 01 và 02; bộ cũ có thêm 03-postprocess.log.
+        var logNames = Directory.EnumerateFiles(logs).Select(Path.GetFileName).Order(StringComparer.Ordinal).ToList();
+        Assert.Equal(["01-create-gp5.log", "02-img-create.log"], logNames.Take(2));
+        Assert.True(logNames.Count == 2 || (logNames.Count == 3 && logNames[2] == "03-postprocess.log"));
         Assert.StartsWith("Created " + SonySdkProject.RealPath(Path.Combine(request.OutputFolder, stem + ".gp5")) + " with ", File.ReadAllText(Path.Combine(logs, "01-create-gp5.log")));
         var imageLog = File.ReadAllLines(Path.Combine(logs, "02-img-create.log"));
         Assert.StartsWith("command=img_create --oformat nwonly ", imageLog[0]);
         Assert.Equal(["started_utc", "finished_utc", "elapsed", "exit_code"], imageLog.Skip(1).Take(4).Select(line => line.Split('=')[0]));
         Assert.Equal("exit_code=0", imageLog[4]);
-        Assert.Contains("exit_code=0", File.ReadAllLines(Path.Combine(logs, "03-postprocess.log")));
+        Assert.False(File.Exists(Path.Combine(request.OutputFolder, stem + ".partial.pkg")));
 
         // GP5 trỏ thẳng vào nguồn (không có thư mục gương), param.json trỏ sang bản đã sửa trong thư mục tạm, không còn tệp tạm nào.
         var gp5 = File.ReadAllText(Path.Combine(request.OutputFolder, stem + ".gp5"));
@@ -318,6 +327,106 @@ public sealed class SonySdkTests : IDisposable
         var info = PackageInspector.Inspect(outcome.OutputPath, Passcode, CancellationToken.None);
         Assert.Equal("standard", info.Params!.ApplicationDrmType);
         Assert.Equal(original, File.ReadAllBytes(paramPath));
+    }
+
+    /// <summary>Hàng chờ: hai lượt SDK chạy song song trong cùng tiến trình (cùng WINEPREFIX, thư mục tạm/bí danh riêng) đều ra gói hợp lệ.</summary>
+    [Fact]
+    public async Task Build_TwoSdkBuildsInParallelBothSucceed()
+    {
+        if (SonySdkToolchain.Resolve(out _) == null)
+        {
+            return;
+        }
+
+        var requests = new[] { "parallel-a", "parallel-b" }.Select(name =>
+        {
+            var source = MakeSource(name);
+            File.Delete(Path.Combine(source, "sce_sys", "icon0.png"));
+            return new BuildRequest
+            {
+                SourcePath = source,
+                OutputFolder = Path.Combine(_root, name + "-out"),
+                TemporaryFolder = Path.Combine(_root, name + "-tmp"),
+                ContentId = ContentId,
+                PreventSleep = false,
+            };
+        }).ToArray();
+
+        var engine = new BuildEngine();
+        var outcomes = await Task.WhenAll(requests.Select(request => engine.BuildAsync(request, _ => { }, null, CancellationToken.None)));
+
+        Assert.All(outcomes, outcome =>
+        {
+            Assert.True(outcome.Verification.Contents!.IsValid);
+            Assert.Equal(PackageVerifier.PlaintextMarker, outcome.Verification.SeedMarker);
+        });
+        Assert.NotEqual(outcomes[0].OutputPath, outcomes[1].OutputPath);
+        // Mặc định như bộ fix6: .gp5, scenario và .gp5-assets bị xoá sau khi tạo xong, nhật ký giữ lại.
+        Assert.All(requests, request =>
+        {
+            Assert.Empty(Directory.EnumerateFiles(request.OutputFolder, "*.gp5"));
+            Assert.Empty(Directory.EnumerateFiles(request.OutputFolder, "*.playgo-scenario.json"));
+            Assert.False(Directory.Exists(Path.Combine(request.OutputFolder, ".gp5-assets")));
+            Assert.Single(Directory.EnumerateDirectories(request.OutputFolder, "*-build-logs"));
+        });
+        Assert.All(requests, request => Assert.False(Directory.Exists(request.TemporaryFolder) && Directory.EnumerateFileSystemEntries(request.TemporaryFolder).Any()));
+    }
+
+    /// <summary>Hàng chờ: huỷ một lượt SDK đang chạy không được tắt wineserver dùng chung — lượt kia phải chạy tiếp và thành công.</summary>
+    [Fact]
+    public async Task Build_CancellingOneSdkBuildLeavesTheOtherRunning()
+    {
+        if (SonySdkToolchain.Resolve(out _) == null)
+        {
+            return;
+        }
+
+        var survivor = MakeSource("survivor");
+        var victim = MakeSource("victim");
+        foreach (var source in new[] { survivor, victim })
+        {
+            File.Delete(Path.Combine(source, "sce_sys", "icon0.png"));
+        }
+
+        // Nạn nhân có nhiều dữ liệu hơn để chắc chắn còn đang trong img_create lúc bị huỷ.
+        File.WriteAllBytes(Path.Combine(victim, "data", "More.bin"), Enumerable.Range(0, 40_000_000).Select(i => (byte)(i * 31 % 251)).ToArray());
+
+        BuildRequest Request(string source, string name) => new()
+        {
+            SourcePath = source,
+            OutputFolder = Path.Combine(_root, name + "-out"),
+            TemporaryFolder = Path.Combine(_root, name + "-tmp"),
+            ContentId = ContentId,
+            PreventSleep = false,
+        };
+
+        var engine = new BuildEngine();
+        var victimLog = new List<LogEntry>();
+        using var cancellation = new CancellationTokenSource();
+        var victimTask = engine.BuildAsync(Request(victim, "victim"), entry => { lock (victimLog) { victimLog.Add(entry); } }, null, cancellation.Token);
+        var survivorTask = engine.BuildAsync(Request(survivor, "survivor"), _ => { }, null, CancellationToken.None);
+
+        // Chờ nạn nhân vào bước [2/3] (img_create đang chạy) rồi huỷ.
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(60);
+        while (DateTime.UtcNow < deadline && !victimTask.IsCompleted)
+        {
+            lock (victimLog)
+            {
+                if (victimLog.Any(entry => entry.Message.Contains("[2/3]", StringComparison.Ordinal)))
+                {
+                    break;
+                }
+            }
+
+            await Task.Delay(50);
+        }
+
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => victimTask);
+
+        var outcome = await survivorTask;
+        Assert.True(outcome.Verification.Contents!.IsValid);
+        Assert.Equal(PackageVerifier.PlaintextMarker, outcome.Verification.SeedMarker);
     }
 
     /// <summary>Bộ công cụ fixdss3: DRM luôn standard (kể cả khi bỏ tích), pic*.png thiếu được khôi phục từ DDS và vào CNT của gói.</summary>
@@ -342,6 +451,8 @@ public sealed class SonySdkTests : IDisposable
         {
             SourcePath = source,
             OutputFolder = Path.Combine(_root, "out-splash"),
+            // Giữ .gp5 / .gp5-assets cạnh gói để kiểm tra (mặc định xoá như bộ fix6).
+            SdkKeepIntermediate = true,
             TemporaryFolder = Path.Combine(_root, "tmp-splash"),
             ContentId = ContentId,
             ForceStandardDrm = false,
@@ -360,6 +471,89 @@ public sealed class SonySdkTests : IDisposable
         Assert.Contains(cnt, name => name.EndsWith("pic0.png", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(cnt, name => name.EndsWith("license.dat", StringComparison.OrdinalIgnoreCase));
         Assert.StartsWith("Recovering sce_sys/pic0.png from pic0.dds...\n", File.ReadAllText(Path.Combine(request.OutputFolder, stem + "-build-logs", "01-create-gp5.log")));
+    }
+
+    /// <summary>Gói giải nén ra có thể mang pic2.png vài trăm byte rác: bỏ khỏi GP5 và khôi phục từ pic2.dds thay vì để SDK dừng.</summary>
+    [Fact]
+    public void Project_ReplacesAnInvalidSplashPngWithTheDdsRecovery()
+    {
+        var source = MakeSource("bad-png");
+        File.Delete(Path.Combine(source, "sce_sys", "icon0.dds"));
+        File.WriteAllBytes(Path.Combine(source, "sce_sys", "icon0.png"), MinimalPng());
+        File.WriteAllBytes(Path.Combine(source, "sce_sys", "pic2.png"), Enumerable.Range(0, 532).Select(i => (byte)(i * 7)).ToArray());
+        File.WriteAllBytes(Path.Combine(source, "sce_sys", "pic2.dds"), new byte[148]);
+        Assert.False(SonySdkProject.IsValidPresentationPng(Path.Combine(source, "sce_sys", "pic2.png")));
+        Assert.True(SonySdkProject.IsValidPresentationPng(Path.Combine(source, "sce_sys", "icon0.png")));
+        Assert.Equal(["pic2.png"], SonySdkProject.MissingPresentationPngs(source).Select(item => item.PngName));
+
+        var projectPath = Path.Combine(_root, "bad-png-out", ContentId + "-A0100-V0100.gp5");
+        var result = SonySdkProject.Create(source, projectPath, Passcode, path => path, ddsConverter: (dds, png, preserveAlpha) =>
+        {
+            Assert.EndsWith("pic2.dds", dds, StringComparison.Ordinal);
+            Assert.True(preserveAlpha);
+            File.WriteAllBytes(png, MinimalPng());
+        });
+
+        var recovered = Assert.Single(result.RecoveredPngs);
+        Assert.Equal("sce_sys/pic2.png", recovered.Destination);
+        Assert.True(recovered.ReplacedInvalid);
+        Assert.Contains(result.Excluded, line => line.StartsWith("sce_sys/pic2.png (not a valid PNG", StringComparison.Ordinal));
+        var gp5 = File.ReadAllText(projectPath);
+        Assert.Contains("dst_path=\"sce_sys/pic2.png\" src_path=\"" + SonySdkProject.EscapeAttribute(recovered.PngPath) + "\"", gp5);
+        Assert.DoesNotContain(SonySdkProject.EscapeAttribute(Path.Combine(source, "sce_sys", "pic2.png")), gp5);
+    }
+
+    /// <summary>PNG 1×1 RGBA hợp lệ (IHDR 8 bit, màu 6, không interlace).</summary>
+    private static byte[] MinimalPng()
+    {
+        static byte[] Chunk(string type, byte[] data)
+        {
+            var typeBytes = System.Text.Encoding.ASCII.GetBytes(type);
+            var crc = Crc32(typeBytes.Concat(data).ToArray());
+            return BitConverter.GetBytes(data.Length).Reverse().Concat(typeBytes).Concat(data).Concat(BitConverter.GetBytes(crc).Reverse()).ToArray();
+        }
+
+        static uint Crc32(byte[] bytes)
+        {
+            uint crc = 0xFFFFFFFF;
+            foreach (var b in bytes)
+            {
+                crc ^= b;
+                for (var i = 0; i < 8; i++)
+                {
+                    crc = (crc & 1) != 0 ? (crc >> 1) ^ 0xEDB88320 : crc >> 1;
+                }
+            }
+
+            return ~crc;
+        }
+
+        var ihdr = new byte[] { 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0 };
+        using var idat = new MemoryStream();
+        using (var zlib = new System.IO.Compression.ZLibStream(idat, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true))
+        {
+            zlib.Write(new byte[] { 0, 255, 0, 0, 255 });
+        }
+
+        return new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }
+            .Concat(Chunk("IHDR", ihdr)).Concat(Chunk("IDAT", idat.ToArray())).Concat(Chunk("IEND", Array.Empty<byte>())).ToArray();
+    }
+
+    [Fact]
+    public void Converter_DetectsAPackageThatIsAlreadyPlaintext()
+    {
+        Directory.CreateDirectory(_root);
+        var path = Path.Combine(_root, "direct.pkg");
+        var bytes = new byte[0x30000];
+        "\u007fFIH"u8.CopyTo(bytes);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt64LittleEndian(bytes.AsSpan(0x20), 0x20000);
+        File.WriteAllBytes(path, bytes);
+        Assert.False(SonySdkConverter.IsAlreadyPlaintext(path));
+
+        SonySdkConverter.PlaintextSeed.CopyTo(bytes.AsSpan(0x20000 + 0x370));
+        File.WriteAllBytes(path, bytes);
+        Assert.True(SonySdkConverter.IsAlreadyPlaintext(path));
+        Assert.False(SonySdkConverter.IsAlreadyPlaintext(Path.Combine(_root, "missing.pkg")));
     }
 
     [Fact]
@@ -436,6 +630,8 @@ public sealed class SonySdkTests : IDisposable
         {
             SourcePath = source,
             OutputFolder = Path.Combine(_root, "Yōtei-pkg"),
+            // Giữ .gp5 / .gp5-assets cạnh gói để kiểm tra (mặc định xoá như bộ fix6).
+            SdkKeepIntermediate = true,
             TemporaryFolder = Path.Combine(_root, "tạm"),
             ContentId = ContentId,
             PreventSleep = false,

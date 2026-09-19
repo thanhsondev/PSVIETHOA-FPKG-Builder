@@ -37,18 +37,37 @@ public static class SonySdkRunner
             return;
         }
 
-        log(new LogEntry(LogLevel.Info, Loc.F("Sdk.WinePrefixCreating", runtime.WinePrefix)));
-        Directory.CreateDirectory(runtime.WinePrefix);
-        var watch = Stopwatch.StartNew();
-        var exit = await RunAsync(runtime, ["wineboot.exe", "--init"], runtime.WinePrefix, _ => { }, null, cancellationToken, wineCommand: true)
-            .ConfigureAwait(false);
-        if (exit != 0 || !File.Exists(Path.Combine(runtime.WinePrefix, "system.reg")))
+        // Nhiều lượt tạo gói chạy song song (hàng chờ): chỉ một lượt tạo WINEPREFIX, các lượt khác chờ rồi dùng chung.
+        await PrefixGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            throw new InvalidOperationException(Loc.F("Sdk.WinePrefixFailed", exit));
-        }
+            if (File.Exists(Path.Combine(runtime.WinePrefix, "system.reg")))
+            {
+                return;
+            }
 
-        log(new LogEntry(LogLevel.Info, Loc.F("Sdk.WinePrefixCreated", Formatters.Duration(watch.Elapsed))));
+            log(new LogEntry(LogLevel.Info, Loc.F("Sdk.WinePrefixCreating", runtime.WinePrefix)));
+            Directory.CreateDirectory(runtime.WinePrefix);
+            var watch = Stopwatch.StartNew();
+            var exit = await RunAsync(runtime, ["wineboot.exe", "--init"], runtime.WinePrefix, _ => { }, null, cancellationToken, wineCommand: true)
+                .ConfigureAwait(false);
+            if (exit != 0 || !File.Exists(Path.Combine(runtime.WinePrefix, "system.reg")))
+            {
+                throw new InvalidOperationException(Loc.F("Sdk.WinePrefixFailed", exit));
+            }
+
+            log(new LogEntry(LogLevel.Info, Loc.F("Sdk.WinePrefixCreated", Formatters.Duration(watch.Elapsed))));
+        }
+        finally
+        {
+            PrefixGate.Release();
+        }
     }
+
+    private static readonly SemaphoreSlim PrefixGate = new(1, 1);
+
+    /// <summary>Số tiến trình SDK đang chạy trong tiến trình này — huỷ một lượt chỉ được tắt wineserver khi không còn lượt nào khác.</summary>
+    private static int _activeRuns;
 
     /// <summary>
     /// <c>img_create --oformat nwonly [--compression_level N] project.gp5 raw.pkg</c>. Không ném lỗi theo mã thoát: người gọi xem
@@ -63,13 +82,22 @@ public static class SonySdkRunner
         int? compressionLevel,
         Action<LogEntry> log,
         Action<SonySdkProgress> progress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? temporaryFolder = null,
+        string? referencePackagePath = null)
     {
         var arguments = new List<string> { "img_create", "--oformat", "nwonly" };
         if (compressionLevel is { } level)
         {
             arguments.Add("--compression_level");
             arguments.Add(level.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+
+        // Bản vá (fix8): so gói mới với gói gốc, chỉ giữ phần thay đổi; SDK ghi thêm <đầu ra>.remastered.pkg.
+        if (!string.IsNullOrEmpty(referencePackagePath))
+        {
+            arguments.Add("--ref_pkg_path");
+            arguments.Add(toolPath(referencePackagePath));
         }
 
         arguments.Add(toolPath(projectPath));
@@ -120,7 +148,7 @@ public static class SonySdkRunner
         // Thư mục làm việc phải ASCII như mọi đường dẫn khác đưa cho SDK; thư mục toolchain của bộ công cụ là lựa chọn đầu.
         var workingDirectory = new[] { runtime.Directory, Path.GetTempPath(), Path.GetDirectoryName(Path.GetFullPath(projectPath))! }
             .First(folder => SonySdkPathAliases.IsAsciiSafe(folder) && Directory.Exists(folder));
-        var exit = await RunAsync(runtime, arguments, workingDirectory, parser.Feed, parser, cancellationToken).ConfigureAwait(false);
+        var exit = await RunAsync(runtime, arguments, workingDirectory, parser.Feed, parser, cancellationToken, temporaryFolder: temporaryFolder).ConfigureAwait(false);
         parser.Flush();
 
         var result = new SonySdkImageResult(exit, errors, string.Join(' ', arguments.Select(Quote)));
@@ -243,7 +271,8 @@ public static class SonySdkRunner
         OutputParser? stdoutParser,
         CancellationToken cancellationToken,
         bool wineCommand = false,
-        string? executable = null)
+        string? executable = null,
+        string? temporaryFolder = null)
     {
         executable ??= runtime.PublisherPath;
         var info = new ProcessStartInfo
@@ -275,6 +304,13 @@ public static class SonySdkRunner
         else
         {
             info.FileName = executable;
+            // Như -TemporaryDirectory của build-from-folder.ps1 (fix6): Publishing Tools ghi tạm vào %TEMP%; trỏ sang thư mục tạm
+            // của lượt này để người dùng chọn được ổ (mặc định là ổ C:).
+            if (!string.IsNullOrEmpty(temporaryFolder))
+            {
+                info.Environment["TEMP"] = temporaryFolder;
+                info.Environment["TMP"] = temporaryFolder;
+            }
         }
 
         foreach (var argument in arguments)
@@ -285,6 +321,7 @@ public static class SonySdkRunner
         using var process = new Process { StartInfo = info };
         process.Start();
         process.StandardInput.Close();
+        Interlocked.Increment(ref _activeRuns);
 
         var stdout = Task.Run(async () =>
         {
@@ -320,14 +357,20 @@ public static class SonySdkRunner
             {
             }
 
-            if (runtime.UsesWine)
+            // wineserver -k tắt MỌI tiến trình Windows trong prefix — khi hàng chờ đang chạy lượt khác thì chỉ giết cây tiến trình này.
+            if (runtime.UsesWine && Interlocked.Decrement(ref _activeRuns) == 0)
             {
                 StopWineServer(runtime);
+            }
+            else if (!runtime.UsesWine)
+            {
+                Interlocked.Decrement(ref _activeRuns);
             }
 
             throw;
         }
 
+        Interlocked.Decrement(ref _activeRuns);
         await Task.WhenAll(stdout, stderr).ConfigureAwait(false);
         return process.ExitCode;
     }

@@ -150,7 +150,7 @@ public sealed class SonySdkFidelityTests : IDisposable
         Assert.Equal(Crlf(expected.ToString()), File.ReadAllText(result.ProjectPath));
         Assert.Equal(expectedFiles.Length, result.FileCount);
         Assert.Equal(
-            Crlf("{\n  \"scenarioCount\": 1,\n  \"scenarioDefaultId\": 0,\n  \"scenarioDefaultLanguage\": \"ja-JP\",\n  \"scenarios\": [\n    {\n      \"id\": 0,\n      \"type\": \"playmode\",\n      \"ja-JP\": {\n        \"title\": \"Scenario #0\",\n        \"description\": \"Default play scenario\"\n      }\n    }\n  ]\n}\n"),
+            Crlf("{\n  \"chunkDefaultLanguage\": \"ja-JP\",\n  \"chunkSupportedLanguages\": [\n    \"ja-JP\"\n  ],\n  \"scenarioCount\": 1,\n  \"scenarioDefaultId\": 0,\n  \"scenarioDefaultLanguage\": \"ja-JP\",\n  \"scenarios\": [\n    {\n      \"id\": 0,\n      \"type\": \"playmode\",\n      \"ja-JP\": {\n        \"title\": \"Scenario #0\",\n        \"description\": \"Default play scenario\"\n      }\n    }\n  ]\n}\n"),
             File.ReadAllText(result.ScenarioPath));
         Assert.Equal(
             [
@@ -209,9 +209,15 @@ public sealed class SonySdkFidelityTests : IDisposable
             File.WriteAllBytes(Path.Combine(source, name), new byte[4]);
         }
 
+        // Khác script gốc ở một điểm: pic1.png 4 byte rác (không phải PNG) cũng được khôi phục từ PIC1.DDS thay vì để SDK dừng.
         var missing = SonySdkProject.MissingPresentationPngs(Path.Combine(_root, "pngs"));
-        Assert.Equal(["pic0.png", "pic2.png", "pic3.png", "picture.png"], missing.Select(item => item.PngName));
-        Assert.Equal(["pic0.dds", "pic2.dds", "pic3.DDS", "picture.dds"], missing.Select(item => Path.GetFileName(item.DdsPath)));
+        Assert.Equal(["pic0.png", "PIC1.png", "pic2.png", "pic3.png", "picture.png"], missing.Select(item => item.PngName));
+        Assert.Equal(["pic0.dds", "PIC1.DDS", "pic2.dds", "pic3.DDS", "picture.dds"], missing.Select(item => Path.GetFileName(item.DdsPath)));
+
+        // PNG hợp lệ (chữ ký + IHDR 8 bit RGB) thì giữ, đúng quy tắc script.
+        var validHeader = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, (byte)'I', (byte)'H', (byte)'D', (byte)'R', 0, 0, 0, 1, 0, 0, 0, 1, 8, 2, 0, 0, 0, 0, 0, 0, 0, 0 };
+        File.WriteAllBytes(Path.Combine(source, "pic1.png"), validHeader);
+        Assert.Equal(["pic0.png", "pic2.png", "pic3.png", "picture.png"], SonySdkProject.MissingPresentationPngs(Path.Combine(_root, "pngs")).Select(item => item.PngName));
     }
 
     [Fact]
@@ -220,17 +226,22 @@ public sealed class SonySdkFidelityTests : IDisposable
         var source = MakeTree();
         File.WriteAllBytes(Path.Combine(source, "sce_sys", "pic2.dds"), new byte[16]);
         File.WriteAllBytes(Path.Combine(source, "sce_sys", "pic0.dds"), new byte[16]);
+        // Các lần chuyển đổi chạy song song: gom lại có khoá và so theo tên, thứ tự gọi không cố định.
         var calls = new List<(string Dds, string Png, bool Alpha)>();
         void Convert(string dds, string png, bool alpha)
         {
-            calls.Add((Path.GetFileName(dds), png, alpha));
+            lock (calls)
+            {
+                calls.Add((Path.GetFileName(dds), png, alpha));
+            }
+
             File.WriteAllBytes(png, [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3]);
         }
 
         var work = SonySdkProject.RealPath(Path.Combine(_root, "rec"));
         var result = SonySdkProject.Create(source, Path.Combine(work, "game.gp5"), Passcode, path => path, SonySdkSourcePlan.Pure, ddsConverter: Convert);
 
-        Assert.Equal([("pic0.dds", Path.Combine(work, ".gp5-assets", "game", "sce_sys", "pic0.png"), false), ("pic2.dds", Path.Combine(work, ".gp5-assets", "game", "sce_sys", "pic2.png"), true)], calls);
+        Assert.Equal([("pic0.dds", Path.Combine(work, ".gp5-assets", "game", "sce_sys", "pic0.png"), false), ("pic2.dds", Path.Combine(work, ".gp5-assets", "game", "sce_sys", "pic2.png"), true)], calls.OrderBy(call => call.Dds, StringComparer.Ordinal));
         var lines = File.ReadAllLines(result.ProjectPath);
         var files = lines.Where(line => line.Contains("<file ", StringComparison.Ordinal)).Select(line => line.Split("dst_path=\"")[1].Split('"')[0]).ToList();
         Assert.Equal(["sce_sys/playgo-scenario.json", "sce_sys/pic0.png", "sce_sys/pic2.png"], files.Take(3));
@@ -254,6 +265,11 @@ public sealed class SonySdkFidelityTests : IDisposable
         }
 
         var source = MakeTree();
+        File.WriteAllText(
+            Path.Combine(source, "sce_sys", "playgo-scenario.json"),
+            "{\"scenarioCount\":2,\"scenarioDefaultId\":1,\"scenarioDefaultLanguage\":\"en-US\",\"scenarios\":[" +
+            "{\"id\":0,\"type\":\"playmode\",\"en-US\":{\"title\":\"Main <story> & more\",\"description\":\"d\"},\"fr-FR\":{\"title\":\"Histoire\"}}," +
+            "{\"id\":1,\"type\":\"playmode\",\"en-US\":{\"title\":\" Left Behind \"},\"ja-JP\":{\"title\":\"レフト\"}}]}");
         var pythonOut = SonySdkProject.RealPath(Path.Combine(_root, "py"));
         var sharpOut = SonySdkProject.RealPath(Path.Combine(_root, "cs"));
         Directory.CreateDirectory(pythonOut);
@@ -321,7 +337,17 @@ public sealed class SonySdkFidelityTests : IDisposable
         run.WaitForExit();
         Assert.True(run.ExitCode == 0, stderr);
 
-        var result = SonySdkProject.Create(source, Path.Combine(sharpOut, "game.gp5"), Passcode, path => path, SonySdkSourcePlan.Pure, ddsConverter: converter);
+        // Script fix6 luôn tạo 100 chunk + chunk ngôn ngữ từ playgo-scenario.json: phía C# dùng cùng bố cục (PlayGo dự phòng).
+        var playGo = SonySdkPlayGo.ScriptFallback(Path.Combine(source, "sce_sys"), SonySdkProject.DefaultLanguageOf(Path.Combine(source, "sce_sys", "param.json")), out var scenarioWarning);
+        Assert.Null(scenarioWarning);
+        var result = SonySdkProject.Create(source, Path.Combine(sharpOut, "game.gp5"), Passcode, path => path, SonySdkSourcePlan.Pure with { PlayGo = playGo }, ddsConverter: converter);
+        Assert.Equal(3, result.PlayGoLanguagePayloads);
+        foreach (var payload in playGo.LanguagePayloads)
+        {
+            var relative = payload.Destination.Replace('/', Path.DirectorySeparatorChar);
+            Assert.Equal(new FileInfo(Path.Combine(pythonOut, ".gp5-assets", "game", relative)).Length, new FileInfo(Path.Combine(sharpOut, ".gp5-assets", "game", relative)).Length);
+        }
+
         // Python trên macOS/Linux ghi "\n", trên Windows ghi "\r\n": chuẩn là bộ công cụ chạy trên Windows.
         var expectedGp5 = Crlf(File.ReadAllText(Path.Combine(pythonOut, "game.gp5"))).Replace(SonySdkProject.EscapeAttribute(pythonOut), SonySdkProject.EscapeAttribute(sharpOut));
         Assert.Equal(expectedGp5, File.ReadAllText(result.ProjectPath));

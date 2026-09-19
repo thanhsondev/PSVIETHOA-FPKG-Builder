@@ -177,3 +177,21 @@ Mới: `libs/sony-sdk/` (toolkit fixdss3), `scripts/fetch-wine.sh`, `scripts/gen
 
 - Đã gộp toàn bộ working tree từ máy Windows (prescan Defender, CRLF, mức nén opt-in, PlayGo fallback, lỗi tên tệp, `*.url` rác, 281 test) vào repo Mac; nghiên cứu ở `docs/research/`, script ở `scripts/research/`.
 - Linux: `scripts/publish-linux.sh` (linux-x64, linux-arm64 → `.tar.gz` gồm `app/`, `fpkg-cli/`, `sony-sdk/`, `install-desktop-entry.sh`, `README-Linux.txt`); `SonySdkToolchain.FindWine` thêm wine64 / /opt/wine-* / PATH; `UpdateChecker` nhận `Linux-x64`/`Linux-arm64` + `.tar.gz`; `SleepInhibitor` dùng `systemd-inhibit`; `Comp.SleepSystemd`; chuỗi "macOS, Windows & Linux". Chưa chạy thử trên máy Linux thật (Mac không có Docker) — cần test: mở app (X11/XWayland), `fpkg-cli info` thấy dòng Sony SDK + Wine, build 1 game nhỏ qua Wine.
+
+
+---
+
+## 11. 2.3.0 — hàng chờ + đo hiệu năng SDK trên Mac (18–19/09)
+
+- Hàng chờ (QueueViewModel/QueueView), sửa ping-pong 3 nút chế độ, `origin-param.json`/`target-param.json` (reserved), pic*.png hỏng → khôi phục từ .dds, khôi phục PNG **song song**.
+- Đo trên Mac (M-series, Wine 11.17) với `/Users/nguyenthanhson/Downloads/PPSA21607-app` (The Smurfs – Dreams, 79 tệp, 9,5 GB, thiếu 9 pic*.png, mức nén 4): trước 1 min 57 s ([1/3] GP5 50 s vì 9× prospero-dds2png tuần tự ~5 s/ảnh 4K BC7; img_create 67 s), sau khi song song hoá 32 s ([1/3] 7 s; img_create 24 s với cache đĩa nóng). Engine tích hợp mức 4: 82 s.
+- Không phải thủ phạm: xoá quarantine (0,03 s), khởi động Wine (0,7 s). SDK gọi WinHTTP tới `sdk-ps.dl.playstation.net` mỗi lần img_create (kiểm tra phiên bản); `winhttp=d` làm exe không chạy (exit 53) → không chặn được bằng override; trên máy có mạng chi phí không đáng kể, máy offline có thể chờ timeout.
+- `img_create --help` không có tuỳ chọn cache/luồng; SDK tự mã hoá lại PNG→DDS (ispc_texcomp) bên trong img_create, không tránh được.
+- Dòng stdout của SDK bị buffer theo khối nên mốc thời gian "Creating an image…/Checking files" trong log app không phản ánh thời điểm thật; tin `02-img-create.log` (elapsed).
+
+## 12. 2.3.0-test5 — toolkit fix6 (19/09)
+
+- `libs/sony-sdk` = `sdk-fpkg279-fix6` (profile direct-v3): exe vá ghi thẳng PLAINTEXT_NOAUTH (`SonySdkConverter.IsAlreadyPlaintext` → bỏ pha 3, converter giữ làm dự phòng), gói tạm `.partial.pkg`.
+- PlayGo lai: có bảng gốc → `SonySdkPlayGo.TryRead` như cũ; không có → `SonySdkPlayGo.ScriptFallback` (100 chunk, mỗi ngôn ngữ 1 chunk + tệp giữ chỗ 1 MiB `playgo-languages/NN-lang.bin` với `pfs_compression="disable"`, `layer_no="0"`, `chunk="0"` tường minh, kịch bản "0-99") — GP5/scenario/param giống từng byte script mới (test so trực tiếp với Python).
+- Dọn `.gp5`/scenario/`.gp5-assets` sau khi xong (`SdkKeepIntermediate` / `--sdk-keep-intermediate` để giữ); TEMP/TMP của tiến trình SDK trên Windows = `<thư mục tạm>/sdk-tmp-xxxx`.
+- **CHƯA chạy build thật với fix6 sau các thay đổi này**: máy Mac lên macOS 27, Rosetta 2 mất (`/Library/Apple/usr/libexec/oah` chỉ còn RosettaLinux) → test SDK tự skip. Cần `softwareupdate --install-rosetta --agree-to-license` rồi chạy lại `dotnet test` + build Smurfs; hoặc test trên Windows.

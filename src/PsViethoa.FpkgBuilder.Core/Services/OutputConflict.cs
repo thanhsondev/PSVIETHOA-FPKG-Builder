@@ -20,17 +20,29 @@ public enum OutputConflictChoice
 public static class OutputConflict
 {
     /// <summary>Các tệp .pkg trong thư mục xuất thuộc về Content ID này (tên gói là &lt;contentId&gt;-A….pkg).</summary>
-    public static IReadOnlyList<string> Find(string outputFolder, string contentId)
+    /// <param name="namePrefix">Tiền tố tên gói của lượt này ("UPDATE_" cho bản vá) — chỉ tệp cùng tiền tố mới là trùng.</param>
+    /// <param name="exclude">Tệp không bao giờ được coi là trùng (gói gốc của bản vá: đổi tên/xoá nó là hỏng lượt tạo bản vá).</param>
+    public static IReadOnlyList<string> Find(string outputFolder, string contentId, string namePrefix = "", string? exclude = null)
     {
         if (string.IsNullOrWhiteSpace(outputFolder) || string.IsNullOrWhiteSpace(contentId) || !Directory.Exists(outputFolder))
         {
             return Array.Empty<string>();
         }
 
+        string? excluded = null;
+        try
+        {
+            excluded = string.IsNullOrWhiteSpace(exclude) ? null : Path.GetFullPath(exclude);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+        }
+
         try
         {
             return Directory.EnumerateFiles(outputFolder, "*.pkg", SearchOption.TopDirectoryOnly)
-                .Where(path => Path.GetFileName(path).StartsWith(contentId + "-", StringComparison.OrdinalIgnoreCase))
+                .Where(path => IsMatch(Path.GetFileName(path), contentId, namePrefix))
+                .Where(path => excluded == null || !string.Equals(Path.GetFullPath(path), excluded, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
         }
@@ -41,6 +53,19 @@ public static class OutputConflict
     }
 
     /// <summary>Đổi tên tệp cũ thành "&lt;tên&gt; (1).pkg" (tăng dần cho tới khi trống). Trả về tên mới, null nếu không đổi được.</summary>
+    /// <summary>
+    /// Gói thường: &lt;contentId&gt;-….pkg trừ gói đi kèm bản vá (.remastered.pkg). Bản vá (<paramref name="namePrefix"/> = "UPDATE_"):
+    /// UPDATE_&lt;contentId&gt;-….pkg và gói đi kèm &lt;contentId&gt;-….remastered.pkg của nó.
+    /// </summary>
+    private static bool IsMatch(string name, string contentId, string namePrefix)
+    {
+        var companion = name.EndsWith(SonySdkBuilder.CompanionExtension, StringComparison.OrdinalIgnoreCase);
+        var plain = name.StartsWith(contentId + "-", StringComparison.OrdinalIgnoreCase);
+        return namePrefix.Length == 0
+            ? plain && !companion
+            : name.StartsWith(namePrefix + contentId + "-", StringComparison.OrdinalIgnoreCase) || (plain && companion);
+    }
+
     public static string? KeepExisting(string path)
     {
         var folder = Path.GetDirectoryName(path);

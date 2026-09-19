@@ -17,14 +17,16 @@ namespace PsViethoa.FpkgBuilder.Core.Services;
 /// "Automatic downgrading of the required software version to the SDK-specified version". Engine chỉ tự hạ khi có chọn SDK;
 /// tuỳ chọn này làm điều tương tự khi giữ SDK của game. Không bao giờ nâng phiên bản lên.
 /// </param>
-public readonly record struct ParamJsonPatchOptions(bool ForceStandardDrm, bool ClearVersionFileUri, bool ClearPlayGoAttributes, bool LowerRequiredSystemVersion = false)
+/// <param name="ContentVersion">contentVersion mới (NN.NNN.NNN) khi người dùng đổi ô "Phiên bản" — cần cho bản vá; null = giữ của nguồn.</param>
+/// <param name="TitleName">titleName mới của ngôn ngữ mặc định khi người dùng đổi ô "Tên ứng dụng"; null = giữ của nguồn.</param>
+public readonly record struct ParamJsonPatchOptions(bool ForceStandardDrm, bool ClearVersionFileUri, bool ClearPlayGoAttributes, bool LowerRequiredSystemVersion = false, string? ContentVersion = null, string? TitleName = null)
 {
     public static readonly ParamJsonPatchOptions None = new(false, false, false);
 
     /// <summary>Chỉ ép DRM (mặc định của thư viện trước 2.1.7).</summary>
     public static readonly ParamJsonPatchOptions DrmOnly = new(true, false, false);
 
-    public bool Any => ForceStandardDrm || ClearVersionFileUri || ClearPlayGoAttributes || LowerRequiredSystemVersion;
+    public bool Any => ForceStandardDrm || ClearVersionFileUri || ClearPlayGoAttributes || LowerRequiredSystemVersion || !string.IsNullOrWhiteSpace(ContentVersion) || !string.IsNullOrWhiteSpace(TitleName);
 }
 
 /// <summary>
@@ -51,6 +53,8 @@ public sealed class ParamJsonPatch : IDisposable
     public const string VersionFileUriField = "versionFileUri";
 
     public const string Attribute3Field = "attribute3";
+
+    public const string ContentVersionField = "contentVersion";
 
     public const string SdkVersionField = "sdkVersion";
 
@@ -176,6 +180,33 @@ public sealed class ParamJsonPatch : IDisposable
         {
             node[RequiredSystemVersionField] = FormatHexVersion(target);
             applied.Add(Loc.F("Plan.PatchRequiredFw", FormatFirmware(required), FormatFirmware(target)));
+        }
+
+        // Phiên bản / tên do người dùng sửa ngay trong công cụ (khỏi mở param.json): chỉ ghi khi thật sự khác nguồn.
+        if (!string.IsNullOrWhiteSpace(options.ContentVersion))
+        {
+            var wanted = options.ContentVersion.Trim();
+            var current = ReadNonEmptyString(node, ContentVersionField);
+            var same = current != null && (current == wanted || (VersionHelper.TryCanonicalize(current, out var a) && VersionHelper.TryCanonicalize(wanted, out var b) && a == b));
+            if (!same)
+            {
+                node[ContentVersionField] = wanted;
+                applied.Add(Loc.F("Plan.PatchContentVersion", current ?? "—", wanted));
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.TitleName) &&
+            node["localizedParameters"] is JsonObject localized &&
+            localized["defaultLanguage"] is JsonValue languageValue && languageValue.TryGetValue<string>(out var language) &&
+            localized[language] is JsonObject block)
+        {
+            var wanted = options.TitleName.Trim();
+            var current = block["titleName"] is JsonValue titleValue && titleValue.TryGetValue<string>(out var text) ? text : null;
+            if (current != wanted)
+            {
+                block["titleName"] = wanted;
+                applied.Add(Loc.F("Plan.PatchTitle", language, current ?? "—", wanted));
+            }
         }
 
         return applied;

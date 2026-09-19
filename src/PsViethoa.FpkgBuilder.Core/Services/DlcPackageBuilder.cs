@@ -26,7 +26,11 @@ public sealed record DlcBuildResult(DlcEmuEntry Entry, string? OutputPath, long 
 /// </summary>
 public static class DlcPackageBuilder
 {
-    /// <summary>Tạo gói cho mọi mục NO_EXTRA_DATA; mục có dữ liệu riêng được bỏ qua kèm ghi chú.</summary>
+    /// <summary>
+    /// Tạo gói cho MỌI mục additional content của dlc_emu.ini (như PS5 DLC Converter của Lapy): NO_EXTRA_DATA → gói quyền rỗng; mục có
+    /// dữ liệu riêng (INSTALLED…) → đóng kèm thư mục <c>mount_point</c> của nó trong bản dump (<paramref name="sourceFolder"/>) khi
+    /// có, không thì vẫn tạo gói quyền kèm cảnh báo (nhiều game để dữ liệu DLC sẵn trong game, chỉ thiếu quyền — The Last of Us Part I).
+    /// </summary>
     public static IReadOnlyList<DlcBuildResult> BuildAll(
         IEnumerable<DlcEmuEntry> entries,
         string outputFolder,
@@ -34,7 +38,8 @@ public static class DlcPackageBuilder
         string? gameTitle,
         Action<LogEntry>? log,
         CancellationToken cancellationToken,
-        Func<IReadOnlyList<string>, OutputConflictChoice>? onOutputConflict = null)
+        Func<IReadOnlyList<string>, OutputConflictChoice>? onOutputConflict = null,
+        string? sourceFolder = null)
     {
         var results = new List<DlcBuildResult>();
         Directory.CreateDirectory(outputFolder);
@@ -56,15 +61,24 @@ public static class DlcPackageBuilder
         foreach (var entry in entries)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!entry.NoExtraData)
+            if (!entry.IsAdditionalContent)
             {
-                var skipped = Loc.F("Dlc.SkippedWithData", entry.ContentId, entry.DownloadStatus);
-                log?.Invoke(new LogEntry(LogLevel.Warning, skipped));
+                var skipped = Loc.F("Dlc.SkippedSection", entry.ContentId, entry.Section);
+                log?.Invoke(new LogEntry(LogLevel.Info, skipped));
                 results.Add(new DlcBuildResult(entry, null, 0, skipped));
                 continue;
             }
 
-            results.Add(BuildOne(entry, outputFolder, temporaryFolder, gameTitle, log, cancellationToken));
+            string? dataFolder = null;
+            if (!entry.NoExtraData)
+            {
+                dataFolder = entry.DataFolderIn(sourceFolder);
+                log?.Invoke(dataFolder != null
+                    ? new LogEntry(LogLevel.Info, Loc.F("Dlc.WithData", entry.ContentId, entry.DownloadStatus, dataFolder))
+                    : new LogEntry(LogLevel.Warning, Loc.F("Dlc.NoDataFolder", entry.ContentId, entry.DownloadStatus, entry.MountPoint ?? "—")));
+            }
+
+            results.Add(BuildOne(entry, outputFolder, temporaryFolder, gameTitle, log, cancellationToken, dataFolder));
         }
 
         return results;
@@ -76,7 +90,8 @@ public static class DlcPackageBuilder
         string temporaryFolder,
         string? gameTitle,
         Action<LogEntry>? log,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? dataFolder = null)
     {
         var titleId = ContentIdHelper.TitleIdOf(entry.ContentId);
         if (titleId == null)
@@ -87,14 +102,25 @@ public static class DlcPackageBuilder
         }
 
         var staging = Path.Combine(temporaryFolder, "dlc-" + entry.Label);
+        SourceMirror? mirror = null;
         try
         {
             Directory.CreateDirectory(staging);
+            var packageSource = staging;
+            if (dataFolder != null)
+            {
+                // Dữ liệu riêng của DLC: thư viện đọc qua thư mục gương (liên kết), param.json do thư viện tạo nằm trong gương —
+                // thư mục dữ liệu của người dùng không bị ghi thêm gì.
+                mirror = SourceMirror.Create(dataFolder, temporaryFolder, new MirrorPlan(Array.Empty<string>(), new Dictionary<string, byte[]>(), new Dictionary<string, string>(), new[] { "sce_sys" }), log ?? (_ => { }), force: true)
+                         ?? throw new IOException(Loc.F("Dlc.MirrorFailed", dataFolder));
+                packageSource = mirror.Path;
+            }
+
             var options = new ProsperoBuildOptions
             {
                 Mode = ProsperoPackageMode.AdditionalContentData,
                 OutputFormat = ProsperoOutputFormat.DebugImage,
-                SourceFolder = staging,
+                SourceFolder = packageSource,
                 OutputFolder = outputFolder,
                 TemporaryDirectory = temporaryFolder,
                 ContentId = entry.ContentId,
@@ -124,6 +150,7 @@ public static class DlcPackageBuilder
         }
         finally
         {
+            mirror?.Dispose();
             try
             {
                 if (Directory.Exists(staging))

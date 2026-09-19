@@ -281,7 +281,8 @@ internal static class CommandLine
         }
 
         var title = arguments.Get("title", "t");
-        var results = DlcPackageBuilder.BuildAll(entries, output, temp, title, e => Console.WriteLine("  " + e.Message), CancellationToken.None, ConflictPrompt(arguments));
+        var dlcSource = Directory.Exists(source) ? source : File.Exists(source) && source.EndsWith(".ini", StringComparison.OrdinalIgnoreCase) ? Path.GetDirectoryName(Path.GetFullPath(source)) : null;
+        var results = DlcPackageBuilder.BuildAll(entries, output, temp, title, e => Console.WriteLine("  " + e.Message), CancellationToken.None, ConflictPrompt(arguments), dlcSource);
         var ok = results.Count(r => r.Success);
         Console.WriteLine(Loc.F("Cli.DlcSummary", ok, results.Count, Path.GetFullPath(output)));
         return ok == results.Count ? 0 : 2;
@@ -599,6 +600,46 @@ internal static class CommandLine
             }
         }
 
+        // --version / --title ghi vào param.json của gói SDK (contentVersion, titleName) khi khác nguồn.
+        request.SdkApplyPackageDetails = arguments.Get("version", "v") != null || arguments.Get("title", "t") != null;
+
+        if (arguments.Get("sdk-reference") is { } sdkReference && !string.IsNullOrWhiteSpace(sdkReference))
+        {
+            request.SdkReferencePackage = sdkReference;
+
+            // Nguồn thiếu tệp so với gói gốc (thư mục update) thì công cụ tự lấy tệp thiếu từ gói gốc; --sdk-base-folder = đọc chúng từ thư mục
+            // game gốc thay vì giải nén; --sdk-patch-exact = coi nguồn là bản đầy đủ (tệp thiếu = đã xoá), như bộ công cụ gốc.
+            var baseFolder = arguments.Get("sdk-base-folder");
+            request.SdkPatchBaseFolder = string.IsNullOrWhiteSpace(baseFolder) ? null : baseFolder;
+            request.SdkPatchExactSource = arguments.Has("sdk-patch-exact");
+            // --sdk-patch-output update|full|both: giữ lại tệp nào (mặc định both).
+            request.SdkPatchOutput = (arguments.Get("sdk-patch-output") ?? "both").Trim().ToLowerInvariant() switch
+            {
+                "update" or "delta" => SdkPatchOutput.UpdateOnly,
+                "full" or "remastered" => SdkPatchOutput.FullOnly,
+                _ => SdkPatchOutput.Both,
+            };
+            {
+                if (string.IsNullOrWhiteSpace(request.ContentId))
+                {
+                    // Thư mục update không có param.json: Content ID lấy từ gói gốc.
+                    try
+                    {
+                        request.ContentId = SonySdkPatchReference.Inspect(sdkReference, request.Passcode, CancellationToken.None).ContentId ?? string.Empty;
+                    }
+                    catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+                    {
+                        Console.Error.WriteLine("  ! " + ex.Message);
+                    }
+                }
+            }
+        }
+
+        if (arguments.Has("sdk-keep-intermediate"))
+        {
+            request.SdkKeepIntermediate = true;
+        }
+
         if (arguments.Has("no-sdk-prescan"))
         {
             request.SdkPrescan = false;
@@ -681,6 +722,33 @@ internal static class CommandLine
             }
         }
 
+        // --sdk-build-base: gói gốc là gói BASE sắp tạo từ --sdk-base-folder; Content ID của thư mục update không có param.json lấy từ đó.
+        SourceMetadata? buildBaseMetadata = null;
+        if (arguments.Has("sdk-build-base"))
+        {
+            var folder = arguments.Get("sdk-base-folder");
+            if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+            {
+                Console.Error.WriteLine(Loc.T("Update.NeedsBaseFolder"));
+                return 2;
+            }
+
+            buildBaseMetadata = MetadataReader.Read(folder, CancellationToken.None);
+            if (string.IsNullOrWhiteSpace(buildBaseMetadata.ContentId))
+            {
+                Console.Error.WriteLine(Loc.F("Patch.BaseFolderInvalid", folder));
+                return 2;
+            }
+
+            if (string.IsNullOrEmpty(request.ContentId))
+            {
+                request.ContentId = buildBaseMetadata.ContentId;
+            }
+
+            request.SdkPatchBaseFolder = folder;
+            request.SdkReferencePackage = Path.Combine(output, SonySdkBuilder.PackageFileName(buildBaseMetadata.ContentId, VersionHelper.CanonicalOrDefault(buildBaseMetadata.Version)));
+        }
+
         if (string.IsNullOrEmpty(request.ContentId) && metadata != null)
         {
             request.ContentId = ContentIdHelper.Suggest(metadata.TitleId, request.Title);
@@ -710,6 +778,35 @@ internal static class CommandLine
 
         var renderer = new ConsoleProgressRenderer(quiet);
         var engine = new BuildEngine();
+
+        // --sdk-build-base (cùng --sdk-base-folder): tạo gói BASE từ thư mục game gốc trước, rồi tạo gói UPDATE từ nguồn so với chính gói
+        // base đó — một lượt ra cả hai, không giải nén gì vì tệp không đổi được đọc từ thư mục game gốc.
+        if (buildBaseMetadata is { } baseMetadata)
+        {
+            var baseFolder = request.SdkPatchBaseFolder!;
+            var baseRequest = request.Clone();
+            baseRequest.SourcePath = baseFolder;
+            baseRequest.ContentId = baseMetadata.ContentId ?? string.Empty;
+            baseRequest.Title = baseMetadata.Title ?? string.Empty;
+            baseRequest.Version = VersionHelper.CanonicalOrDefault(baseMetadata.Version);
+            baseRequest.SdkApplyPackageDetails = false;
+            baseRequest.SdkReferencePackage = null;
+            baseRequest.SdkPatchBaseFolder = null;
+            Console.WriteLine(Loc.F("Update.StepBase", baseFolder));
+            var baseOutcome = await engine.BuildAsync(baseRequest, renderer.Log, new Progress<BuildProgress>(renderer.Update), cancellation.Token, _ => false, ConflictPrompt(arguments));
+            renderer.Finish();
+            Console.WriteLine(Loc.F("Update.BaseDone", Path.GetFileName(baseOutcome.OutputPath), Formatters.Size(baseOutcome.Verification.Length), Formatters.Duration(baseOutcome.Elapsed)));
+            request.SdkReferencePackage = baseOutcome.OutputPath;
+            request.SdkPatchBaseFolder = baseFolder;
+            if (string.IsNullOrWhiteSpace(request.ContentId))
+            {
+                request.ContentId = baseRequest.ContentId;
+            }
+
+            Console.WriteLine(Loc.F("Update.StepUpdate", request.SourcePath));
+            renderer = new ConsoleProgressRenderer(quiet);
+        }
+
         var outcome = await engine.BuildAsync(
             request,
             renderer.Log,
