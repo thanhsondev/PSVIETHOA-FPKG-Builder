@@ -94,7 +94,13 @@
         </Style>
     </UserControl.Styles>
 
-    <Grid ColumnDefinitions="580,18,*" Margin="22,18,22,12">
+    <!-- Như tab Tạo gói: chia theo tỉ lệ có chặn để cửa sổ hẹp không cắt cột thông tin gói. -->
+    <Grid Margin="22,18,22,12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="5*" MinWidth="420" MaxWidth="600" />
+            <ColumnDefinition Width="18" />
+            <ColumnDefinition Width="6*" MinWidth="360" />
+        </Grid.ColumnDefinitions>
 
         <!-- ~~~ CỘT TRÁI: BƯỚC 1, BƯỚC 2, THÔNG TIN GÓI ~~~ -->
         <ScrollViewer Grid.Column="0" Name="InfoScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">

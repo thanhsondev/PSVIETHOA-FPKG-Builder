@@ -78,6 +78,9 @@ public sealed class AppSettings
     /// </summary>
     public int PlayGoDefaultsRevision { get; set; }
 
+    /// <summary>Phiên bản mặc định PlayGo hiện tại: 1 = 100 khối (0.6.8), 2 = attribute3 tắt (2.2.1), 3 = giữ playgo* của nguồn (2.2.6).</summary>
+    public const int CurrentPlayGoDefaultsRevision = 3;
+
     /// <summary>Hạ requiredSystemSoftwareVersion về SDK của game khi tạo gói (mặc định bật, theo fpkg-gui 0.6.8).</summary>
     public bool LowerRequiredFirmware { get; set; } = true;
 
@@ -126,8 +129,14 @@ public sealed class AppSettings
     /// <summary>Tự kiểm tra bản mới trên GitHub Releases khi khởi động (tối đa một lần mỗi 6 giờ).</summary>
     public bool CheckUpdatesOnStartup { get; set; } = true;
 
-    /// <summary>Bỏ sce_sys/playgo* của bản dump khỏi gói để thư viện tạo bộ PlayGo mới (mặc định bật).</summary>
-    public bool RemovePlayGoFiles { get; set; } = true;
+    /// <summary>Bỏ sce_sys/playgo* của bản dump khỏi gói để thư viện tạo bộ PlayGo mới (mặc định tắt từ 2.2.6 — engine 0.6.11 giữ bố cục nguồn).</summary>
+    public bool RemovePlayGoFiles { get; set; }
+
+    /// <summary>Engine tích hợp: giữ bố cục PlayGo của nguồn (mặc định); tắt = tạo theo <see cref="PlayGoLanguages"/>.</summary>
+    public bool PreserveSourcePlayGoLayout { get; set; } = true;
+
+    /// <summary>Ngôn ngữ PlayGo đã chọn cho chế độ "tạo theo ngôn ngữ"; null = mọi ngôn ngữ.</summary>
+    public List<string>? PlayGoLanguages { get; set; }
 
     /// <summary>Giữ bộ giả lập DLC (dlc_emu.ini + module fakelib) trong gói (mặc định bật); tắt = dọn khỏi gói.</summary>
     public bool KeepDlcEmu { get; set; } = true;

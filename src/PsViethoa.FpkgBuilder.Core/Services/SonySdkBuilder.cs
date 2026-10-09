@@ -350,7 +350,8 @@ public static class SonySdkBuilder
                     },
                     cancellationToken,
                     temporaryFolder: sdkTemp,
-                    referencePackagePath: referencePath).ConfigureAwait(false);
+                    referencePackagePath: referencePath,
+                    threads: request.LiveThreads ?? (() => request.Threads)).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {

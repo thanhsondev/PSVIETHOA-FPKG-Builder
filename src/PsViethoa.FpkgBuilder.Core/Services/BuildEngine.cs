@@ -320,6 +320,9 @@ public sealed class BuildEngine
                 options.SourceFolder = System.IO.Path.GetDirectoryName(gp5Project.Path)!;
             }
 
+            // Bố cục PlayGo engine sẽ dùng: kiểm tra trước (bảng nguồn hỏng thì engine chỉ dừng sau khi nén xong) và ghi nhật ký.
+            await Task.Run(() => PlanPlayGo(options, log), cancellationToken).ConfigureAwait(false);
+
             // Đĩa đầy giữa chừng: thư viện 0.6.5 cho phép tạm dừng, chờ người dùng giải phóng dung lượng rồi thử lại thay vì huỷ.
             using var diskRecovery = diskFullRetry != null
                 ? ProsperoDiskSpaceRecovery.BeginScope(info =>
@@ -1311,6 +1314,10 @@ public sealed class BuildEngine
             },
             PublishingToolsLibraryPath = backend == KrakenBackendKind.PublishingTools ? publishingToolsPath : null,
             PlayGoChunkCount = request.PlayGoChunks,
+            // Engine 0.6.11: giữ bố cục PlayGo của nguồn (mặc định), hoặc "tạo theo ngôn ngữ" với danh sách người dùng chọn.
+            PreserveSourcePlayGoLayout = request.PreserveSourcePlayGoLayout,
+            OverrideSourcePlayGoLanguages = !request.PreserveSourcePlayGoLayout,
+            PlayGoLanguageMask = PlayGoLanguageMask(request),
             SdkVersionOverride = request.SdkMajorOverride is { } major ? SdkVersions.Get(major)?.ExecutableVersion : null,
             PublisherImageMode = request.ImageMode == OuterImageMode.Native
                 ? ProsperoPublisherImageMode.Native
@@ -1337,6 +1344,67 @@ public sealed class BuildEngine
             },
             ProjectFilePath = request.SourceMode == SourceMode.Gp5Project ? request.ProjectFilePath : null,
         };
+    }
+
+    /// <summary>Mask ngôn ngữ PlayGo cho engine: mọi ngôn ngữ khi giữ bố cục nguồn hoặc không chọn ngôn ngữ nào.</summary>
+    public static ulong PlayGoLanguageMask(BuildRequest request) =>
+        request.PreserveSourcePlayGoLayout || request.PlayGoLanguages is not { Count: > 0 } languages
+            ? ulong.MaxValue
+            : LibProsperoPkg.PlayGo.ProsperoPlayGoLanguages.FromCodes(languages);
+
+    /// <summary>
+    /// Giải bố cục PlayGo đúng như engine sẽ làm (<c>ResolvePlayGoConfiguration</c>) để ghi nhật ký: giữ bảng của nguồn hay tạo mới,
+    /// số chunk/kịch bản, ngôn ngữ. Bảng nguồn không dùng được thì chuyển sang bố cục tạo mới (có cảnh báo) thay vì để engine dừng sau
+    /// khi đã nén; vẫn lỗi thì dừng ngay với lý do.
+    /// </summary>
+    private static void PlanPlayGo(ProsperoBuildOptions options, Action<LogEntry> log)
+    {
+        LibProsperoPkg.PKG.ProsperoPkgBuilder.PlayGoSourceConfiguration Resolve() =>
+            LibProsperoPkg.PKG.ProsperoPkgBuilder.ResolvePlayGoConfiguration(
+                options.SourceFolder,
+                options.PlayGoChunkCount,
+                options.SourceMode,
+                options.ProjectFilePath,
+                options.PreserveSourcePlayGoLayout && options.UsePublisherPprNaps,
+                !options.OverrideSourcePlayGoLanguages && options.PlayGoLanguageMask == ulong.MaxValue ? null : options.PlayGoLanguageMask);
+
+        LibProsperoPkg.PKG.ProsperoPkgBuilder.PlayGoSourceConfiguration configuration;
+        try
+        {
+            configuration = Resolve();
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IOException or ArgumentException && options.PreserveSourcePlayGoLayout)
+        {
+            log(new LogEntry(LogLevel.Warning, Loc.F("Plan.PlayGoSourceInvalid", ex.Message)));
+            options.PreserveSourcePlayGoLayout = false;
+            try
+            {
+                configuration = Resolve();
+            }
+            catch (Exception retry) when (retry is InvalidDataException or IOException or ArgumentException)
+            {
+                throw new InvalidDataException(Loc.F("Plan.PlayGoUnusable", retry.Message), retry);
+            }
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IOException or ArgumentException)
+        {
+            throw new InvalidDataException(Loc.F("Plan.PlayGoUnusable", ex.Message), ex);
+        }
+
+        var languages = configuration.ChunkLanguageMask is { } mask && mask != ulong.MaxValue
+            ? string.Join(", ", LibProsperoPkg.PlayGo.ProsperoPlayGoLanguages.Supported.Where(language => (language.Mask & mask) != 0).Select(language => language.Code))
+            : Loc.T("PlayGo.AllLanguages");
+        log(new LogEntry(LogLevel.Info, Loc.F(
+            configuration.SourceLayout != null ? "Plan.PlayGoSourceLayout" : options.OverrideSourcePlayGoLanguages ? "Plan.PlayGoLanguageLayout" : "Plan.PlayGoGeneratedLayout",
+            configuration.Counts.ChunkCount,
+            configuration.Counts.ScenarioCount,
+            languages,
+            Loc.T(configuration.PreservesScenarioPresentation ? "PlayGo.ScenarioKept" : "PlayGo.ScenarioGenerated"))));
+        if (configuration.SourceLayout == null && !configuration.HasSourceChunkCount && options.PreserveSourcePlayGoLayout)
+        {
+            // Bản dump đã mất bảng gốc: lấy playgo*.dat từ gói _sc của game (prosperopatches) bỏ vào sce_sys là chia chunk lại được.
+            log(new LogEntry(LogLevel.Info, Loc.T("Plan.PlayGoNoSourceTable")));
+        }
     }
 
     private static string FileSystemLabel(string folder) =>

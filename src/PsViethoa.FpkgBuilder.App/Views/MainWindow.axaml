@@ -9,7 +9,7 @@
         x:DataType="vm:MainViewModel"
         Title="{Binding WindowTitle}"
         Icon="avares://PsViethoa.FpkgBuilder.App/Assets/icon-256.png"
-        Width="1320" Height="880" MinWidth="1080" MinHeight="700"
+        Width="1320" Height="880" MinWidth="960" MinHeight="620"
         WindowStartupLocation="CenterScreen"
         DragDrop.AllowDrop="True">
 
@@ -78,13 +78,14 @@
 
             <!-- ============ HEADER ============ -->
             <Border Grid.Row="0" Background="{DynamicResource HeaderBrush}" Padding="22,12">
-                <Grid ColumnDefinitions="Auto,*,Auto">
-                    <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+                <!-- Cột trái co lại (mô tả/credits cắt "…") để nhóm nút bên phải không bao giờ bị đẩy ra ngoài cửa sổ hẹp. -->
+                <Grid ColumnDefinitions="*,16,Auto">
+                    <Grid ColumnDefinitions="Auto,14,*" VerticalAlignment="Center">
                         <Image Source="avares://PsViethoa.FpkgBuilder.App/Assets/icon-128.png" Width="40" Height="40" />
-                        <StackPanel Spacing="1" VerticalAlignment="Center">
+                        <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                 <TextBlock Text="PSVIETHOA FPKG Builder" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC" LineHeight="24" />
-                                <Border Background="#1AFFFFFF" BorderBrush="#2EFFFFFF" BorderThickness="1" CornerRadius="6" Padding="6,1" VerticalAlignment="Center" ToolTip.Tip="{Binding AppVersionText}">
+                                <Border Name="HeaderVersionBadge" Background="#1AFFFFFF" BorderBrush="#2EFFFFFF" BorderThickness="1" CornerRadius="6" Padding="6,1" VerticalAlignment="Center" ToolTip.Tip="{Binding AppVersionText}">
                                     <TextBlock Text="{Binding HeaderVersion}" FontSize="11.5" FontWeight="SemiBold" Foreground="#CBD5E1" />
                                 </Border>
                                 <Button Classes="link" IsVisible="{Binding UpdateAvailable}" Command="{Binding OpenUpdateCommand}" ToolTip.Tip="{l:T Update.BannerTip}" Padding="0" VerticalAlignment="Center">
@@ -97,24 +98,24 @@
                                 </Button>
                             </StackPanel>
                             <TextBlock Text="{l:T App.Tagline}" FontSize="12.5" Foreground="#94A3B8" LineHeight="18" TextTrimming="CharacterEllipsis" />
-                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,2,0,0">
+                            <Grid ColumnDefinitions="Auto,6,*" Margin="0,2,0,0">
                                 <PathIcon Classes="sm" Data="{StaticResource IconSparkle}" Foreground="#4ADE80" Width="12" Height="12" VerticalAlignment="Center" />
-                                <TextBlock Text="{l:T App.HeaderCredits}" FontSize="12" FontWeight="Medium" Foreground="#CBD5E1" LineHeight="16" VerticalAlignment="Center" />
-                            </StackPanel>
+                                <TextBlock Grid.Column="2" Text="{l:T App.HeaderCredits}" FontSize="12" FontWeight="Medium" Foreground="#CBD5E1" LineHeight="16" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            </Grid>
                         </StackPanel>
-                    </StackPanel>
+                    </Grid>
 
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                         <Border Classes="chip success" IsVisible="{Binding KeysAvailable}" ToolTip.Tip="{l:T Header.KeysReadyTip}">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <PathIcon Classes="sm success" Data="{StaticResource IconKey}" />
-                                <TextBlock Text="{l:T Header.KeysReady}" />
+                                <TextBlock Name="KeysReadyText" Text="{l:T Header.KeysReady}" />
                             </StackPanel>
                         </Border>
                         <Border Classes="chip danger" IsVisible="{Binding !KeysAvailable}">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <PathIcon Classes="sm danger" Data="{StaticResource IconAlert}" />
-                                <TextBlock Text="{l:T Header.KeysMissing}" />
+                                <TextBlock Name="KeysMissingText" Text="{l:T Header.KeysMissing}" />
                             </StackPanel>
                         </Border>
                         <Border Background="#1AFFFFFF" BorderBrush="#2EFFFFFF" BorderThickness="1" CornerRadius="8" Padding="3" ToolTip.Tip="{l:T Header.LanguageTip}">
@@ -139,7 +140,7 @@
                         <Button Classes="header" Name="HelpButton" Click="Help_Click" ToolTip.Tip="{l:T Header.HelpTip}">
                             <StackPanel Classes="btn">
                                 <PathIcon Data="{StaticResource IconHelp}" />
-                                <TextBlock Text="{l:T Header.Help}" />
+                                <TextBlock Name="HelpText" Text="{l:T Header.Help}" />
                             </StackPanel>
                         </Button>
                     </StackPanel>
@@ -182,7 +183,13 @@
                 </Border>
             </Border>
 
-            <Grid Grid.Row="2" ColumnDefinitions="580,18,*" Margin="22,18,22,12" IsVisible="{Binding ShowBuildView}">
+            <!-- Chia theo tỉ lệ có chặn: cửa sổ hẹp thì cột cấu hình co tới 420, cột tiến trình/nhật ký luôn còn ≥ 360. -->
+            <Grid Grid.Row="2" Margin="22,18,22,12" IsVisible="{Binding ShowBuildView}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="5*" MinWidth="420" MaxWidth="600" />
+                    <ColumnDefinition Width="18" />
+                    <ColumnDefinition Width="6*" MinWidth="360" />
+                </Grid.ColumnDefinitions>
 
                 <!-- ~~~ CỘT TRÁI: CẤU HÌNH ~~~ -->
                 <ScrollViewer Grid.Column="0" Name="SettingsScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsEnabled="{Binding CanEdit}">
@@ -841,9 +848,9 @@
                                     </Grid>
 
                                     <Grid ColumnDefinitions="*,14,*">
-                                        <StackPanel Classes="field" IsEnabled="{Binding CompressionEnabled}">
+                                        <StackPanel Classes="field" IsEnabled="{Binding ThreadsEnabled}">
                                             <TextBlock Classes="label" Text="{l:T Advanced.Threads}" />
-                                            <NumericUpDown Name="ThreadsBox" Minimum="0" Maximum="256" Increment="1" FormatString="0" Value="{Binding Threads, Mode=TwoWay}" />
+                                            <NumericUpDown Name="ThreadsBox" Minimum="1" Maximum="{Binding ProcessorCount}" Increment="1" FormatString="0" Value="{Binding Threads, Mode=TwoWay}" />
                                             <TextBlock Classes="hint" Text="{Binding ThreadsHint}" />
                                             <TextBlock Classes="error" Text="{Binding ThreadsError}" IsVisible="{Binding ThreadsError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
                                         </StackPanel>
@@ -854,6 +861,36 @@
                                             <TextBlock Classes="error" Text="{Binding PlayGoError}" IsVisible="{Binding PlayGoError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
                                         </StackPanel>
                                     </Grid>
+
+                                    <!-- Engine 0.6.11: giữ bố cục PlayGo của nguồn, hoặc tạo theo danh sách ngôn ngữ (như fpkg-gui) -->
+                                    <StackPanel Classes="field" IsEnabled="{Binding EngineOptionsEnabled}">
+                                        <TextBlock Classes="label" Text="{l:T Advanced.PlayGoLayout}" />
+                                        <ComboBox Name="PlayGoLayoutCombo" ItemsSource="{Binding PlayGoLayoutOptions}" SelectedIndex="{Binding PlayGoLayoutIndex, Mode=TwoWay}" HorizontalAlignment="Stretch" />
+                                        <TextBlock Classes="hint" Text="{l:T Advanced.PlayGoLayoutHint}" TextWrapping="Wrap" />
+                                        <Expander Margin="0,4,0,0" HorizontalAlignment="Stretch" IsEnabled="{Binding PlayGoLanguagesEnabled}">
+                                            <Expander.Header>
+                                                <TextBlock Text="{Binding PlayGoLanguagesSummary}" />
+                                            </Expander.Header>
+                                            <StackPanel Spacing="8">
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <Button Classes="ghost" Content="{l:T Advanced.PlayGoLanguagesSelectAll}" Command="{Binding SelectAllPlayGoLanguagesCommand}" />
+                                                    <Button Classes="ghost" Content="{l:T Advanced.PlayGoLanguagesSelectNone}" Command="{Binding SelectNoPlayGoLanguagesCommand}" />
+                                                </StackPanel>
+                                                <ItemsControl ItemsSource="{Binding PlayGoLanguageOptions}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <WrapPanel ItemSpacing="12" />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:PlayGoLanguageOption">
+                                                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}" Content="{Binding Label}" FontSize="12.5" MinWidth="220" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Expander>
+                                    </StackPanel>
 
                                     <StackPanel Classes="field" IsEnabled="{Binding EngineOptionsEnabled}">
                                         <TextBlock Classes="label" Text="{l:T Advanced.Sdk}" />
@@ -1043,6 +1080,13 @@
                                 </Grid>
                             </Border>
 
+                            <!-- SDK Sony: số nhân img_create được dùng — mặc định tối đa, hạ/tăng được cả khi đang build (vùng này không bị khoá) -->
+                            <Grid ColumnDefinitions="Auto,10,120,10,*" IsVisible="{Binding SdkActive}">
+                                <TextBlock Classes="small" Text="{l:T Build.CpuCores}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <NumericUpDown Grid.Column="2" Name="CpuCoresBox" Minimum="1" Maximum="{Binding ProcessorCount}" Increment="1" FormatString="0" Value="{Binding Threads, Mode=TwoWay}" />
+                                <TextBlock Grid.Column="4" Classes="xs muted" Text="{Binding CpuCoresHint}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            </Grid>
+
                             <Grid ColumnDefinitions="*,10,Auto">
                                 <Button Name="BuildButton" Classes="primary" Command="{Binding BuildCommand}" IsVisible="{Binding !IsBuilding}" HorizontalAlignment="Stretch" ToolTip.Tip="{l:T Build.ButtonTip}">
                                     <StackPanel Classes="btn" HorizontalAlignment="Center">
@@ -1148,9 +1192,10 @@
 
             <!-- ============ FOOTER ============ -->
             <Border Grid.Row="3" Background="{DynamicResource BgElevatedBrush}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Padding="22,8">
-                <Grid ColumnDefinitions="*,Auto,Auto">
-                    <TextBlock Classes="small muted" Text="{Binding FooterStatusText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="1" Classes="small faint" Text="{Binding CreditsText}" VerticalAlignment="Center" Margin="0,0,18,0" />
+                <!-- Trạng thái và credits cùng co lại (cắt "…") để phiên bản bên phải luôn hiện đủ trên cửa sổ hẹp. -->
+                <Grid ColumnDefinitions="2*,3*,Auto">
+                    <TextBlock Classes="small muted" Text="{Binding FooterStatusText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,18,0" />
+                    <TextBlock Grid.Column="1" Classes="small faint" Text="{Binding CreditsText}" TextTrimming="CharacterEllipsis" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,18,0" ToolTip.Tip="{Binding CreditsText}" />
                     <TextBlock Grid.Column="2" Classes="small faint" Text="{Binding AppVersionText}" VerticalAlignment="Center" />
                 </Grid>
             </Border>

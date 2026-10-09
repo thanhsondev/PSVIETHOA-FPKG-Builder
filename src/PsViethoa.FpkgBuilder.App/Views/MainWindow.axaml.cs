@@ -24,6 +24,8 @@ public partial class MainWindow : Window
 
         DataContextChanged += (_, _) => AttachViewModel();
         Opened += OnOpened;
+        // Cửa sổ hẹp (MacBook 13", laptop 1366×768): chip "Khoá debug" chỉ còn biểu tượng để tên ứng dụng không bị đè.
+        SizeChanged += (_, e) => UpdateHeaderDensity(e.NewSize.Width);
         Closing += OnClosing;
     }
 
@@ -45,6 +47,21 @@ public partial class MainWindow : Window
         }
     }
 
+    private const double CompactHeaderWidth = 1240;
+
+    private const double TightHeaderWidth = 1040;
+
+    private void UpdateHeaderDensity(double width)
+    {
+        var full = width >= CompactHeaderWidth;
+        KeysReadyText.IsVisible = full;
+        KeysMissingText.IsVisible = full;
+        // Hẹp hơn nữa (gần mức tối thiểu 960): nhãn phiên bản (đã có ở thanh dưới) và chữ "Hướng dẫn" nhường chỗ.
+        var roomy = width >= TightHeaderWidth;
+        HeaderVersionBadge.IsVisible = roomy;
+        HelpText.IsVisible = roomy;
+    }
+
     private void OnOpened(object? sender, EventArgs e)
     {
         if (ViewModel == null)
@@ -53,14 +70,24 @@ public partial class MainWindow : Window
         }
 
         var (width, height) = ViewModel.SavedWindowSize;
-        var area = Screens.ScreenFromWindow(this)?.WorkingArea ?? Screens.Primary?.WorkingArea;
+        var screen = Screens.ScreenFromWindow(this) ?? Screens.Primary;
+        var area = screen?.WorkingArea;
         if (area != null)
         {
-            var scale = RenderScaling <= 0 ? 1 : RenderScaling;
-            var maxWidth = Math.Max(MinWidth, area.Value.Width / scale - 24);
-            var maxHeight = Math.Max(MinHeight, area.Value.Height / scale - 24);
+            // Vừa trọn vùng làm việc của màn hình (trừ thanh menu/Dock/taskbar) trên mọi hệ điều hành: màn hình nhỏ hơn mức tối thiểu
+            // (MacBook 13", laptop 1366×768) thì hạ luôn mức tối thiểu, rồi căn giữa lại để không phần nào nằm ngoài màn hình.
+            // Đổi đơn vị bằng tỉ lệ CỦA MÀN HÌNH, không phải RenderScaling: macOS báo WorkingArea theo point (Scaling = 1) trong khi
+            // RenderScaling của màn Retina là 2 — chia cho 2 làm cửa sổ chỉ còn nửa màn hình (đo 2026-10-10: 1512 pt → 732).
+            var scale = screen!.Scaling <= 0 ? 1 : screen.Scaling;
+            var maxWidth = area.Value.Width / scale - 24;
+            var maxHeight = area.Value.Height / scale - 24;
+            MinWidth = Math.Min(MinWidth, maxWidth);
+            MinHeight = Math.Min(MinHeight, maxHeight);
             Width = Math.Clamp(width, MinWidth, maxWidth);
             Height = Math.Clamp(height, MinHeight, maxHeight);
+            var x = area.Value.X + (int)Math.Round((area.Value.Width - Width * scale) / 2);
+            var y = area.Value.Y + (int)Math.Round((area.Value.Height - Height * scale) / 2);
+            Position = new Avalonia.PixelPoint(Math.Max(area.Value.X, x), Math.Max(area.Value.Y, y));
         }
 
         // Chụp giao diện ra tệp PNG rồi thoát (phục vụ tài liệu/kiểm thử): PSVIETHOA_SCREENSHOT=/duong/dan.png

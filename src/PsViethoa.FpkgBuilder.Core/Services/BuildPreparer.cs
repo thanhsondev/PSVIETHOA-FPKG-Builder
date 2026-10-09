@@ -257,6 +257,17 @@ public static class BuildPreparer
             errors.Add(new ValidationError(FieldPlayGo, Loc.T("Val.PlayGo")));
         }
 
+        if (!normalized.PreserveSourcePlayGoLayout && normalized.PlayGoLanguages is { Count: 0 })
+        {
+            errors.Add(new ValidationError(FieldPlayGo, Loc.T("Val.PlayGoLanguageNone")));
+        }
+
+        if (!normalized.PreserveSourcePlayGoLayout && normalized.PlayGoLanguages is { Count: > 0 } languages &&
+            languages.FirstOrDefault(code => !LibProsperoPkg.PlayGo.ProsperoPlayGoLanguages.Supported.Any(language => string.Equals(language.Code, code, StringComparison.OrdinalIgnoreCase))) is { } unknown)
+        {
+            errors.Add(new ValidationError(FieldPlayGo, Loc.F("Val.PlayGoLanguage", unknown, string.Join(", ", LibProsperoPkg.PlayGo.ProsperoPlayGoLanguages.Supported.Select(language => language.Code)))));
+        }
+
         if (normalized.SdkMajorOverride is { } sdk && sdk is < BuildRequest.MinSdkMajor or > BuildRequest.MaxSdkMajor)
         {
             errors.Add(new ValidationError(FieldSdk, Loc.T("Val.Sdk")));

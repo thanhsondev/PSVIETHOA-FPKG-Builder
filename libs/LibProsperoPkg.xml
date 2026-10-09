@@ -79,6 +79,12 @@
         <member name="P:LibProsperoPkg.Content.SelfExtInfo.Digest">
             <summary>SHA-256 of the original ELF file.</summary>
         </member>
+        <member name="T:LibProsperoPkg.Content.SelfRewritePlan">
+            <summary>Bounded rewrite needed to canonicalize an existing SELF without materializing it.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.Content.SelfRewritePlan.#ctor(System.Boolean,System.Boolean,System.Int64,System.Byte[])">
+            <summary>Bounded rewrite needed to canonicalize an existing SELF without materializing it.</summary>
+        </member>
         <member name="T:LibProsperoPkg.Content.SelfImage">
             <summary>A parsed SELF image.</summary>
             <param name="ProgramType">SCE header program/key type field.</param>
@@ -159,8 +165,9 @@
             <remarks>
             Layout (little-endian scalars):
             <list type="bullet">
-            <item>SCE header, 0x20 bytes: magic <c>0x1D3D154F</c>, version/mode/endian/attr bytes, program type,
-            header size, metadata size, file size, segment count, flags.</item>
+            <item>SCE header, 0x20 bytes: Prospero magic <c>0xEEF51454</c>, version/mode/endian/attr
+            bytes, program type, header size, metadata size, file size, segment count, flags. The reader
+            also accepts legacy Orbis magic <c>0x1D3D154F</c> for normalization.</item>
             <item>Segment table at 0x20, one 0x20-byte entry per segment: flags, file offset, file size, memory
             size. Content segments come in pairs (a zero-filled digest segment then the data segment).</item>
             <item>ELF header and program headers, copied verbatim.</item>
@@ -225,8 +232,18 @@
         </member>
         <member name="M:LibProsperoPkg.Content.ProsperoFself.TryBuildSelfSdkVersionPatch(System.IO.Stream,System.UInt64,System.Int64@,System.Byte[]@,System.Threading.CancellationToken)">
             <summary>
-            Locates a SELF's non-allocated .sceversion trailer and creates a same-size replacement.
+            Locates a SELF's non-allocated .sceversion trailer and creates an SDK-version replacement.
+            A trailer packed into the final 16-byte alignment window is moved to the exact
+            <c>Header.FileSize</c> boundary so Publishing Tools format validation accepts it.
             Only the small trailer is read; the executable payload is not materialized.
+            </summary>
+        </member>
+        <member name="M:LibProsperoPkg.Content.ProsperoFself.TryBuildSelfRewritePlan(System.IO.Stream,System.Nullable{System.UInt64},LibProsperoPkg.Content.SelfRewritePlan@,System.Threading.CancellationToken)">
+            <summary>
+            Builds the bounded rewrite plan for an existing SELF. Legacy Orbis magic is upgraded to
+            Prospero magic, and a valid <c>.sceversion</c> stream found up to 15 bytes before
+            <c>Header.FileSize</c> is shifted forward with zero padding. When requested, every version
+            tuple is replaced at the same time.
             </summary>
         </member>
         <member name="M:LibProsperoPkg.Content.ProsperoFself.Parse(System.ReadOnlySpan{System.Byte})">
@@ -3712,6 +3729,12 @@
         <member name="P:LibProsperoPkg.PFS.ProsperoOuterPfsBuildResult.BlockKinds">
             <summary>Per-block AES-XTS classification (Data / Signed / Plaintext), one entry per block.</summary>
         </member>
+        <member name="P:LibProsperoPkg.PFS.ProsperoOuterPfsBuildResult.BlockSectors">
+            <summary>
+            Explicit AES-XTS sector for each block. NAPS data sectors come from
+            <c>naps_pkg_layout.dat</c>; signed metadata retains bit 47 | physical block index.
+            </summary>
+        </member>
         <member name="P:LibProsperoPkg.PFS.ProsperoOuterPfsBuildResult.SuperblockIndex">
             <summary>Index of the plaintext metadata (superblock) block.</summary>
         </member>
@@ -3827,14 +3850,14 @@
             Builds the plaintext outer-PFS image (assembled + signed, not yet encrypted) for the given
             ordered outer <paramref name="files"/>. The metadata inodes/dirents/FLT and the superblock
             (including all SHA3-256 block hashes and the ICV) are produced here. Use
-            <see cref="M:LibProsperoPkg.PFS.ProsperoOuterPfsBuilder.Encrypt(LibProsperoPkg.PFS.ProsperoOuterPfsBuildResult,System.ReadOnlySpan{System.Byte},System.ReadOnlySpan{System.Byte})"/> (or <see cref="T:LibProsperoPkg.PFS.ProsperoOuterPfsImage"/>'s block-kinds <c>Transform</c>
-            overload with the returned <see cref="P:LibProsperoPkg.PFS.ProsperoOuterPfsBuildResult.BlockKinds"/>) to encrypt.
+            <see cref="M:LibProsperoPkg.PFS.ProsperoOuterPfsBuilder.Encrypt(LibProsperoPkg.PFS.ProsperoOuterPfsBuildResult,System.ReadOnlySpan{System.Byte},System.ReadOnlySpan{System.Byte})"/> (or <see cref="T:LibProsperoPkg.PFS.ProsperoOuterPfsImage"/>'s explicit-sector
+            <c>Transform</c> overload with the returned block-kind and sector maps) to encrypt.
             </summary>
         </member>
         <member name="M:LibProsperoPkg.PFS.ProsperoOuterPfsBuilder.Encrypt(LibProsperoPkg.PFS.ProsperoOuterPfsBuildResult,System.ReadOnlySpan{System.Byte},System.ReadOnlySpan{System.Byte})">
             <summary>
             Encrypts a plaintext outer-PFS image in place using the supplied AES-XTS key pair and the
-            per-block classification from <see cref="M:LibProsperoPkg.PFS.ProsperoOuterPfsBuilder.BuildPlaintext(System.Collections.Generic.IReadOnlyList{LibProsperoPkg.PFS.ProsperoOuterFile},LibProsperoPkg.PFS.ProsperoOuterPfsBuildParameters)"/>.
+            per-block classification and NAPS-aware sector map from <see cref="M:LibProsperoPkg.PFS.ProsperoOuterPfsBuilder.BuildPlaintext(System.Collections.Generic.IReadOnlyList{LibProsperoPkg.PFS.ProsperoOuterFile},LibProsperoPkg.PFS.ProsperoOuterPfsBuildParameters)"/>.
             </summary>
         </member>
         <member name="M:LibProsperoPkg.PFS.ProsperoOuterPfsBuilder.BuildEncrypted(System.Collections.Generic.IReadOnlyList{LibProsperoPkg.PFS.ProsperoOuterFile},LibProsperoPkg.PFS.ProsperoOuterPfsBuildParameters,System.String,System.String)">
@@ -3875,13 +3898,23 @@
             very large signed indirect maps without creating a second plaintext image.
             </summary>
         </member>
+        <member name="M:LibProsperoPkg.PFS.ProsperoOuterPfsDecryptReader.#ctor(System.IO.Stream,System.Int64,System.ReadOnlySpan{System.Byte},System.ReadOnlySpan{System.Byte},System.ReadOnlySpan{LibProsperoPkg.PFS.ProsperoOuterBlockKind},System.ReadOnlySpan{System.UInt64},System.Int32,System.Int64,System.Boolean)">
+            <summary>
+            Creates a random-access plaintext view using an explicit AES-XTS sector for every block.
+            Use this overload with <see cref="P:LibProsperoPkg.PFS.ProsperoOuterPfsBuildResult.BlockSectors"/> or
+            <see cref="P:LibProsperoPkg.PFS.ProsperoOuterPackageFileResult.BlockSectors"/> for NAPS-aware images.
+            </summary>
+        </member>
         <member name="T:LibProsperoPkg.PFS.ProsperoOuterBlockKind">
             <summary>
             Classification of an outer-PFS block for AES-XTS sector numbering.
             </summary>
         </member>
         <member name="F:LibProsperoPkg.PFS.ProsperoOuterBlockKind.Data">
-            <summary>Plain file-data block: XTS sector = block index.</summary>
+            <summary>
+            Plain file-data block. Its default XTS sector is the block index; NAPS callers may supply an
+            explicit sector derived from <c>TweakIdxStart</c>.
+            </summary>
         </member>
         <member name="F:LibProsperoPkg.PFS.ProsperoOuterBlockKind.Signed">
             <summary>
@@ -3895,9 +3928,10 @@
         <member name="T:LibProsperoPkg.PFS.ProsperoOuterPfsImage">
             <summary>
             AES-XTS encrypt/decrypt for the PS5 nwonly <em>outer</em> finalized-image PFS. Each whole
-            filesystem block is one XTS data unit numbered by its image block index; the metadata
-            (superblock) block is left plaintext. See the file header for how this differs from the
-            inner-image crypto in <see cref="T:LibProsperoPkg.PFS.ProsperoPfsImage"/> and how it was validated.
+            filesystem block is one XTS data unit. Signed sectors are derived from the image block index;
+            NAPS data sectors may be supplied explicitly. The metadata (superblock) block is left plaintext.
+            See the file header for how this differs from the inner-image crypto in
+            <see cref="T:LibProsperoPkg.PFS.ProsperoPfsImage"/> and how it was validated.
             </summary>
         </member>
         <member name="F:LibProsperoPkg.PFS.ProsperoOuterPfsImage.DefaultBlockSize">
@@ -3933,6 +3967,14 @@
             <see cref="F:LibProsperoPkg.PFS.ProsperoOuterBlockKind.Plaintext"/> blocks are left untouched. This is the full
             validated PS5 nwonly outer-image scheme (data blocks 0-5 plain, superblock plaintext, signed
             metadata blocks 7-10 with bit 47 set). Returns the number of blocks transformed.
+            </summary>
+        </member>
+        <member name="M:LibProsperoPkg.PFS.ProsperoOuterPfsImage.Transform(System.Span{System.Byte},System.ReadOnlySpan{System.Byte},System.ReadOnlySpan{System.Byte},System.Int32,System.ReadOnlySpan{LibProsperoPkg.PFS.ProsperoOuterBlockKind},System.ReadOnlySpan{System.UInt64},System.Boolean)">
+            <summary>
+            AES-XTS transforms <paramref name="image"/> in place using an explicit sector number for
+            every outer-PFS block. Plaintext blocks remain untouched; the corresponding sector entry is
+            ignored. This overload is used for NAPS images where <c>TweakIdxStart</c> is independent of
+            the physical <c>pfs_image.dat</c> offset.
             </summary>
         </member>
         <member name="M:LibProsperoPkg.PFS.ProsperoOuterPfsImage.Transform(System.IO.Stream,System.IO.Stream,System.Int64,System.ReadOnlySpan{System.Byte},System.ReadOnlySpan{System.Byte},System.Int32,System.ReadOnlySpan{LibProsperoPkg.PFS.ProsperoOuterBlockKind},System.Boolean,System.Threading.CancellationToken,System.Action{System.Int32})">
@@ -4558,12 +4600,18 @@
         </member>
         <member name="M:LibProsperoPkg.PFS.ProsperoPs5FlatPathTable.HashPath(System.String)">
             <summary>
-            Computes the PS5 flat-path-table 64-bit hash of a filesystem path. The path is uppercased and its
+            Computes the PS5 flat-path-table hash over UTF-8 with ASCII-only case folding. The path's
             leading <c>/</c> is stripped (e.g. <c>/sce_sys/keystone</c> → <c>SCE_SYS/KEYSTONE</c>) before hashing.
             </summary>
         </member>
+        <member name="M:LibProsperoPkg.PFS.ProsperoPs5FlatPathTable.HashPath(System.String,System.UInt64,System.UInt64)">
+            <summary>Hashes a normalized UTF-8 path with the source table's seeds.</summary>
+        </member>
         <member name="M:LibProsperoPkg.PFS.ProsperoPs5FlatPathTable.HashBytes(System.ReadOnlySpan{System.Byte})">
             <summary>The raw hash over exact bytes using the three-lane Keccak-ish sponge.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.PFS.ProsperoPs5FlatPathTable.HashBytes(System.ReadOnlySpan{System.Byte},System.UInt64,System.UInt64)">
+            <summary>Hashes exact path bytes using the seeds stored in a source FLT header.</summary>
         </member>
         <member name="T:LibProsperoPkg.PFS.ProsperoPs5FlatPathTable.Entry">
             <summary>One flat-path-table entry: a path hash and the packed 64-bit payload.</summary>
@@ -6646,6 +6694,12 @@
         <member name="M:LibProsperoPkg.PKG.ProsperoInnerFileStatistics.#ctor(System.Int32,System.Int64,System.Int64)">
             <summary>Logical and stored sizes measured from the inner PPR-PFS inode table.</summary>
         </member>
+        <member name="T:LibProsperoPkg.PKG.ProsperoExtractionFile">
+            <summary>A file in the rebuild-ready extraction tree, with its unpacked size.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.PKG.ProsperoExtractionFile.#ctor(System.String,System.Int64)">
+            <summary>A file in the rebuild-ready extraction tree, with its unpacked size.</summary>
+        </member>
         <member name="T:LibProsperoPkg.PKG.ProsperoPackageVerificationIssue">
             <summary>One failed package verification check.</summary>
         </member>
@@ -6739,6 +6793,16 @@
         <member name="M:LibProsperoPkg.PKG.ProsperoPackageArchive.ExtractInnerFiles(System.String,System.String,System.String,System.Boolean,System.Threading.CancellationToken,System.Action{System.Int32},System.Action{System.String})">
             <summary>Extracts inner game files with cancellation, progress, and per-file notifications.</summary>
         </member>
+        <member name="M:LibProsperoPkg.PKG.ProsperoPackageArchive.ExtractInnerFiles(System.String,System.String,System.String,System.Boolean,System.Threading.CancellationToken,System.Action{System.Int32},System.Action{System.String},System.Predicate{System.String})">
+            <summary>Extracts only game files accepted by the relative-path filter. Filtering precedes payload decoding.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.PKG.ProsperoPackageArchive.ListExtractionFiles(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Lists game and rebuild-relevant CNT files in their output paths, reading only filesystem
+            metadata, without extracting file payloads or creating temporary images. CNT files take
+            precedence at overlapping paths, matching the extraction order.
+            </summary>
+        </member>
         <member name="M:LibProsperoPkg.PKG.ProsperoPackageArchive.AnalyzeInnerFiles(System.String,System.String,System.Threading.CancellationToken,System.Action{System.Int32})">
             <summary>
             Reads inner-PFS inode metadata on demand and returns exact game-file counts and sizes without
@@ -6758,8 +6822,12 @@
             <summary>
             Extracts only CNT records that are useful as inputs for rebuilding a package and places
             them under their canonical <c>sce_sys</c> paths. Cryptographic tables, image digests,
-            generated PlayGo auxiliaries, and publisher bookkeeping records are omitted.
+            and publisher bookkeeping records are omitted. PlayGo chunk, file-map, hash-table, and
+            scenario files are preserved when present.
             </summary>
+        </member>
+        <member name="M:LibProsperoPkg.PKG.ProsperoPackageArchive.ExtractRebuildSourceFiles(System.String,System.String,System.String,System.Threading.CancellationToken,System.Action{System.Int32},System.Action{System.String},System.Predicate{System.String})">
+            <summary>Extracts rebuild-relevant CNT files accepted by the canonical relative-path filter.</summary>
         </member>
         <member name="M:LibProsperoPkg.PKG.ProsperoPackageArchive.ExportAdditionalContentTemplate(System.String,System.String,System.String,System.Threading.CancellationToken,System.Action{System.Int32},System.Action{System.String})">
             <summary>
@@ -7165,12 +7233,18 @@
         <member name="P:LibProsperoPkg.PKG.ProsperoPkgBuildProperties.PlayGoChunkCount">
             <summary>
             Number of generated PlayGo chunks (1..255, default 100). Supplied PlayGo headers override
-            the fallback counts. Every scenario requires every chunk; most data stays in chunk zero and
-            selected languages receive small non-zero extents. Valid source scenario JSON is retained.
+            the fallback counts. Every scenario requires every chunk. The publisher pipeline preserves
+            source file assignments and rebuilds physical extents; otherwise it uses generated layout.
             </summary>
         </member>
         <member name="P:LibProsperoPkg.PKG.ProsperoPkgBuildProperties.PlayGoLanguageMask">
-            <summary>Generated scenario and data-bearing chunk languages.</summary>
+            <summary>A subset overrides source chunk languages/layout; All retains source languages.</summary>
+        </member>
+        <member name="P:LibProsperoPkg.PKG.ProsperoPkgBuildProperties.OverrideSourcePlayGoLanguages">
+            <summary>Explicitly select languages, including All, instead of retaining source layout.</summary>
+        </member>
+        <member name="P:LibProsperoPkg.PKG.ProsperoPkgBuildProperties.PreserveSourcePlayGoLayout">
+            <summary>Retain source file chunks, labels and masks in the publisher image pipeline.</summary>
         </member>
         <member name="P:LibProsperoPkg.PKG.ProsperoPkgBuildProperties.SdkVersionOverride">
             <summary>
@@ -7341,10 +7415,10 @@
             matching <see cref="M:LibProsperoPkg.PKG.ProsperoPkgBuilder.BuildInnerTree(System.String,System.String,LibProsperoPkg.PKG.ProsperoVolumeType,System.Nullable{System.UInt64},LibProsperoPkg.ProsperoSourceMode,System.String,System.Threading.CancellationToken,System.Action{System.String})"/>; otherwise the loose source tree is used.
             </summary>
         </member>
-        <member name="M:LibProsperoPkg.PKG.ProsperoPkgBuilder.ResolvePlayGoConfiguration(System.String,System.Int32,LibProsperoPkg.ProsperoSourceMode,System.String)">
+        <member name="M:LibProsperoPkg.PKG.ProsperoPkgBuilder.ResolvePlayGoConfiguration(System.String,System.Int32,LibProsperoPkg.ProsperoSourceMode,System.String,System.Boolean,System.Nullable{System.UInt64})">
             <summary>
-            Resolves PlayGo counts plus reusable scenario presentation. Binary source tables are never
-            reused because they refer to the old image; a valid scenario JSON is retained verbatim.
+            Resolves PlayGo counts, scenario presentation and optional logical source assignments.
+            Physical image offsets are regenerated. Explicit languages replace the source layout.
             GP5 chunk metadata remains authoritative when no source chunk descriptor is mapped.
             </summary>
         </member>
@@ -8388,7 +8462,7 @@
             chunk as initial when partial launch is not desired.
             </summary>
         </member>
-        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.BuildMultiChunkDat(System.String,System.Collections.Generic.IReadOnlyList{System.UInt64},System.UInt64,System.Boolean,System.Boolean,System.UInt64,System.Int32,System.Int32,System.Int32,System.Collections.Generic.IReadOnlyList{System.String},System.Collections.Generic.IReadOnlyList{System.UInt64},System.Nullable{System.Int32})">
+        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.BuildMultiChunkDat(System.String,System.Collections.Generic.IReadOnlyList{System.UInt64},System.UInt64,System.Boolean,System.Boolean,System.UInt64,System.Int32,System.Int32,System.Int32,System.Collections.Generic.IReadOnlyList{System.String},System.Collections.Generic.IReadOnlyList{System.UInt64},System.Nullable{System.Int32},System.Collections.Generic.IReadOnlyList{System.String})">
             <summary>
             Builds PlayGo descriptors with contiguous main-image extents and regenerated scenarios.
             Chunk zero owns its main extent plus the common trailing metadata extent; every later chunk
@@ -8441,6 +8515,36 @@
             The fixed PS5 debug <c>sce_sys/about/right.sprx</c> module embedded in every reference
             debug package, or <c>null</c> when the embedded resource is unavailable.
             </summary>
+        </member>
+        <member name="T:LibProsperoPkg.PlayGo.ProsperoPlayGo.ChunkExtent">
+            <summary>A contiguous package range, possibly shared by several logical chunks.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.ChunkExtent.#ctor(System.UInt64,System.UInt64,System.Collections.Generic.IReadOnlyList{System.Byte})">
+            <summary>A contiguous package range, possibly shared by several logical chunks.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.BuildFileMap(System.Collections.Generic.IReadOnlyList{System.String},System.Collections.Generic.IReadOnlyList{System.Byte})">
+            <summary>Sorts FLT and FICM together; AFID order is not the hash-table order.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.BuildMappedExtents(LibProsperoPkg.PFS.ProsperoPs5InnerImageResult,System.Collections.Generic.IReadOnlyDictionary{System.UInt32,System.Byte},System.UInt64,System.UInt64)">
+            <summary>
+            Partitions the rebuilt image into sector-aligned ranges, retaining shared compressed blocks
+            in every owning chunk. Header, padding and structural metadata remain in chunk zero.
+            </summary>
+        </member>
+        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.BuildMappedChunkDat(System.String,LibProsperoPkg.PlayGo.ProsperoPlayGo.SourceLayout,System.Collections.Generic.IReadOnlyList{LibProsperoPkg.PlayGo.ProsperoPlayGo.ChunkExtent},System.Int32,System.Int32,System.Collections.Generic.IReadOnlyList{System.String},System.Int32)">
+            <summary>Builds a descriptor from regenerated physical ranges and retained logical metadata.</summary>
+        </member>
+        <member name="T:LibProsperoPkg.PlayGo.ProsperoPlayGo.SourceLayout">
+            <summary>Reusable logical assignments; old physical image offsets are never imported.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.ReadSourceLayout(System.String,System.String,System.String)">
+            <summary>Reads validated chunk metadata and paired FLT/FICM entries in bounded batches.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.ReadSourceLayout(LibProsperoPkg.GP5.Gp5Project)">
+            <summary>Retains explicit flat/rootdir GP5 file assignments and chunk declarations.</summary>
+        </member>
+        <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.UpdateScenarioChunkLanguages(System.Byte[],System.UInt64,System.String)">
+            <summary>Changes chunk languages while retaining scenario localization and scenario types.</summary>
         </member>
         <member name="M:LibProsperoPkg.PlayGo.ProsperoPlayGo.ValidateLayout(System.ReadOnlySpan{System.Byte},System.ReadOnlySpan{System.Byte},System.ReadOnlySpan{System.Byte},System.ReadOnlySpan{System.Byte},System.String,System.Nullable{System.UInt64})">
             <summary>
@@ -8857,12 +8961,18 @@
             A supplied PlayGo header overrides the counts. Image-dependent tables are regenerated for
             the current image, while a valid source <c>playgo-scenario.json</c> retains its names,
             localizations, types, default scenario and chunk-language selection. Every scenario requires
-            every declared chunk. Most data remains in chunk zero; selected languages receive small
-            non-zero extents so package information does not report zero-byte language payloads.
+            every declared chunk. The publisher pipeline preserves validated source file assignments,
+            chunk labels and language masks while rebuilding their physical image ranges.
             </summary>
         </member>
         <member name="P:LibProsperoPkg.ProsperoBuildOptions.PlayGoLanguageMask">
-            <summary>Generated scenario and data-bearing chunk languages.</summary>
+            <summary>A subset overrides source chunk languages/layout; All retains source languages.</summary>
+        </member>
+        <member name="P:LibProsperoPkg.ProsperoBuildOptions.OverrideSourcePlayGoLanguages">
+            <summary>Explicitly select languages even when the selected mask is All; bypass source layout.</summary>
+        </member>
+        <member name="P:LibProsperoPkg.ProsperoBuildOptions.PreserveSourcePlayGoLayout">
+            <summary>Retain source PlayGo assignments in the publisher pipeline; false uses generated layout.</summary>
         </member>
         <member name="P:LibProsperoPkg.ProsperoBuildOptions.SdkVersionOverride">
             <summary>

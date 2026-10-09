@@ -285,7 +285,9 @@ public sealed class Engine068Tests : IDisposable
         PackageReader.ExportSceSys(keptOutcome.OutputPath, export, Passcode, CancellationToken.None);
         Assert.NotEqual(chunk, File.ReadAllBytes(Path.Combine(export, "sce_sys", "playgo-chunk.dat")));
 
+        // 2.2.6: mặc định giữ playgo*; bỏ phải bật tường minh.
         var dropped = Request(folder, "counts-drop", contentId);
+        dropped.RemovePlayGoFiles = true;
         dropped.PlayGoChunks = 9;
         var droppedLog = new List<LogEntry>();
         await new BuildEngine().BuildAsync(dropped, droppedLog.Add, null, CancellationToken.None);

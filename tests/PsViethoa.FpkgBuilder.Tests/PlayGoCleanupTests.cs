@@ -157,7 +157,8 @@ public sealed class PlayGoCleanupTests : IDisposable
     public void BuildRequest_AppliesTheWholeGuideByDefault()
     {
         var request = new BuildRequest();
-        Assert.True(request.RemovePlayGoFiles);
+        // 2.2.6 (engine 0.6.11): giữ playgo* mặc định — engine chia tệp theo đúng khối của bảng nguồn.
+        Assert.False(request.RemovePlayGoFiles);
         Assert.True(request.ClearVersionFileUri);
         // 2.2.1: attribute3 giữ nguyên mặc định — cờ PS5 Pro Enhanced / 120 Hz / VRR nằm ở đây.
         Assert.False(request.ClearPlayGoAttributes);
@@ -289,7 +290,8 @@ public sealed class PlayGoCleanupTests : IDisposable
 
         // Bộ playgo* của nguồn toàn byte ngẫu nhiên: engine 0.6.8 sẽ dừng khi đọc header, nên công cụ bỏ riêng tệp hỏng và báo
         // cảnh báo thay vì báo "đã bỏ playgo*" — gói vẫn tạo được và nguồn giữ nguyên.
-        Assert.DoesNotContain(log, e => e.Message.Contains("playgo-chunk.dat", StringComparison.Ordinal) && e.Message.Contains("playgo-ficm.dat", StringComparison.Ordinal));
+        // (Dòng gợi ý lấy bảng từ gói _sc bằng prosperopatches cũng nêu hai tên này nhưng không phải thông báo "đã bỏ".)
+        Assert.DoesNotContain(log, e => e.Message.Contains("playgo-chunk.dat", StringComparison.Ordinal) && e.Message.Contains("playgo-ficm.dat", StringComparison.Ordinal) && !e.Message.Contains("prosperopatches", StringComparison.Ordinal));
         Assert.Contains(log, e => e.Level == LogLevel.Warning && e.Message.Contains("playgo-chunk.dat", StringComparison.Ordinal));
         Assert.Equal(4, PlayGoCleanup.ListFolder(folder).Count);
     }

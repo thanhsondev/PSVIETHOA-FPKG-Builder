@@ -50,6 +50,13 @@ public sealed class BuildRequest
     /// <summary>Số luồng nén; 0 = số nhân CPU logic.</summary>
     public int Threads { get; set; }
 
+    /// <summary>
+    /// SDK Sony: đọc số nhân cho phép ngay trong lúc img_create chạy (giao diện đổi ô "Luồng nén" giữa chừng). Null = dùng
+    /// <see cref="Threads"/> cố định. Engine tích hợp chạy trong tiến trình của công cụ nên chỉ lấy giá trị lúc bắt đầu.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Func<int>? LiveThreads { get; set; }
+
     /// <summary>Định dạng container nén PFS (v2 mặc định, v3 mở các tuỳ chọn shuffle).</summary>
     public PfsFormat PfsFormat { get; set; } = PfsFormat.V2;
 
@@ -91,10 +98,24 @@ public sealed class BuildRequest
     public bool RemoveDumpLeftovers { get; set; } = true;
 
     /// <summary>
-    /// Bỏ các tệp sce_sys/playgo* của bản dump khỏi gói để thư viện tự tạo bộ PlayGo khớp với ảnh mới (Drakmor: game không
-    /// khởi chạy kèm lỗi "playgo" trong log là do bộ playgo cũ). Mặc định bật.
+    /// Bỏ các tệp sce_sys/playgo* của bản dump khỏi gói để thư viện tự tạo bộ PlayGo mới. Mặc định TẮT từ 2.2.6 (engine 0.6.11):
+    /// engine đọc playgo-chunk.dat + playgo-ficm.dat + playgo-hash-table.dat của nguồn để chia tệp vào đúng chunk gốc (ngôn ngữ thoại
+    /// tách riêng, gỡ được qua menu nội dung bổ sung) rồi dựng lại vị trí vật lý cho ảnh mới — không còn chép bảng cũ vào gói.
     /// </summary>
-    public bool RemovePlayGoFiles { get; set; } = true;
+    public bool RemovePlayGoFiles { get; set; }
+
+    /// <summary>
+    /// Engine tích hợp: giữ bố cục PlayGo của nguồn (tệp thuộc chunk nào, nhãn, ngôn ngữ từng chunk) khi nguồn còn bảng playgo*
+    /// (<c>PreserveSourcePlayGoLayout</c> của engine 0.6.11). Tắt = "tạo theo ngôn ngữ": bỏ qua bố cục nguồn, engine tạo
+    /// <see cref="PlayGoChunks"/> chunk cho các ngôn ngữ ở <see cref="PlayGoLanguages"/>.
+    /// </summary>
+    public bool PreserveSourcePlayGoLayout { get; set; } = true;
+
+    /// <summary>
+    /// Mã ngôn ngữ PlayGo (ja-JP, en-US…) khi <see cref="PreserveSourcePlayGoLayout"/> tắt; null/rỗng = mọi ngôn ngữ. Bố cục nguồn
+    /// được giữ thì engine lấy danh sách ngôn ngữ của nguồn và bỏ qua trường này.
+    /// </summary>
+    public IReadOnlyList<string>? PlayGoLanguages { get; set; }
 
     /// <summary>
     /// Giữ bộ giả lập DLC của Drakmor (dlc_emu.ini + module libSceAppContent / libSceNpEntitlementAccess / libSceGameUpdate trong

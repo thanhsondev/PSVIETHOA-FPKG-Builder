@@ -85,6 +85,7 @@ public sealed partial class MainViewModel : ObservableObject
         LibraryVersion = BuildEngine.LibraryVersion;
         IsWindows = OperatingSystem.IsWindows();
         ProcessorCount = Environment.ProcessorCount;
+        _threads = ProcessorCount;
 
         _drainTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(80), DispatcherPriority.Background, (_, _) => Drain());
         _tickTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(500), DispatcherPriority.Background, (_, _) => Tick());
@@ -226,7 +227,13 @@ public sealed partial class MainViewModel : ObservableObject
 
     public string CreditsText => Loc.F("App.Credits", LibraryVersion);
 
-    public string ThreadsHint => Loc.F("Advanced.ThreadsHint", ProcessorCount);
+    public string ThreadsHint => SdkActive ? Loc.F("Advanced.ThreadsHintSdk", ProcessorCount) : Loc.F("Advanced.ThreadsHint", ProcessorCount);
+
+    /// <summary>Số luồng sửa được với engine tích hợp (khi có nén) và với SDK Sony (giới hạn số nhân của img_create).</summary>
+    public bool ThreadsEnabled => SdkActive || BackendIndex != 3;
+
+    /// <summary>Số luồng cho BuildRequest/settings: 0 (= mọi nhân, như engine "tự động") khi ô để trống hoặc bằng số nhân của máy.</summary>
+    private int SelectedThreads => Threads is { } value && value >= 1 && value < ProcessorCount ? (int)value : 0;
 
     public string ThemeTooltip => Loc.T(IsDarkTheme ? "Header.ThemeToLight" : "Header.ThemeToDark");
 
@@ -239,6 +246,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private IReadOnlyList<string> _pfsOptions = Array.Empty<string>();
     [ObservableProperty] private IReadOnlyList<string> _blockSizeOptions = Array.Empty<string>();
     [ObservableProperty] private IReadOnlyList<string> _shuffleOptions = Array.Empty<string>();
+    [ObservableProperty] private IReadOnlyList<string> _playGoLayoutOptions = Array.Empty<string>();
 
     private static readonly int[] BlockSizesKiB = [128, 192, 256];
 
@@ -255,6 +263,7 @@ public sealed partial class MainViewModel : ObservableObject
         PfsOptions = [Loc.T("Pfs.V2"), Loc.T("Pfs.V3")];
         BlockSizeOptions = BlockSizesKiB.Select(k => $"{k} KiB").ToList();
         ShuffleOptions = ShufflePatterns.Select(BuildPresets.ShufflePatternLabel).ToList();
+        PlayGoLayoutOptions = [Loc.T("Advanced.PlayGoLayoutSource"), Loc.T("Advanced.PlayGoLayoutLanguages")];
         SdkCompressionOptions = [Loc.T("SdkLevel.Default"), .. SdkCompressionLevels.Select(level => Loc.F("SdkLevel.Value", level))];
     }
 
@@ -503,6 +512,8 @@ public sealed partial class MainViewModel : ObservableObject
         {
             LanguageVi = Loc.Current.Language == Loc.Vietnamese;
             LanguageEn = Loc.Current.Language == Loc.English;
+            OnPropertyChanged(nameof(PlayGoLanguagesSummary));
+            OnPropertyChanged(nameof(CpuCoresHint));
         }
         finally
         {
@@ -520,6 +531,7 @@ public sealed partial class MainViewModel : ObservableObject
         var pfs = PfsIndex;
         var block = BlockSizeIndex;
         var shuffle = ShuffleIndex;
+        var playGoLayout = PlayGoLayoutIndex;
         BuildOptionLists();
         Dispatcher.UIThread.Post(() =>
         {
@@ -532,6 +544,7 @@ public sealed partial class MainViewModel : ObservableObject
             PfsIndex = pfs;
             BlockSizeIndex = block;
             ShuffleIndex = shuffle;
+            PlayGoLayoutIndex = playGoLayout;
         }, DispatcherPriority.Background);
 
         OnPropertyChanged(nameof(AppVersionText));
@@ -698,7 +711,7 @@ public sealed partial class MainViewModel : ObservableObject
             ImageModeIndex = 0;
         }
 
-        foreach (var name in new[] { nameof(SdkActive), nameof(EngineOptionsEnabled), nameof(CompressionEnabled), nameof(SdkCheckBoxEnabled), nameof(CanEditPlayGoDrop), nameof(CanEditDrm), nameof(ShowSdkUnavailable), nameof(ShowSdkGp5Note), nameof(RemovePlayGoFilesUi), nameof(ForceStandardDrmUi), nameof(PlayGoChunksEnabled), nameof(PresetFastShort), nameof(PresetBalancedShort), nameof(PresetSmallestShort), nameof(PresetMaximumShort), nameof(PatchAvailable), nameof(ShowPatchNeedsSdk) })
+        foreach (var name in new[] { nameof(SdkActive), nameof(EngineOptionsEnabled), nameof(CompressionEnabled), nameof(SdkCheckBoxEnabled), nameof(CanEditPlayGoDrop), nameof(CanEditDrm), nameof(ShowSdkUnavailable), nameof(ShowSdkGp5Note), nameof(RemovePlayGoFilesUi), nameof(ForceStandardDrmUi), nameof(PlayGoChunksEnabled), nameof(PlayGoLanguagesEnabled), nameof(ThreadsEnabled), nameof(ThreadsHint), nameof(PresetFastShort), nameof(PresetBalancedShort), nameof(PresetSmallestShort), nameof(PresetMaximumShort), nameof(PatchAvailable), nameof(ShowPatchNeedsSdk) })
         {
             OnPropertyChanged(name);
         }
@@ -727,6 +740,12 @@ public sealed partial class MainViewModel : ObservableObject
         {
             var count = metadata.PlayGoFileCount + (metadata.HasPlayGoScenario ? 1 : 0);
             return count > 0 ? Loc.F("PlayGo.SonySdk", count) : Loc.T("PlayGo.SonySdkNone");
+        }
+
+        if (!PreserveSourcePlayGoLayout)
+        {
+            // Engine 0.6.11 "tạo theo ngôn ngữ": bỏ qua bảng của nguồn (còn hay không).
+            return Loc.F("PlayGo.Languages", metadata.PlayGoInput.Counts is { Chunks: > 0 } counts && !RemovePlayGoFiles ? counts.Chunks : (int)(PlayGoChunks ?? BuildRequest.DefaultPlayGoChunks), PlayGoLanguagesSummary);
         }
 
         return MetadataReader.DescribePlayGo(metadata, (int)(PlayGoChunks ?? BuildRequest.DefaultPlayGoChunks), RemovePlayGoFiles);
@@ -1637,7 +1656,20 @@ public sealed partial class MainViewModel : ObservableObject
         ApplyReferenceMismatch();
     }
     partial void OnPasscodeChanged(string value) => RefreshValidation();
-    partial void OnThreadsChanged(decimal? value) => RefreshValidation();
+    partial void OnThreadsChanged(decimal? value)
+    {
+        RefreshValidation();
+        _liveThreads = SelectedThreads;
+        OnPropertyChanged(nameof(CpuCoresHint));
+    }
+
+    /// <summary>Dòng cạnh ô "Nhân CPU": tối đa = tốc độ đầy đủ, thấp hơn = chừa nhân cho việc khác.</summary>
+    public string CpuCoresHint => SelectedThreads == 0
+        ? Loc.F("Build.CpuCoresFull", ProcessorCount)
+        : Loc.F("Build.CpuCoresLimited", SelectedThreads, ProcessorCount);
+
+    /// <summary>Giá trị ô "Luồng nén" cho các lượt SDK Sony đang chạy (đọc từ luồng nền): đổi ô là img_create đổi theo ngay.</summary>
+    private volatile int _liveThreads;
     partial void OnPublishingToolsPathChanged(string value) => RefreshValidation();
     partial void OnOverrideSdkChanged(bool value) => RefreshValidation();
 
@@ -1673,6 +1705,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(UsesPublishingTools));
         OnPropertyChanged(nameof(CompressionEnabled));
+        OnPropertyChanged(nameof(ThreadsEnabled));
         UpdateHints();
         SyncPresetFromSettings();
         RefreshValidation();
@@ -1879,7 +1912,8 @@ public sealed partial class MainViewModel : ObservableObject
             ClearVersionFileUri = s.ClearVersionFileUri;
             ClearPlayGoAttributes = s.ClearPlayGoAttributes;
             KrakenLevel = Math.Clamp(s.KrakenLevel, BuildRequest.MinKrakenLevel, BuildRequest.MaxKrakenLevel);
-            Threads = Math.Clamp(s.Threads, 0, BuildRequest.MaxThreads);
+            // Mặc định hiện đúng số nhân của máy; settings lưu 0 nghĩa là "mọi nhân" (đổi máy vẫn đúng).
+            Threads = s.Threads <= 0 ? ProcessorCount : Math.Clamp(s.Threads, 1, ProcessorCount);
             if (s.PlayGoDefaultsRevision < 1)
             {
                 // Cấu hình từ trước engine 0.6.8: 64 là mặc định (và tối đa) cũ, không phải giá trị người dùng chủ động chọn.
@@ -1898,6 +1932,18 @@ public sealed partial class MainViewModel : ObservableObject
                 ClearPlayGoAttributes = false;
                 s.PlayGoDefaultsRevision = 2;
             }
+
+            if (s.PlayGoDefaultsRevision < 3)
+            {
+                // 2.2.6 (engine 0.6.11): mặc định giữ sce_sys/playgo* để engine chia tệp theo khối gốc. Cấu hình cũ lưu "bỏ" là mặc
+                // định cũ, không phải lựa chọn chủ động.
+                s.RemovePlayGoFiles = false;
+                RemovePlayGoFiles = false;
+                s.PlayGoDefaultsRevision = AppSettings.CurrentPlayGoDefaultsRevision;
+            }
+
+            PlayGoLayoutIndex = s.PreserveSourcePlayGoLayout ? 0 : 1;
+            ApplyPlayGoLanguages(s.PlayGoLanguages);
 
             PlayGoChunks = Math.Clamp(s.PlayGoChunks, BuildRequest.MinPlayGoChunks, BuildRequest.MaxPlayGoChunks);
             Deterministic = s.Deterministic;
@@ -1972,6 +2018,8 @@ public sealed partial class MainViewModel : ObservableObject
         s.ForceStandardDrm = d.ForceStandardDrm;
         s.UseSonySdk = d.UseSonySdk;
         s.RemovePlayGoFiles = d.RemovePlayGoFiles;
+        s.PreserveSourcePlayGoLayout = d.PreserveSourcePlayGoLayout;
+        s.PlayGoLanguages = d.PlayGoLanguages;
         s.RemoveAmprLeftovers = d.RemoveAmprLeftovers;
         s.RemoveDumpLeftovers = d.RemoveDumpLeftovers;
         s.KeepDlcEmu = d.KeepDlcEmu;
@@ -2043,9 +2091,12 @@ public sealed partial class MainViewModel : ObservableObject
         s.ClearVersionFileUri = ClearVersionFileUri;
         s.ClearPlayGoAttributes = ClearPlayGoAttributes;
         s.KrakenLevel = (int)Math.Round(KrakenLevel);
-        s.Threads = (int)(Threads ?? 0);
+        s.Threads = SelectedThreads;
         s.PlayGoChunks = (int)(PlayGoChunks ?? BuildRequest.DefaultPlayGoChunks);
-        s.PlayGoDefaultsRevision = 1;
+        // Ghi đúng phiên bản hiện tại (trước đây ghi 1 nên mỗi lần mở app migration 2.2.1 lại chạy và tắt "xoá attribute3").
+        s.PlayGoDefaultsRevision = AppSettings.CurrentPlayGoDefaultsRevision;
+        s.PreserveSourcePlayGoLayout = PreserveSourcePlayGoLayout;
+        s.PlayGoLanguages = PlayGoLanguageOptions.All(option => option.IsSelected) ? null : PlayGoLanguageOptions.Where(option => option.IsSelected).Select(option => option.Code).ToList();
         s.Deterministic = Deterministic;
         s.ComputeSha256 = ComputeSha256;
         s.FullVerify = FullVerify;
@@ -2748,11 +2799,14 @@ public sealed partial class MainViewModel : ObservableObject
         RemoveAmprLeftovers = RemoveAmprLeftovers,
         RemoveDumpLeftovers = RemoveDumpLeftovers,
         RemovePlayGoFiles = RemovePlayGoFiles,
+        PreserveSourcePlayGoLayout = PreserveSourcePlayGoLayout,
+        PlayGoLanguages = SelectedPlayGoLanguages(),
         KeepDlcEmu = KeepDlcEmu,
         ClearVersionFileUri = ClearVersionFileUri,
         ClearPlayGoAttributes = ClearPlayGoAttributes,
         KrakenLevel = (int)Math.Round(KrakenLevel),
-        Threads = (int)(Threads ?? 0),
+        Threads = SelectedThreads,
+        LiveThreads = () => _liveThreads,
         PlayGoChunks = (int)(PlayGoChunks ?? BuildRequest.DefaultPlayGoChunks),
         Deterministic = Deterministic,
         ComputeSha256 = ComputeSha256,

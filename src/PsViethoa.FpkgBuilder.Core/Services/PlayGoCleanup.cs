@@ -26,6 +26,10 @@ namespace PsViethoa.FpkgBuilder.Core.Services;
 /// Đổi lại, tệp đầu vào hỏng làm cả lượt tạo gói dừng ("Invalid PS5 playgo-chunk.dat header."), nên khi giữ bộ playgo* công cụ
 /// kiểm tra trước bằng đúng quy tắc của engine (<see cref="ReadChunkCounts"/>, <see cref="ReadScenarioCount"/>) và bỏ tệp hỏng.
 /// </para>
+/// <para>
+/// Từ engine 0.6.11 (2.2.6) bộ playgo* mặc định được GIỮ: engine đọc playgo-chunk.dat + playgo-ficm.dat + playgo-hash-table.dat để
+/// đưa từng tệp về đúng khối gốc (PreserveSourcePlayGoLayout) rồi dựng lại vị trí vật lý cho ảnh mới; bỏ bộ playgo* chỉ còn là tuỳ chọn.
+/// </para>
 /// Lớp này chỉ liệt kê; việc đưa tệp ra ngoài lúc tạo gói do BuildEngine làm (không xoá gì trong thư mục nguồn).
 /// </summary>
 public static class PlayGoCleanup

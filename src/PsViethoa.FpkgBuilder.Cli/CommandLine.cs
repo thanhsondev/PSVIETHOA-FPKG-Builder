@@ -359,7 +359,7 @@ internal static class CommandLine
         Console.WriteLine(metadata.HasParamJson
             ? Loc.F("Cli.Param", metadata.ContentId ?? "—", metadata.Version ?? "—", metadata.SdkMajor?.ToString() ?? "—", metadata.Title ?? "—")
             : Loc.T("Cli.NoParam") + (metadata.ParamJsonError != null ? " (" + metadata.ParamJsonError + ")" : string.Empty));
-        Console.WriteLine(MetadataReader.DescribePlayGo(metadata, BuildRequest.DefaultPlayGoChunks, !arguments.Has("keep-playgo")));
+        Console.WriteLine(MetadataReader.DescribePlayGo(metadata, BuildRequest.DefaultPlayGoChunks, arguments.Has("remove-playgo")));
 
         var stats = FolderScanner.Scan(source, CancellationToken.None);
         Console.WriteLine(Loc.F("Cli.Stats", Formatters.Count(stats.FileCount), Formatters.Count(stats.DirectoryCount), Formatters.SizeWithBytes(stats.TotalBytes), Formatters.Size(stats.LargestFileBytes), stats.ScanDuration.TotalMilliseconds.ToString("0")));
@@ -586,8 +586,8 @@ internal static class CommandLine
             // SDK Sony: Publishing Tools tự quyết mức nén, PFS, PlayGo, SDK… — các cờ của engine không có tác dụng, báo để khỏi hiểu lầm.
             var ignored = new[]
                 {
-                    "preset", "level", "threads", "pfs", "block-size", "shuffle", "shuffle-analysis", "shuffle-prediction-level", "skip-pfs-input-check",
-                    "playgo", "sdk", "backend", "dll", "no-deterministic", "no-layout-optimization", "source-mode", "project", "keep-playgo", "keep-required-fw", "keep-drm",
+                    "preset", "level", "pfs", "block-size", "shuffle", "shuffle-analysis", "shuffle-prediction-level", "skip-pfs-input-check",
+                    "playgo", "sdk", "backend", "dll", "no-deterministic", "no-layout-optimization", "source-mode", "project", "keep-playgo", "remove-playgo", "playgo-languages", "keep-required-fw", "keep-drm",
                 }
                 .Where(flag => arguments.Has(flag))
                 // --playgo đặt số chunk của PlayGo dự phòng khi có --sdk-playgo-fallback.
@@ -667,9 +667,18 @@ internal static class CommandLine
             request.RemoveDumpLeftovers = false;
         }
 
-        if (arguments.Has("keep-playgo"))
+        // 2.2.6: mặc định giữ playgo* (engine 0.6.11 giữ bố cục khối của nguồn); --keep-playgo vẫn nhận cho tương thích.
+        if (arguments.Has("remove-playgo"))
         {
-            request.RemovePlayGoFiles = false;
+            request.RemovePlayGoFiles = true;
+        }
+
+        if (arguments.Get("playgo-languages") is { } playGoLanguages)
+        {
+            request.PreserveSourcePlayGoLayout = false;
+            request.PlayGoLanguages = playGoLanguages.Trim().Equals("all", StringComparison.OrdinalIgnoreCase)
+                ? null
+                : playGoLanguages.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         }
 
         if (arguments.Has("keep-version-uri"))

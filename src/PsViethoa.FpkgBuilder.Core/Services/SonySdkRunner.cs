@@ -84,7 +84,8 @@ public static class SonySdkRunner
         Action<SonySdkProgress> progress,
         CancellationToken cancellationToken,
         string? temporaryFolder = null,
-        string? referencePackagePath = null)
+        string? referencePackagePath = null,
+        Func<int>? threads = null)
     {
         var arguments = new List<string> { "img_create", "--oformat", "nwonly" };
         if (compressionLevel is { } level)
@@ -148,7 +149,7 @@ public static class SonySdkRunner
         // Thư mục làm việc phải ASCII như mọi đường dẫn khác đưa cho SDK; thư mục toolchain của bộ công cụ là lựa chọn đầu.
         var workingDirectory = new[] { runtime.Directory, Path.GetTempPath(), Path.GetDirectoryName(Path.GetFullPath(projectPath))! }
             .First(folder => SonySdkPathAliases.IsAsciiSafe(folder) && Directory.Exists(folder));
-        var exit = await RunAsync(runtime, arguments, workingDirectory, parser.Feed, parser, cancellationToken, temporaryFolder: temporaryFolder).ConfigureAwait(false);
+        var exit = await RunAsync(runtime, arguments, workingDirectory, parser.Feed, parser, cancellationToken, temporaryFolder: temporaryFolder, threads: threads, log: log).ConfigureAwait(false);
         parser.Flush();
 
         var result = new SonySdkImageResult(exit, errors, string.Join(' ', arguments.Select(Quote)));
@@ -272,7 +273,9 @@ public static class SonySdkRunner
         CancellationToken cancellationToken,
         bool wineCommand = false,
         string? executable = null,
-        string? temporaryFolder = null)
+        string? temporaryFolder = null,
+        Func<int>? threads = null,
+        Action<LogEntry>? log = null)
     {
         executable ??= runtime.PublisherPath;
         var info = new ProcessStartInfo
@@ -322,6 +325,12 @@ public static class SonySdkRunner
         process.Start();
         process.StandardInput.Close();
         Interlocked.Increment(ref _activeRuns);
+        // Publishing Tools tạo một luồng nén cho mỗi nhân và không có tuỳ chọn số luồng: giới hạn từ bên ngoài, đổi được giữa chừng.
+        using var limiter = threads == null
+            ? null
+            : new CpuLimiter(process, threads, limit => log?.Invoke(new LogEntry(LogLevel.Info, limit == 0
+                ? Loc.F("Sdk.CoresUnlimited", CpuLimiter.CoreCount)
+                : Loc.F("Sdk.CoresLimited", limit, CpuLimiter.CoreCount))));
 
         var stdout = Task.Run(async () =>
         {

@@ -90,4 +90,67 @@
         </Style>
     </ControlTheme>
 
+    <!-- Nút mũi tên nhỏ của ô số (NumericUpDown): không nền, chỉ hiện nền khi rê/nhấn; mũi tên mờ khi tới giới hạn. -->
+    <ControlTheme x:Key="SpinnerArrowButton" TargetType="RepeatButton">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="CornerRadius" Value="4" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="VerticalAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Name="PART_Box" Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}">
+                    <ContentPresenter Content="{TemplateBinding Content}" Foreground="{TemplateBinding Foreground}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+            </ControlTemplate>
+        </Setter>
+        <Style Selector="^:pointerover">
+            <Setter Property="Background" Value="{DynamicResource MutedBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource FgBrush}" />
+        </Style>
+        <Style Selector="^:pressed">
+            <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="^:disabled">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource FgFaintBrush}" />
+            <Setter Property="Opacity" Value="0.45" />
+        </Style>
+    </ControlTheme>
+
+    <!-- ButtonSpinner gọn cho ô số: nội dung (ô chữ) bên trái, hai mũi tên ▲▼ xếp chồng ở mép phải. -->
+    <ControlTheme x:Key="CompactButtonSpinner" TargetType="ButtonSpinner">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}" MinHeight="{TemplateBinding MinHeight}">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <ContentPresenter Name="PART_ContentPresenter" Grid.Column="0"
+                                          Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          Padding="{TemplateBinding Padding}"
+                                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        <Grid Name="PART_SpinnerPanel" Grid.Column="1" RowDefinitions="*,*" Width="24" Margin="0,4,6,4" IsVisible="{TemplateBinding ShowButtonSpinner}">
+                            <RepeatButton Name="PART_IncreaseButton" Theme="{StaticResource SpinnerArrowButton}" Margin="0,0,0,1">
+                                <Path Data="M0,4.5 L4.5,0 L9,4.5" Stroke="{Binding $parent[RepeatButton].Foreground}" StrokeThickness="1.6" StrokeLineCap="Round" StrokeJoin="Round" Width="9" Height="5" Stretch="None" />
+                            </RepeatButton>
+                            <RepeatButton Name="PART_DecreaseButton" Grid.Row="1" Theme="{StaticResource SpinnerArrowButton}" Margin="0,1,0,0">
+                                <Path Data="M0,0.5 L4.5,5 L9,0.5" Stroke="{Binding $parent[RepeatButton].Foreground}" StrokeThickness="1.6" StrokeLineCap="Round" StrokeJoin="Round" Width="9" Height="5.5" Stretch="None" />
+                            </RepeatButton>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </ControlTheme>
+
 </ResourceDictionary>

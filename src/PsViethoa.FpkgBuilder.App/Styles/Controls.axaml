@@ -419,11 +419,21 @@
         <Setter Property="Foreground" Value="{DynamicResource FgBrush}" />
         <Setter Property="FontSize" Value="{DynamicResource FontSizeBase}" />
         <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <!-- Ô chữ bên trong lấy Padding của NumericUpDown (Fluent: 10,6,6,5 → số lệch lên trên). -->
+        <Setter Property="Padding" Value="12,0,4,0" />
     </Style>
     <Style Selector="NumericUpDown /template/ TextBox">
         <Setter Property="MinHeight" Value="38" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="12,0,6,0" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <!-- Nút ▲▼: theme Fluent gán cứng nút rộng 34 px, mũi tên 16×8 và nền đặc trong template nên style ngoài không ghi đè được →
+         theme riêng cho ButtonSpinner: hai mũi tên nhỏ xếp chồng ở mép phải, nền chỉ hiện khi rê/nhấn. -->
+    <Style Selector="NumericUpDown /template/ ButtonSpinner">
+        <Setter Property="Theme" Value="{StaticResource CompactButtonSpinner}" />
     </Style>
 
     <Style Selector="ComboBox">
