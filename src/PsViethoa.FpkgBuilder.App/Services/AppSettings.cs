@@ -67,6 +67,12 @@ public sealed class AppSettings
     /// <summary>SDK Sony: PlayGo dự phòng cho nguồn không còn playgo-chunk.dat — mặc định tắt (như bộ công cụ gốc).</summary>
     public bool SdkPlayGoFallback { get; set; } = true;
 
+    /// <summary>SDK Sony: giữ thư mục rỗng của nguồn trong gói (&lt;empty_dir&gt;) như engine tích hợp — mặc định bật (từ 2.2.7).</summary>
+    public bool SdkKeepEmptyFolders { get; set; } = true;
+
+    /// <summary>SDK Sony: tệp giữ chỗ 1 MiB cho chunk PlayGo không có tệp nào (PS5 coi chunk rỗng là chưa cài) — mặc định bật (từ 2.2.7).</summary>
+    public bool SdkFillEmptyChunks { get; set; } = true;
+
     /// <summary>SDK Sony: mức --compression_level; null = mặc định của Publishing Tools (7), như bộ công cụ gốc.</summary>
     public int? SdkCompressionLevel { get; set; }
 
@@ -143,6 +149,9 @@ public sealed class AppSettings
 
     /// <summary>Xoá versionFileUri trong param.json khi tạo gói (mặc định bật).</summary>
     public bool ClearVersionFileUri { get; set; } = true;
+
+    /// <summary>Khôi phục metadata online trước khi đóng gói (engine 0.6.12) — mặc định tắt. URL tuỳ chọn không lưu (mỗi game một URL).</summary>
+    public bool RestoreMetadataOnline { get; set; }
 
     /// <summary>Đặt attribute3 trong param.json về 0 khi tạo gói (mặc định tắt từ 2.2.1: giữ cờ PS5 Pro / 120 Hz / VRR).</summary>
     public bool ClearPlayGoAttributes { get; set; }

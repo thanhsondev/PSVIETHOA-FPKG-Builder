@@ -70,6 +70,16 @@ public sealed class BuildEngine
             if (SonySdkBuilder.Supports(normalized, source, out var unsupported))
             {
                 sdkRuntime = SonySdkToolchain.Resolve(out sdkUnavailable);
+
+                // UCP không đọc được (bản niêm phong của gói gốc, tệp cụt): Publishing Tools từ chối cả lượt ("Format of the UCP file is not
+                // valid") — tạo bằng engine tích hợp, đóng nguyên tệp như fpkg-gui, thay vì dừng. UCP chỉ lệch digest thì SDK tự sửa được.
+                // Bản vá bắt buộc SDK nên không chuyển.
+                if (sdkRuntime != null && string.IsNullOrWhiteSpace(normalized.SdkReferencePackage) &&
+                    await Task.Run(() => UnreadableUcps(source), cancellationToken).ConfigureAwait(false) is { Count: > 0 } unreadable)
+                {
+                    sdkUnavailable = Loc.F("Sdk.UcpUnreadable", string.Join(", ", unreadable));
+                    sdkRuntime = null;
+                }
             }
             else
             {
@@ -230,6 +240,10 @@ public sealed class BuildEngine
             // nhánh (SDK thường, SDK + Dokan, bản vá, engine tích hợp) nên mọi lượt tạo gói đều được cảnh báo một lần.
             WarnAmprGame(sourceFolder, log, cancellationToken);
 
+            // Khôi phục metadata online (tuỳ chọn): sce_sys của nguồn được chép vào thư mục tạm và khôi phục ở đó; khi đóng gói các tệp
+            // đã khôi phục đè lên sce_sys của nguồn (GP5 của SDK, thư mục gương của engine). Nguồn chỉ được đọc.
+            using var metadata = await RestoreMetadataAsync(normalized, source, sourceFolder, patchMerge != null, log, cancellationToken).ConfigureAwait(false);
+
             // SDK Sony: GP5 phẳng trỏ thẳng vào từng tệp nguồn (như build-from-folder.ps1 với --absolute-paths), nên không cần
             // thư mục gương — tệp cần bỏ chỉ việc không liệt kê, param.json đã sửa trỏ sang bản trong thư mục tạm. Ổ ảo Dokan đã
             // tự ẩn tệp và đè param.json khi gắn nên dùng nguyên như script gốc.
@@ -281,8 +295,16 @@ public sealed class BuildEngine
             if (sdkRuntime != null)
             {
                 var plan = mount is { Backend: MountBackend.Dokan }
-                    ? SonySdkSourcePlan.Pure with { ParamPatch = normalized.ParamPatch, PlayGo = await Task.Run(() => ReadPlayGoStructure(sourceFolder, normalized, log), cancellationToken).ConfigureAwait(false) }
-                    : await Task.Run(() => PlanSonySdkSource(normalized, sourceFolder, log), cancellationToken).ConfigureAwait(false);
+                    ? SonySdkSourcePlan.Pure with
+                    {
+                        ParamPatch = normalized.ParamPatch,
+                        PlayGo = await Task.Run(() => ReadPlayGoStructure(metadata?.Root ?? sourceFolder, normalized, log), cancellationToken).ConfigureAwait(false),
+                        KeepDirectories = await Task.Run(() => PlanDlcEmu(normalized, sourceFolder, null, log), cancellationToken).ConfigureAwait(false),
+                        KeepEmptyDirectories = normalized.SdkKeepEmptyFolders,
+                        FillEmptyChunks = normalized.SdkFillEmptyChunks,
+                        SceSysOverlay = metadata?.SceSysFolder,
+                    }
+                    : await Task.Run(() => PlanSonySdkSource(normalized, sourceFolder, log, metadata: metadata), cancellationToken).ConfigureAwait(false);
                 return await BuildWithSonySdkAsync(normalized, sdkRuntime, sourceFolder, plan, tracker, stopwatch, log, progress, cancellationToken).ConfigureAwait(false);
             }
 
@@ -292,9 +314,23 @@ public sealed class BuildEngine
             // Gương dựng được cả trên ổ đã gắn: nó chỉ ĐỌC từ ổ rồi ghi vào thư mục tạm, nên ổ chỉ đọc như hdiutil trên macOS
             // cũng không cản trở. Nhờ vậy ảnh .exfat trên macOS không còn phải giải nén chỉ để bỏ playgo* hay sửa param.json.
             // Ổ ảo Dokan đã tự ẩn tệp và đè param.json khi gắn nên bỏ qua để khỏi làm hai lần.
+            // Bộ giả lập DLC được giữ: engine tích hợp giữ cả thư mục rỗng nên chỉ ghi nhật ký (và cảnh báo thư mục gắn thiếu); tạo gói xong
+            // thì đọc lại gói để xác nhận. Dự án GP5 tự liệt kê tệp nên bỏ qua.
+            IReadOnlyList<string>? dlcEmuExpected = null;
+            if (!source.IsGp5)
+            {
+                await Task.Run(() => PlanDlcEmu(normalized, sourceFolder, null, log), cancellationToken).ConfigureAwait(false);
+                dlcEmuExpected = await Task.Run(() => ExpectedDlcEmuPaths(normalized, sourceFolder), cancellationToken).ConfigureAwait(false);
+                if (mount is { Backend: MountBackend.Dokan })
+                {
+                    // Ổ ảo Dokan: engine đọc thẳng ổ, không qua gương nên không thay được UCP — chỉ báo.
+                    await Task.Run(() => LogUcpState(sourceFolder, log, repaired: false), cancellationToken).ConfigureAwait(false);
+                }
+            }
+
             var mirrorRequired = false;
             using var mirror = mount is null or { Backend: not MountBackend.Dokan }
-                ? BuildSourceMirror(normalized, source, project, sourceFolder, ownsFolder: staging != null, log, out mirrorRequired)
+                ? BuildSourceMirror(normalized, source, project, sourceFolder, ownsFolder: staging != null, log, out mirrorRequired, metadata)
                 : null;
             if (mirror != null)
             {
@@ -347,7 +383,7 @@ public sealed class BuildEngine
 
             cancellationToken.ThrowIfCancellationRequested();
             var warnings = result.Warnings is { } list ? list.ToArray() : Array.Empty<string>();
-            return await VerifyOutputAsync(normalized, result.OutputPath, warnings, tracker, stopwatch, log, progress, cancellationToken).ConfigureAwait(false);
+            return await VerifyOutputAsync(normalized, result.OutputPath, warnings, tracker, stopwatch, log, progress, cancellationToken, dlcEmuExpected).ConfigureAwait(false);
         }
         finally
         {
@@ -387,7 +423,8 @@ public sealed class BuildEngine
         !string.IsNullOrWhiteSpace(request.SdkReferencePackage) && !request.SdkPatchExactSource && source.Kind == SourceKind.Folder;
 
     /// <summary>Kết quả so nguồn với gói gốc: những tệp phải lấy lại từ gói gốc (<see cref="FromPackage"/>) hoặc từ thư mục game gốc.</summary>
-    private sealed record PatchMerge(bool FromPackage, IReadOnlySet<string> MissingPaths, int MissingFiles, long MissingBytes, IReadOnlyCollection<string>? BasePaths = null);
+    /// <param name="BaseDirectories">Thư mục của gói gốc (a/b): tạo lại khi giải nén phần thiếu để thư mục rỗng — thư mục gắn DLC — không mất khỏi bản vá.</param>
+    private sealed record PatchMerge(bool FromPackage, IReadOnlySet<string> MissingPaths, int MissingFiles, long MissingBytes, IReadOnlyCollection<string>? BasePaths = null, IReadOnlyCollection<string>? BaseDirectories = null);
 
     /// <summary>
     /// So đường dẫn tệp (không phân biệt hoa thường) của thư mục nguồn với danh sách tệp trong gói gốc. Null = nguồn đã đầy đủ (mọi tệp
@@ -411,6 +448,7 @@ public sealed class BuildEngine
         var keep = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { SonySdkProject.KeystonePath };
         var missing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var basePaths = new List<string>();
+        var baseDirectories = new List<string>();
         var significant = 0;
         long bytes = 0;
         using (var reader = PackageReader.Open(Path.GetFullPath(request.SdkReferencePackage!), request.Passcode, request.TemporaryFolder, cancellationToken))
@@ -420,6 +458,11 @@ public sealed class BuildEngine
                 var relative = entry.Path.Replace('\\', '/').TrimStart('/');
                 if (entry.IsDirectory)
                 {
+                    if (relative.Length > 0)
+                    {
+                        baseDirectories.Add(relative);
+                    }
+
                     continue;
                 }
 
@@ -431,10 +474,11 @@ public sealed class BuildEngine
 
                 missing.Add(relative);
                 bytes += entry.Size;
-                // "Thiếu thật" = dữ liệu game. sce_sys (SDK tự sinh bảng PlayGo, PNG khôi phục từ .dds…) và tệp giữ chỗ ngôn ngữ do công cụ
-                // thêm lúc tạo gói gốc không có trong bản dump đầy đủ nên không tính.
+                // "Thiếu thật" = dữ liệu game. sce_sys (SDK tự sinh bảng PlayGo, PNG khôi phục từ .dds…) và tệp giữ chỗ (chunk ngôn ngữ, chunk
+                // rỗng) do công cụ thêm lúc tạo gói gốc không có trong bản dump đầy đủ nên không tính.
                 if (!relative.StartsWith("sce_sys/", StringComparison.OrdinalIgnoreCase) &&
                     !relative.StartsWith(SonySdkPlayGo.LanguagePayloadFolder + "/", StringComparison.OrdinalIgnoreCase) &&
+                    !relative.StartsWith(SonySdkPlayGo.ChunkPayloadFolder + "/", StringComparison.OrdinalIgnoreCase) &&
                     SonySdkProject.SkipReason(relative, keep) == null)
                 {
                     significant++;
@@ -443,7 +487,7 @@ public sealed class BuildEngine
         }
 
         var hasParam = present.Contains("sce_sys/param.json");
-        return significant == 0 && hasParam ? null : new PatchMerge(true, missing, significant, bytes, basePaths);
+        return significant == 0 && hasParam ? null : new PatchMerge(true, missing, significant, bytes, basePaths, baseDirectories);
     }
 
     private static bool PathsOverlap(string first, string second)
@@ -496,6 +540,16 @@ public sealed class BuildEngine
             }
         }
 
+        // Chỉ giải nén tệp thì thư mục rỗng của gói gốc (thư mục gắn DLC của dlc_emu.ini) mất khỏi bản ghép — tạo lại cả cây thư mục
+        // trong thư mục tạm (thư mục nào thừa vẫn rỗng, GP5 chỉ khai báo những thư mục được giữ).
+        foreach (var directory in merge.BaseDirectories ?? Array.Empty<string>())
+        {
+            if (directory.Split('/').All(part => part.Length > 0 && part != "." && part != ".."))
+            {
+                Directory.CreateDirectory(Path.Combine(target, directory.Replace('/', Path.DirectorySeparatorChar)));
+            }
+        }
+
         PackageReader.ExportSceSys(package, target, request.Passcode, cancellationToken);
         log(new LogEntry(LogLevel.Info, Loc.F("Patch.BaseExtracted", Formatters.Duration(watch.Elapsed))));
     }
@@ -511,8 +565,11 @@ public sealed class BuildEngine
     /// bộ playgo*, ampr_emu.index và hai module giả lập trong fakelib vì script gốc (fixdss3) tự loại; param.json được script
     /// chuẩn hoá (DRM standard) rồi công cụ áp thêm các sửa đổi tuỳ chọn. Thư mục nguồn chỉ được đọc.
     /// </summary>
-    private static SonySdkSourcePlan PlanSonySdkSource(BuildRequest request, string appFolder, Action<LogEntry> log, string? overlayFolder = null)
+    private static SonySdkSourcePlan PlanSonySdkSource(BuildRequest request, string appFolder, Action<LogEntry> log, string? overlayFolder = null, MetadataOverlay? metadata = null)
     {
+        // Giữ bộ giả lập DLC: thư mục gắn DLC rỗng phải được khai báo trong GP5 (script chỉ liệt kê tệp) — xem DlcEmuInspector.FindMounts.
+        var keepDirectories = PlanDlcEmu(request, appFolder, overlayFolder, log);
+
         // Bản vá ghép thư mục update: tệp cần bỏ có thể nằm ở bên nào cũng được; bảng PlayGo lấy ở bên nào còn playgo-chunk.dat (ưu tiên gói gốc).
         var cleanup = overlayFolder == null
             ? FolderCleanupPaths(request, appFolder)
@@ -529,8 +586,9 @@ public sealed class BuildEngine
             StringComparer.OrdinalIgnoreCase);
         LogCleanup(skip.ToList(), Array.Empty<string>(), log);
 
-        var playgo = PlayGoCleanup.ListFolder(appFolder);
-        var structure = ReadPlayGoStructure(appFolder, request, log);
+        var playgo = PlayGoCleanup.ListFolder(metadata?.Root ?? appFolder);
+        // Metadata khôi phục: bản sao sce_sys đầy đủ trong thư mục tạm (bảng PlayGo của gói gốc có thể chỉ có ở đó).
+        var structure = ReadPlayGoStructure(metadata?.Root ?? appFolder, request, log);
         if (playgo.Count > 0)
         {
             // Bảng playgo* của nguồn không bao giờ đưa thẳng vào gói (SDK từ chối); nhiều chunk thì SDK tạo lại theo cấu trúc giữ trong GP5.
@@ -541,7 +599,93 @@ public sealed class BuildEngine
                     : Loc.F("Sdk.PlayGoRebuilt", PlayGoCleanup.Describe(playgo), structure.Chunks.Count, structure.Scenarios.Count)));
         }
 
-        return new SonySdkSourcePlan(skip, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), SkipJunk: true, request.ParamPatch, structure);
+        return new SonySdkSourcePlan(skip, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), SkipJunk: true, request.ParamPatch, structure)
+        {
+            KeepDirectories = keepDirectories,
+            KeepEmptyDirectories = request.SdkKeepEmptyFolders,
+            FillEmptyChunks = request.SdkFillEmptyChunks,
+            SceSysOverlay = metadata?.SceSysFolder,
+        };
+    }
+
+    /// <summary>
+    /// Bộ giả lập DLC khi được giữ: ghi nhật ký những gì vào gói (dlc_emu.ini, module fakelib, thư mục gắn DLC) và cảnh báo thư mục gắn mà
+    /// dlc_emu.ini trỏ tới nhưng nguồn không có (DLC-emu không tự tạo nên DLC đó không gắn được). Trả về các thư mục gắn có trong nguồn
+    /// — chúng phải có mặt trong gói kể cả khi rỗng.
+    /// </summary>
+    private static IReadOnlyList<string> PlanDlcEmu(BuildRequest request, string appFolder, string? overlayFolder, Action<LogEntry> log)
+    {
+        if (!request.KeepDlcEmu)
+        {
+            return Array.Empty<string>();
+        }
+
+        var present = DlcEmuInspector.ScanFolder(appFolder, CancellationToken.None).Paths
+            .Concat(overlayFolder == null ? Array.Empty<string>() : DlcEmuInspector.ScanFolder(overlayFolder, CancellationToken.None).Paths)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (present.Count == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        log(new LogEntry(LogLevel.Info, Loc.F("Plan.DlcEmuKeptList", string.Join(", ", present))));
+        var mounts = DlcEmuInspector.FindMounts(appFolder, overlayFolder);
+        if (mounts.Existing.Count > 0)
+        {
+            log(new LogEntry(LogLevel.Info, Loc.F("Plan.DlcEmuMounts", mounts.Existing.Count, string.Join(", ", mounts.Existing.Select(path => path + "/")))));
+        }
+
+        if (mounts.Missing.Count > 0)
+        {
+            log(new LogEntry(LogLevel.Warning, Loc.F("Plan.DlcEmuMountMissing", string.Join(", ", mounts.Missing.Select(path => "/app0/" + path)))));
+        }
+
+        return mounts.Existing;
+    }
+
+    /// <summary>
+    /// Những gì của bộ giả lập DLC phải có trong gói vừa tạo (tệp dlc_emu.ini/module + thư mục gắn có trong nguồn); null khi không giữ
+    /// bộ giả lập hoặc nguồn không có nó.
+    /// </summary>
+    private static IReadOnlyList<string>? ExpectedDlcEmuPaths(BuildRequest request, string appFolder, string? overlayFolder = null)
+    {
+        if (!request.KeepDlcEmu)
+        {
+            return null;
+        }
+
+        var files = DlcEmuInspector.ScanFolder(appFolder, CancellationToken.None).Paths
+            .Concat(overlayFolder == null ? Array.Empty<string>() : DlcEmuInspector.ScanFolder(overlayFolder, CancellationToken.None).Paths)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return files.Count == 0 ? null : files.Concat(DlcEmuInspector.FindMounts(appFolder, overlayFolder).Existing).ToList();
+    }
+
+    /// <summary>
+    /// Đọc lại danh sách tệp của gói vừa tạo và xác nhận bộ giả lập DLC có đủ trong đó (issue #9: "luôn xoá dlc_emu.ini"). Chỉ với gói
+    /// PLAINTEXT_NOAUTH (đọc tại chỗ, chỉ metadata); gói Native phải giải mã cả ảnh ra đĩa nên bỏ qua. Không bao giờ làm hỏng lượt build.
+    /// </summary>
+    private static void ConfirmDlcEmuInPackage(BuildRequest request, string packagePath, IReadOnlyList<string> expected, Action<LogEntry> log, CancellationToken cancellationToken)
+    {
+        if (request.ImageMode != OuterImageMode.PlaintextNoAuth || expected.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            using var reader = PackageReader.Open(packagePath, request.Passcode, request.TemporaryFolder, cancellationToken);
+            var inPackage = new HashSet<string>(reader.Entries.Select(entry => entry.Path.Replace('\\', '/').Trim('/')), StringComparer.OrdinalIgnoreCase);
+            var missing = expected.Where(path => !inPackage.Contains(path.Trim('/'))).ToList();
+            log(missing.Count == 0
+                ? new LogEntry(LogLevel.Success, Loc.F("Plan.DlcEmuConfirmed", expected.Count, string.Join(", ", expected)))
+                : new LogEntry(LogLevel.Warning, Loc.F("Plan.DlcEmuMissingInPackage", string.Join(", ", missing))));
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or NotSupportedException or UnauthorizedAccessException)
+        {
+            // Chỉ là bước xác nhận thêm: không đọc được gói thì bỏ qua, kiểm tra cấu trúc/nội dung phía trước đã chạy.
+        }
     }
 
     /// <summary>
@@ -585,6 +729,11 @@ public sealed class BuildEngine
         var languages = string.Join(", ", SonySdkPlayGo.Codes(structure.SupportedLanguageMask));
         var languageChunks = structure.Chunks.Count(chunk => chunk.LanguageMask != structure.SupportedLanguageMask);
         log(new LogEntry(LogLevel.Info, Loc.F("Sdk.PlayGoStructure", structure.Chunks.Count, structure.Scenarios.Count, languageChunks, languages, structure.FileChunks.Count)));
+        if (structure.FileMapProblem is { } mapProblem)
+        {
+            log(new LogEntry(LogLevel.Warning, Loc.F("Sdk.PlayGoFileMapProblem", mapProblem, structure.Chunks.Count - 1)));
+        }
+
         return structure;
     }
 
@@ -648,6 +797,10 @@ public sealed class BuildEngine
             progress?.Report(tracker.EnterPhase(PhaseCatalog.Verify));
             var verification = await Task.Run(() => PackageVerifier.Verify(result.RemasteredPath, request.ImageMode, false, cancellationToken, null), cancellationToken).ConfigureAwait(false);
             LogSdkVersionChange(appFolder, result.RemasteredPath, request.Passcode, log);
+            if (await Task.Run(() => ExpectedDlcEmuPaths(request, appFolder, plan.OverlayRoot), cancellationToken).ConfigureAwait(false) is { Count: > 0 } patchDlcEmu)
+            {
+                await Task.Run(() => ConfirmDlcEmuInPackage(request, result.RemasteredPath, patchDlcEmu, log, cancellationToken), cancellationToken).ConfigureAwait(false);
+            }
 
             // Người dùng chọn tệp xuất ra: Publishing Tools luôn ghi cả hai, tệp không cần bị xoá SAU khi đã kiểm tra cấu trúc. Hai tệp chuyển
             // đổi qua lại được bằng img_convert (remastered ⇄ patch + gói base), nên không mất gì.
@@ -674,7 +827,8 @@ public sealed class BuildEngine
             return new BuildOutcome(keptPath, result.Warnings.ToArray(), verification with { Length = new FileInfo(keptPath).Length }, stopwatch.Elapsed);
         }
 
-        var outcome = await VerifyOutputAsync(request, result.OutputPath, result.Warnings.ToArray(), tracker, stopwatch, log, progress, cancellationToken).ConfigureAwait(false);
+        var dlcEmu = await Task.Run(() => ExpectedDlcEmuPaths(request, appFolder, plan.OverlayRoot), cancellationToken).ConfigureAwait(false);
+        var outcome = await VerifyOutputAsync(request, result.OutputPath, result.Warnings.ToArray(), tracker, stopwatch, log, progress, cancellationToken, dlcEmu).ConfigureAwait(false);
         LogSdkVersionChange(appFolder, result.OutputPath, request.Passcode, log);
         return outcome;
     }
@@ -688,7 +842,8 @@ public sealed class BuildEngine
         Stopwatch stopwatch,
         Action<LogEntry> log,
         IProgress<BuildProgress>? progress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyList<string>? dlcEmuExpected = null)
     {
         {
             log(new LogEntry(LogLevel.Info, Loc.T(normalized.ComputeSha256 ? "Plan.VerifyingSha" : "Plan.Verifying")));
@@ -745,6 +900,10 @@ public sealed class BuildEngine
 
             log(new LogEntry(LogLevel.Success, Loc.F(contents.IsFull ? "Plan.VerifiedFull" : "Plan.VerifiedQuick", contents.Checks.Count, Formatters.Duration(contents.Elapsed))));
             verification = verification with { Contents = contents };
+            if (dlcEmuExpected is { Count: > 0 })
+            {
+                await Task.Run(() => ConfirmDlcEmuInPackage(normalized, outputPath, dlcEmuExpected, log, cancellationToken), cancellationToken).ConfigureAwait(false);
+            }
 
             stopwatch.Stop();
             progress?.Report(tracker.Complete());
@@ -862,7 +1021,7 @@ public sealed class BuildEngine
     /// Dựng thư mục gương cho lượt tạo gói: bỏ những tệp không được vào gói và thay param.json bằng bản đã sửa, tất cả nằm trong
     /// thư mục tạm. Thư mục nguồn của người dùng chỉ được đọc. Trả về null khi không phải bỏ hay sửa gì.
     /// </summary>
-    private static SourceMirror? BuildSourceMirror(BuildRequest request, SourceInfo source, Gp5ProjectInfo? project, string sourceFolder, bool ownsFolder, Action<LogEntry> log, out bool required)
+    private static SourceMirror? BuildSourceMirror(BuildRequest request, SourceInfo source, Gp5ProjectInfo? project, string sourceFolder, bool ownsFolder, Action<LogEntry> log, out bool required, MetadataOverlay? metadata = null)
     {
         required = false;
         // Dự án GP5: thư mục ứng dụng thật nằm ở rootdir của dự án, không phải thư mục chứa tệp .gp5.
@@ -902,15 +1061,37 @@ public sealed class BuildEngine
         }
         var replace = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         var paramJson = System.IO.Path.Combine(appFolder, "sce_sys", "param.json");
-        if (PatchedParamJson(request, appFolder, log) is { } patchedParam)
+        var restoredParam = metadata?.Contains("sce_sys/param.json") == true;
+        if (PatchedParamJson(request, restoredParam ? metadata!.Root : appFolder, log) is { } patchedParam)
         {
             replace["sce_sys/param.json"] = patchedParam;
         }
 
-        if (request.KeepDlcEmu && File.Exists(System.IO.Path.Combine(appFolder, DlcEmuInspector.ConfigName)))
+        // UCP lệch digest: thay bằng bản đã tính lại digest (bản khôi phục online cùng tên, nếu có, thắng vì thư viện đã kiểm digest của nó).
+        if (!source.IsGp5)
         {
-            log(new LogEntry(LogLevel.Info, Loc.T("Plan.DlcEmuKept")));
+            foreach (var (relative, repaired) in LogUcpState(appFolder, log))
+            {
+                if (metadata?.Contains(relative) != true)
+                {
+                    replace[relative] = repaired;
+                }
+            }
         }
+
+        // Metadata khôi phục online: tệp đè lên (hoặc thêm vào) sce_sys trong gương; bỏ bộ playgo* thì cũng bỏ bản khôi phục.
+        var add = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var relative in metadata?.Files ?? Array.Empty<string>())
+        {
+            if (replace.ContainsKey(relative) || (request.RemovePlayGoFiles && PlayGoCleanup.IsCandidate(relative)))
+            {
+                continue;
+            }
+
+            add[relative] = metadata!.FullPath(relative);
+            skip.RemoveAll(path => path.Equals(relative, StringComparison.OrdinalIgnoreCase));
+        }
+
 
         // Thư viện tự ghi vào thư mục nó đọc trong hai trường hợp: sinh sce_sys/param.json khi thiếu, và ghi
         // sce_sys/pfs-region-hints.json khi bật phân tích shuffle. Cả hai đều phải xảy ra trong gương, không phải trong nguồn.
@@ -918,14 +1099,14 @@ public sealed class BuildEngine
                             || (request.PfsFormat == PfsFormat.V3 && request.ShuffleAnalysis);
         // sce_sys luôn là bản sao thật: thư viện tự ghi vào đó (param.json thiếu, gợi ý vùng nén), mà liên kết thì ghi
         // xuyên thẳng vào thư mục nguồn. Thư mục này nhỏ nên sao chép không đáng kể.
-        var plan = new MirrorPlan(skip, replace, new Dictionary<string, string>(), new[] { "sce_sys" });
+        var plan = new MirrorPlan(skip, replace, add, new[] { "sce_sys" });
         var cleanup = skip.Except(junkPaths, StringComparer.OrdinalIgnoreCase).Except(invalidPlayGo, StringComparer.OrdinalIgnoreCase).ToList();
 
         // Bản giải nén ảnh nằm trong thư mục tạm là của công cụ, không phải nguồn của người dùng: sửa thẳng trên đó, khỏi cần
         // liên kết — nên chạy được cả khi thư mục tạm ở ổ exFAT/FAT32 hay ổ mạng không tạo được liên kết.
         if (ownsFolder)
         {
-            if (skip.Count > 0 || replace.Count > 0)
+            if (skip.Count > 0 || replace.Count > 0 || add.Count > 0)
             {
                 LogCleanup(cleanup, Array.Empty<string>(), log);
                 SourceMirror.ApplyInPlace(appFolder, plan with { Copy = Array.Empty<string>() });
@@ -1002,6 +1183,40 @@ public sealed class BuildEngine
         {
             // Cảnh báo là phụ: không đọc được eboot thì cứ tạo gói như thường.
         }
+    }
+
+    /// <summary>
+    /// Engine tích hợp: UCP của sce_sys/trophy2 và sce_sys/uds có digest lệch → bản đã tính lại digest để đưa vào gương (đường dẫn trong gói →
+    /// nội dung); UCP không đọc được thì cảnh báo vì game có thể lỗi lúc mở cúp hay gửi hoạt động. Engine 0.6.12 có hàm sửa digest nhưng nó
+    /// không chạy trong luồng publisher (đo: gói của engine vẫn mang nguyên UCP lệch), nên công cụ tự làm như ở chế độ SDK Sony.
+    /// <paramref name="repaired"/> = false: không thay được (ổ ảo Dokan), chỉ báo. Kiểm tra là phụ, đọc lỗi thì bỏ qua.
+    /// </summary>
+    private static Dictionary<string, byte[]> LogUcpState(string appFolder, Action<LogEntry> log, bool repaired = true)
+    {
+        var fixes = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+        var problems = UcpInspector.ScanFolder(appFolder);
+        foreach (var (relative, _, _) in problems.Where(item => item.State == UcpState.StaleDigest))
+        {
+            try
+            {
+                fixes[relative] = UcpInspector.Repair(File.ReadAllBytes(System.IO.Path.Combine(appFolder, relative.Replace('/', System.IO.Path.DirectorySeparatorChar))));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+            {
+            }
+        }
+
+        if (fixes.Count > 0)
+        {
+            log(new LogEntry(LogLevel.Warning, Loc.F(repaired ? "Plan.UcpRepairedMirror" : "Plan.UcpStaleNotRepaired", string.Join(", ", fixes.Keys))));
+        }
+
+        if (problems.Where(item => item.State == UcpState.Invalid).ToList() is { Count: > 0 } invalid)
+        {
+            log(new LogEntry(LogLevel.Warning, Loc.F("Plan.UcpInvalid", string.Join("; ", invalid.Select(item => item.Relative + " (" + item.Error + ")")))));
+        }
+
+        return repaired ? fixes : new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
     }
 
     private static void LogCleanup(IReadOnlyCollection<string> hidden, IReadOnlyCollection<string> emptyFolders, Action<LogEntry> log)
@@ -1267,12 +1482,67 @@ public sealed class BuildEngine
             return ExFatStrategy.Extract;
         }
 
+        if (request.RestoreMetadataOnline && !request.SonySdkActive && ImageMounter.CanOverlayFiles && string.IsNullOrWhiteSpace(request.SdkReferencePackage))
+        {
+            // Engine tích hợp đọc thẳng ổ ảo Dokan (không qua gương) nên metadata khôi phục không đè được lên sce_sys: giải nén ảnh.
+            log?.Invoke(new LogEntry(LogLevel.Info, Loc.T("Meta.ExtractForEngine")));
+            return ExFatStrategy.Extract;
+        }
+
         if (request.ExFat == ExFatStrategy.Mount)
         {
             return ExFatStrategy.Mount;
         }
 
         return ExFatStrategy.Mount;
+    }
+
+    /// <summary>UCP của nguồn (thư mục hoặc ảnh exFAT) mà không công cụ nào đọc được như một UCP; rỗng khi không có hoặc không kiểm tra được.</summary>
+    private static IReadOnlyList<string> UnreadableUcps(SourceInfo source)
+    {
+        try
+        {
+            IReadOnlyList<(string Relative, UcpState State, string? Error)> problems;
+            if (source.IsExFat)
+            {
+                using var image = ExFatImage.Open(source.Path);
+                problems = UcpInspector.ScanImage(image, SourceLocator.ResolveAppRoot(image, source));
+            }
+            else if (!source.IsUfs && !source.IsGp5 && Directory.Exists(source.Path))
+            {
+                problems = UcpInspector.ScanFolder(source.Path);
+            }
+            else
+            {
+                return Array.Empty<string>();
+            }
+
+            return problems.Where(item => item.State == UcpState.Invalid).Select(item => item.Relative + " (" + item.Error + ")").ToList();
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            return Array.Empty<string>();
+        }
+    }
+
+    /// <summary>
+    /// Khôi phục metadata online khi bật (<see cref="BuildRequest.RestoreMetadataOnline"/>); null khi tắt, không áp dụng (dự án GP5, gói
+    /// update) hoặc không khôi phục được gì.
+    /// </summary>
+    private static async Task<MetadataOverlay?> RestoreMetadataAsync(BuildRequest request, SourceInfo source, string appFolder, bool patchMerge, Action<LogEntry> log, CancellationToken cancellationToken)
+    {
+        if (!request.RestoreMetadataOnline)
+        {
+            return null;
+        }
+
+        if (source.IsGp5 || patchMerge || !string.IsNullOrWhiteSpace(request.SdkReferencePackage))
+        {
+            log(new LogEntry(LogLevel.Info, Loc.T("Meta.NotApplicable")));
+            return null;
+        }
+
+        return await MetadataRestore.PrepareAsync(appFolder, request.TemporaryFolder, request.MetadataSourceUrl, log, cancellationToken).ConfigureAwait(false);
     }
 
     public static ProsperoBuildOptions CreateOptions(

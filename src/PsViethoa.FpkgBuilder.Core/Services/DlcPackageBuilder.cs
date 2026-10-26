@@ -23,6 +23,10 @@ public sealed record DlcBuildResult(DlcEmuEntry Entry, string? OutputPath, long 
 /// ngoài/trong, không IMAGE_KEY — nên trình cài debug của PS5 từ chối. Dạng AC có dữ liệu cho ra gói FIH giống gói game nên
 /// cài được, vẫn mang đúng giấy phép RIF của Content ID đó.
 /// </para>
+/// <para>
+/// Lớp ảnh ngoài theo tuỳ chọn của tab Tạo gói (mặc định PLAINTEXT_NOAUTH như gói game và fpkg-gui). Trước 2.2.7 gói DLC không đặt
+/// chế độ ảnh nên thư viện dùng mặc định của nó là Native (AES-XTS) — khác hẳn gói game cài cùng máy.
+/// </para>
 /// </summary>
 public static class DlcPackageBuilder
 {
@@ -39,7 +43,8 @@ public static class DlcPackageBuilder
         Action<LogEntry>? log,
         CancellationToken cancellationToken,
         Func<IReadOnlyList<string>, OutputConflictChoice>? onOutputConflict = null,
-        string? sourceFolder = null)
+        string? sourceFolder = null,
+        OuterImageMode imageMode = OuterImageMode.PlaintextNoAuth)
     {
         var results = new List<DlcBuildResult>();
         Directory.CreateDirectory(outputFolder);
@@ -78,7 +83,7 @@ public static class DlcPackageBuilder
                     : new LogEntry(LogLevel.Warning, Loc.F("Dlc.NoDataFolder", entry.ContentId, entry.DownloadStatus, entry.MountPoint ?? "—")));
             }
 
-            results.Add(BuildOne(entry, outputFolder, temporaryFolder, gameTitle, log, cancellationToken, dataFolder));
+            results.Add(BuildOne(entry, outputFolder, temporaryFolder, gameTitle, log, cancellationToken, dataFolder, imageMode));
         }
 
         return results;
@@ -91,7 +96,8 @@ public static class DlcPackageBuilder
         string? gameTitle,
         Action<LogEntry>? log,
         CancellationToken cancellationToken,
-        string? dataFolder = null)
+        string? dataFolder = null,
+        OuterImageMode imageMode = OuterImageMode.PlaintextNoAuth)
     {
         var titleId = ContentIdHelper.TitleIdOf(entry.ContentId);
         if (titleId == null)
@@ -127,8 +133,9 @@ public static class DlcPackageBuilder
                 PrimaryId = entry.ContentId,
                 TitleId = titleId,
                 Title = string.IsNullOrWhiteSpace(gameTitle) ? entry.Label : gameTitle + " — " + entry.Label,
-                Version = "01.00",
+                Version = "01.000.000",
                 Passcode = new string('0', 32),
+                PublisherImageMode = imageMode == OuterImageMode.Native ? ProsperoPublisherImageMode.Native : ProsperoPublisherImageMode.PlaintextNoAuth,
                 GenerateParamJsonIfMissing = true,
                 DeterministicBuild = true,
                 CancellationToken = cancellationToken,

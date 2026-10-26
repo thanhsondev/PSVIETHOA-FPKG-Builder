@@ -258,6 +258,16 @@ public static class SonySdkBuilder
                 log(new LogEntry(LogLevel.Info, Loc.F("Sdk.SelfRepaired", project.RepairedSelfs.Count, Summarize(project.RepairedSelfs.Select(item => item.Relative + " (" + item.Repairs + ")").ToList()))));
             }
 
+            if (project.RepairedUcps.Count > 0)
+            {
+                log(new LogEntry(LogLevel.Warning, Loc.F("Sdk.UcpRepaired", project.RepairedUcps.Count, Summarize(project.RepairedUcps.ToList()))));
+            }
+
+            if (project.InvalidUcps.Count > 0)
+            {
+                log(new LogEntry(LogLevel.Warning, Loc.F("Plan.UcpInvalid", string.Join("; ", project.InvalidUcps.Select(item => item.Relative + " (" + item.Error + ")")))));
+            }
+
             if (project.SizeSelection is { } size)
             {
                 log(new LogEntry(LogLevel.Info, Loc.F("Sdk.PackageSize", Formatters.Size(project.SizeInputs.Bytes), project.SizeInputs.Files.ToString("N0", CultureInfo.CurrentCulture), Formatters.Size(size.EstimatedBytes), size.AttributePub, size.MountLevel)));
@@ -287,9 +297,26 @@ public static class SonySdkBuilder
                 log(new LogEntry(LogLevel.Info, Loc.F("Sdk.Skipped", project.Excluded.Count, Summarize(project.Excluded))));
             }
 
-            if (project.SkippedByApp.Count > 0)
+            // Tách hai loại: gộp chung từng làm "._dlc_emu.ini (tệp rác)" đứng ngay sau "bộ giả lập DLC…" và đọc thành "đã xoá dlc_emu.ini"
+            // (issue #9). Tệp "._tên" là bản phụ macOS ghi khi chép qua ổ exFAT/FAT, tệp thật cùng tên vẫn vào gói.
+            if (project.SkippedJunk is { Count: > 0 } junk)
             {
-                log(new LogEntry(LogLevel.Info, Loc.F("Sdk.SkippedByApp", project.SkippedByApp.Count, Summarize(project.SkippedByApp))));
+                log(new LogEntry(LogLevel.Info, Loc.F("Sdk.SkippedJunk", junk.Count, Summarize(junk))));
+            }
+
+            if (project.SkippedByOption is { Count: > 0 } byOption)
+            {
+                log(new LogEntry(LogLevel.Info, Loc.F("Sdk.SkippedByOption", byOption.Count, Summarize(byOption))));
+            }
+
+            if (project.KeptEmptyDirectories.Count > 0)
+            {
+                log(new LogEntry(LogLevel.Info, Loc.F("Sdk.EmptyDirsKept", project.KeptEmptyDirectories.Count, Summarize(project.KeptEmptyDirectories.Select(path => path + "/").ToList()))));
+            }
+
+            if (project.FilledChunks.Count > 0)
+            {
+                log(new LogEntry(LogLevel.Info, Loc.F("Sdk.PlayGoChunksFilled", project.FilledChunks.Count, Summarize(project.FilledChunks.Select(chunk => chunk.ToString(CultureInfo.InvariantCulture)).ToList()))));
             }
 
             progress(PhaseCatalog.SdkProject, 100, null);

@@ -36,12 +36,22 @@ Giao diện song ngữ (Tiếng Việt / English) · Preset tốc độ · PFS v
 
 ## Vì sao?
 
-Công cụ tạo FPKG cho PS5 hiện có (`LibProsperoPkg.Gui`) là ứng dụng **WPF chỉ chạy trên Windows**. PSVIETHOA FPKG Builder được viết lại hoàn toàn bằng **C# / .NET 10 + Avalonia UI**, chạy native trên **macOS (Apple Silicon & Intel) và Windows**, bổ sung **giao diện song ngữ**, nhận **ảnh đĩa `.exfat`** làm nguồn, và chú trọng vào việc **chạy mượt, nhanh khi tạo gói từ những thư mục game rất lớn** (vài chục GB). Lõi tạo gói là **LibProsperoPkg** của **Drakmor** (bản dựng tháng 9/2026 phát hành cùng fpkg‑gui 0.6.8), nên gói tạo ra chính xác đến từng byte.
+Công cụ tạo FPKG cho PS5 hiện có (`LibProsperoPkg.Gui`) là ứng dụng **WPF chỉ chạy trên Windows**. PSVIETHOA FPKG Builder được viết lại hoàn toàn bằng **C# / .NET 10 + Avalonia UI**, chạy native trên **macOS (Apple Silicon & Intel) và Windows**, bổ sung **giao diện song ngữ**, nhận **ảnh đĩa `.exfat`** làm nguồn, và chú trọng vào việc **chạy mượt, nhanh khi tạo gói từ những thư mục game rất lớn** (vài chục GB). Lõi tạo gói là **LibProsperoPkg** của **Drakmor** (bản dựng tháng 10/2026 phát hành cùng fpkg‑gui 0.6.12), nên gói tạo ra chính xác đến từng byte.
 
 > Kết quả là một **FPKG debug** (ảnh FIH, signed byte `0x00`) — chỉ cài được trên **PS5 đã bật chế độ debug**.
 
 ## Có gì mới trong 2.3
 
+- **2.2.7 — engine fpkg-gui 0.6.12 (Drakmor), gói SDK Sony giống gói của engine ở những chỗ game chỉ dùng tới giữa chừng**:
+  - Tuỳ chọn mới **Khôi phục metadata online**: chỉ tải đúng `*_sc.pkg` từ máy chủ Sony rồi đưa vào gói các tệp `sce_sys` bản dump làm mất hay hỏng — `param.json` (giữ SDK, firmware, DRM của bản dump), icon, bảng PlayGo, trophy/UDS. Thư mục game chỉ được đọc.
+  - Giữ bố cục PlayGo nguồn khi chỉ có 1 chunk (cảm ơn @MangoScango).
+  - Sửa lỗi gói chơi một đoạn rồi lỗi và gói DLC không được nhận:
+    - mọi kịch bản PlayGo chứa đủ mọi chunk;
+    - giữ thư mục rỗng trong gói (tuỳ chọn mới, mặc định bật);
+    - tính lại digest của UCP `trophy2`/`uds` bị lệch ở cả hai đường. Trước đây ở chế độ SDK Sony, bản dump như vậy làm dừng cả lượt tạo gói ("ucp_digest is invalid"), còn engine 0.6.12 đóng nguyên tệp lệch;
+    - gói DLC tạo từ `dlc_emu.ini` dùng PLAINTEXT_NOAUTH như gói game thay vì Native;
+    - chunk PlayGo không có tệp nào nhận một tệp giữ chỗ 1 MiB (tuỳ chọn mới, mặc định bật). PS5 coi chunk rỗng là chưa cài, nên Control (PPSA34547) đứng ở thang máy với *Đang cài đặt trò chơi… 0GB/0*.
+- **2.2.7 — bộ giả lập DLC chạy được trong gói SDK Sony** (cảm ơn Thomas H đã báo lỗi [#9](https://github.com/thanhsondev/PSVIETHOA-FPKG-Builder/issues/9)): giữ các thư mục gắn DLC rỗng mà `dlc_emu.ini` trỏ tới (`/app0/addcontN`) — trước đây GP5 của bộ công cụ chỉ liệt kê tệp nên chúng mất và DLC không gắn được. Gói Update cũng giữ đủ; nhật ký xác nhận những gì của bộ giả lập DLC đã có trong gói; tệp phụ macOS `._dlc_emu.ini` không còn hiện như thể `dlc_emu.ini` bị xoá.
 - **2.2.6 — engine fpkg-gui 0.6.11 (Drakmor)**: giữ bố cục PlayGo của bản dump (cảm ơn @MangoScango) — tệp nằm đúng khối gốc, ngôn ngữ thoại gỡ được trong menu nội dung bổ sung; mặc định giữ `sce_sys/playgo*`. Tuỳ chọn mới *Bố cục PlayGo* để tạo khối theo ngôn ngữ tự chọn. Chọn số nhân CPU cho SDK Sony — mặc định tốc độ tối đa, hạ xuống được ngay cả khi đang build để làm việc khác. Engine sửa lỗi NAPS, build DLC, tệp bị bỏ nhầm vì bị coi là "passcode", tự tạo `about/right.sprx`.
 - **2.2.5 — bộ công cụ SDK Sony `sdk-fpkg279-fix12`**: tối đa 500 000 tệp mỗi gói, số chunk PlayGo 1–255, tự chọn `attributePub` theo kích thước gói, ảnh `sce_sys` chuyển từ DDS khi thiếu PNG hoặc PNG sai chế độ màu, sửa header SELF — tất cả giống từng byte script của bộ công cụ. Tuỳ chọn mới **Dọn tàn dư bản dump** (`_DUBLEX_`, `Engine/Saved` của Unreal, `<dự án>/Saved`) sửa lỗi treo cứng ở màn hình splash của Stellar Blade (PPSA13197 EUR + DLC) — cách dọn do cộng đồng chia sẻ.
 - **2.2.4 — gói base không dùng làm bản vá được thì báo sau 0,3 giây, không phải sau cả lượt build**: `img_create --ref_pkg_path` đọc `prev_suppl/common/etc/naps_meta_18.dat` trong gói base rồi giải mã bằng khoá riêng của Publishing Tools. Gói base tạo bằng **engine tích hợp** vẫn có đủ tệp đó nhưng mã hoá bằng khoá của engine tích hợp, nên Publishing Tools giải ra rác và báo `NAPS metadata missing` — chỉ sau khi đã nén xong toàn bộ gói (đo thực tế: 4 phút 1 giây với gói base 33 GB, hàng giờ với gói 100 GB). Nay gói base được nhận dạng qua vùng supplement ngay lúc chọn, kèm thông báo nói rõ engine nào đã tạo ra nó và cách xử lý. Phần này thay cho chẩn đoán của 2.2.3 — bản đó đổ lỗi cho công cụ đóng gói lại làm mất metadata, và đó là chẩn đoán sai.

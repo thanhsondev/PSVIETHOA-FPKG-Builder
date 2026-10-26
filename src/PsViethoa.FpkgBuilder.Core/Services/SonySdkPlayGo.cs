@@ -55,6 +55,12 @@ public sealed record PlayGoStructure(
     public IReadOnlyList<PlayGoLanguagePayload> LanguagePayloads { get; init; } = Array.Empty<PlayGoLanguagePayload>();
 
     /// <summary>
+    /// Lý do bảng ánh xạ tệp → chunk (playgo-ficm.dat + playgo-hash-table.dat) của bản dump không dùng được; null khi dùng được hoặc
+    /// gói chỉ có một chunk. Khi đó mọi tệp vào chunk 0 và các chunk khác của bảng gốc rỗng.
+    /// </summary>
+    public string? FileMapProblem { get; init; }
+
+    /// <summary>
     /// Gói gốc chỉ có một chunk / một kịch bản: dùng chunk_info tối giản (không cần cấu trúc riêng). Bố cục script với 1 chunk vẫn
     /// không tầm thường: script fix12 ghi ngôn ngữ và tệp giữ chỗ vào chunk 0.
     /// </summary>
@@ -225,6 +231,12 @@ public static class SonySdkPlayGo
         }
 
         var files = new Dictionary<ulong, int>();
+        string? fileMapProblem = null;
+        if (chunkCount > 1)
+        {
+            fileMapProblem = FileMapProblemOf(ficm, hashTable);
+        }
+
         if (!ficm.IsEmpty && !hashTable.IsEmpty)
         {
             // FICM: header 16 byte (version 1, offset 16, kích thước bản đồ) rồi 2 byte mỗi tệp (chunk, dự phòng); FLT: header 56 byte
@@ -247,7 +259,36 @@ public static class SonySdkPlayGo
             }
         }
 
-        return new PlayGoStructure(supportedMask, defaultLanguage, defaultScenario, chunks, scenarios, files);
+        return new PlayGoStructure(supportedMask, defaultLanguage, defaultScenario, chunks, scenarios, files) { FileMapProblem = fileMapProblem };
+    }
+
+    /// <summary>
+    /// Vì sao cặp FICM + FLT không dùng được (null = dùng được). Có bản dump đặt nhầm tên mục CNT khi trích (bảng mã mục cũ): bảng hash
+    /// FLT nằm trong playgo-ficm.dat, còn playgo-hash-table.dat là một bản param.json — nhận ra để báo đúng thay vì im lặng dồn mọi tệp vào chunk 0.
+    /// </summary>
+    private static string? FileMapProblemOf(ReadOnlySpan<byte> ficm, ReadOnlySpan<byte> hashTable)
+    {
+        // Cùng điều kiện Parse dùng để nhận bảng (header FLT 56 byte, header FICM 16 byte).
+        static bool IsFlt(ReadOnlySpan<byte> data) => data.Length >= 56 && BinaryPrimitives.ReadUInt32LittleEndian(data) == 1 && data[24..28].SequenceEqual("\u007fFLT"u8) &&
+                                                      BinaryPrimitives.ReadUInt32LittleEndian(data[8..]) == 56;
+        static bool IsFicm(ReadOnlySpan<byte> data) => data.Length >= 16 && BinaryPrimitives.ReadUInt32LittleEndian(data) == 1 && BinaryPrimitives.ReadUInt32LittleEndian(data[8..]) == 16;
+
+        if (IsFicm(ficm) && IsFlt(hashTable))
+        {
+            return null;
+        }
+
+        if (IsFlt(ficm))
+        {
+            return FicmFileName + " holds the FLT hash table (the dump named its sce_sys files wrongly) and the real file map is missing";
+        }
+
+        if (ficm.IsEmpty || hashTable.IsEmpty)
+        {
+            return (ficm.IsEmpty ? FicmFileName : HashTableFileName) + " is missing";
+        }
+
+        return (IsFicm(ficm) ? HashTableFileName : FicmFileName) + " is not a valid PlayGo table";
     }
 
     /// <summary>Số chunk tối đa của PlayGo PS5 (bảng plgx và Publishing Tools).</summary>
@@ -286,6 +327,9 @@ public static class SonySdkPlayGo
 
     /// <summary>Thư mục trong gói chứa các tệp giữ chỗ ngôn ngữ (bố cục script fix6).</summary>
     public const string LanguagePayloadFolder = "playgo-languages";
+
+    /// <summary>Thư mục trong gói chứa tệp giữ chỗ của chunk không có tệp nào (<see cref="SonySdkSourcePlan.FillEmptyChunks"/>).</summary>
+    public const string ChunkPayloadFolder = "playgo-chunks";
 
     /// <summary>
     /// Bố cục PlayGo của script create-gp5-from-folder.py (fix6) cho nguồn không còn bảng gốc: đọc <c>sce_sys/playgo-scenario.json</c>
@@ -634,9 +678,10 @@ public static class SonySdkPlayGo
             // Mọi chunk đều "initial": gói FPKG được cài trọn nên không có chunk nào tải sau. Giữ initial_chunk_count gốc (Yōtei: 32/35)
             // khiến game mở lên hỏi hệ thống về các chunk còn lại → hộp "Something went wrong (CE-108111-2)" dù vẫn chơi được;
             // engine LibProsperoPkg 0.6.9 cũng đánh dấu mọi chunk initial. Thứ tự chunk và ngôn ngữ từng chunk vẫn như gói gốc.
-            xml.Append("        <scenario id=\"").Append(scenario.Id).Append("\" type=\"playmode\" initial_chunk_count=\"").Append(scenario.ChunkOrder.Count)
+            var order = ScenarioChunks(scenario, structure.Chunks.Count);
+            xml.Append("        <scenario id=\"").Append(scenario.Id).Append("\" type=\"playmode\" initial_chunk_count=\"").Append(order.Count)
                 .Append("\" label=\"").Append(SonySdkProject.EscapeAttribute(scenario.Label)).Append("\">")
-                .Append(string.Join(' ', scenario.ChunkOrder)).Append("</scenario>\n");
+                .Append(string.Join(' ', order)).Append("</scenario>\n");
         }
 
         xml.Append("      </scenarios>\n");
@@ -644,7 +689,74 @@ public static class SonySdkPlayGo
         return xml.ToString();
     }
 
+    /// <summary>
+    /// Danh sách chunk ghi cho một kịch bản: thứ tự của gói gốc rồi thêm các chunk kịch bản đó không có (tăng dần). Gói retail có thể
+    /// cho mỗi kịch bản (chế độ chơi) chỉ một phần chunk vì phần còn lại tải sau; FPKG cài trọn nên chunk nằm ngoài kịch bản đang chạy
+    /// bị hệ thống coi là chưa cài — game chạy tới đoạn cần tới chúng thì lỗi. Engine LibProsperoPkg (fpkg-gui) cũng cho mọi kịch bản
+    /// chứa đủ mọi chunk ("Every scenario requires every chunk").
+    /// </summary>
+    public static IReadOnlyList<int> ScenarioChunks(PlayGoScenario scenario, int chunkCount)
+    {
+        if (scenario.ChunkOrder.Count >= chunkCount)
+        {
+            return scenario.ChunkOrder;
+        }
+
+        var order = new List<int>(chunkCount);
+        order.AddRange(scenario.ChunkOrder);
+        order.AddRange(Enumerable.Range(0, chunkCount).Except(scenario.ChunkOrder));
+        return order;
+    }
+
     private readonly record struct LayoutSection(int Offset, int Size);
+
+    /// <summary>
+    /// Số byte dữ liệu của từng chunk trong playgo-chunk.dat của một gói đã tạo: tổng kích thước các extent mà chunk tham chiếu (bảng thuộc
+    /// tính chunk @192: 32 byte mỗi chunk, số extent @+4, vị trí danh sách @+24; danh sách tham chiếu @200: 4 byte mỗi mục; bảng extent @216:
+    /// 16 byte mỗi extent, vị trí @+0, kích thước @+8). Chunk 0 byte là chunk PS5 coi như chưa cài.
+    /// </summary>
+    public static IReadOnlyList<ulong> ChunkDataSizes(ReadOnlySpan<byte> chunk)
+    {
+        if (chunk.Length < 256 || !chunk[..4].SequenceEqual("plgx"u8))
+        {
+            throw new InvalidDataException("playgo-chunk.dat: not a PS5 plgx table");
+        }
+
+        int chunkCount = BinaryPrimitives.ReadUInt16LittleEndian(chunk[10..]);
+        var extentCount = BinaryPrimitives.ReadUInt32LittleEndian(chunk[32..]);
+        var attributes = Section(chunk, 192, "chunk attributes");
+        var references = Section(chunk, 200, "chunk extent references");
+        var extents = Section(chunk, 216, "extent attributes");
+        if (attributes.Size < chunkCount * 32L || extents.Size < extentCount * 16L)
+        {
+            throw new InvalidDataException("playgo-chunk.dat: chunk or extent tables are truncated");
+        }
+
+        var sizes = new ulong[chunkCount];
+        for (var id = 0; id < chunkCount; id++)
+        {
+            var record = attributes.Offset + id * 32;
+            int count = BinaryPrimitives.ReadUInt16LittleEndian(chunk[(record + 4)..]);
+            var list = BinaryPrimitives.ReadUInt32LittleEndian(chunk[(record + 24)..]);
+            if (list > (uint)references.Size || count * 4L > references.Size - list)
+            {
+                throw new InvalidDataException($"playgo-chunk.dat: chunk {id} extent list is outside its table");
+            }
+
+            for (var index = 0; index < count; index++)
+            {
+                var extent = BinaryPrimitives.ReadUInt32LittleEndian(chunk[(references.Offset + (int)list + index * 4)..]);
+                if (extent >= extentCount)
+                {
+                    throw new InvalidDataException($"playgo-chunk.dat: chunk {id} references missing extent {extent}");
+                }
+
+                sizes[id] += BinaryPrimitives.ReadUInt64LittleEndian(chunk[(extents.Offset + (int)extent * 16 + 8)..]);
+            }
+        }
+
+        return sizes;
+    }
 
     private static LayoutSection Section(ReadOnlySpan<byte> chunk, int pointer, string name)
     {

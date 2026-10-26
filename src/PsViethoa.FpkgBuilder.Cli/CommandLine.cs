@@ -282,7 +282,8 @@ internal static class CommandLine
 
         var title = arguments.Get("title", "t");
         var dlcSource = Directory.Exists(source) ? source : File.Exists(source) && source.EndsWith(".ini", StringComparison.OrdinalIgnoreCase) ? Path.GetDirectoryName(Path.GetFullPath(source)) : null;
-        var results = DlcPackageBuilder.BuildAll(entries, output, temp, title, e => Console.WriteLine("  " + e.Message), CancellationToken.None, ConflictPrompt(arguments), dlcSource);
+        var imageMode = string.Equals(arguments.Get("image"), "native", StringComparison.OrdinalIgnoreCase) ? OuterImageMode.Native : OuterImageMode.PlaintextNoAuth;
+        var results = DlcPackageBuilder.BuildAll(entries, output, temp, title, e => Console.WriteLine("  " + e.Message), CancellationToken.None, ConflictPrompt(arguments), dlcSource, imageMode);
         var ok = results.Count(r => r.Success);
         Console.WriteLine(Loc.F("Cli.DlcSummary", ok, results.Count, Path.GetFullPath(output)));
         return ok == results.Count ? 0 : 2;
@@ -648,6 +649,22 @@ internal static class CommandLine
         if (arguments.Has("no-sdk-playgo-fallback"))
         {
             request.SdkPlayGoFallback = false;
+        }
+
+        if (arguments.Has("sdk-drop-empty-folders"))
+        {
+            request.SdkKeepEmptyFolders = false;
+        }
+
+        if (arguments.Has("sdk-keep-empty-chunks"))
+        {
+            request.SdkFillEmptyChunks = false;
+        }
+
+        if (arguments.Has("restore-metadata") || arguments.Get("metadata-url") != null)
+        {
+            request.RestoreMetadataOnline = true;
+            request.MetadataSourceUrl = arguments.Get("metadata-url");
         }
 
         if (arguments.Get("sdk-compression-level") is { } sdkLevelText)

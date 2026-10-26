@@ -125,6 +125,25 @@ public sealed class SonySdkPlayGoTests : IDisposable
         Assert.Empty(structure.FileChunks);
     }
 
+    /// <summary>
+    /// Gói retail cho mỗi kịch bản chỉ một phần chunk (phần còn lại tải sau). FPKG cài trọn nên mọi kịch bản phải chứa đủ mọi chunk như
+    /// engine fpkg-gui ("Every scenario requires every chunk"), không thì game chạy tới đoạn cần chunk ngoài kịch bản đang chạy là lỗi.
+    /// </summary>
+    [Fact]
+    public void ChunkInfoXml_GivesEveryScenarioEveryChunk()
+    {
+        var mask = SonySdkPlayGo.LanguageBit(1);
+        var chunks = Enumerable.Range(0, 4).Select(id => new PlayGoChunk(id, mask, $"Chunk #{id}")).ToList();
+        var structure = new PlayGoStructure(mask, 1, 0, chunks,
+            [new PlayGoScenario(0, 1, [0, 2], "Story"), new PlayGoScenario(1, 2, [3, 0, 1, 2], "Online")],
+            new Dictionary<ulong, int>());
+
+        var xml = SonySdkPlayGo.ChunkInfoXml(structure);
+
+        Assert.Contains("<scenario id=\"0\" type=\"playmode\" initial_chunk_count=\"4\" label=\"Story\">0 2 1 3</scenario>", xml);
+        Assert.Contains("<scenario id=\"1\" type=\"playmode\" initial_chunk_count=\"4\" label=\"Online\">3 0 1 2</scenario>", xml);
+    }
+
     [Fact]
     public void Parse_RejectsForeignData()
     {
@@ -207,6 +226,147 @@ public sealed class SonySdkPlayGoTests : IDisposable
         Assert.Equal(SonySdkProject.DefaultScenario("en-US").Replace("\n", "\r\n"), File.ReadAllText(trivial.ScenarioPath));
     }
 
+    /// <summary>
+    /// Bản dump đặt nhầm tên bảng PlayGo như Control (PPSA34547): playgo-ficm.dat chứa bảng hash FLT, playgo-hash-table.dat là một bản
+    /// param.json, bảng ánh xạ thật đã mất — nên mọi tệp vào chunk 0.
+    /// </summary>
+    private string MakeMisnamedSource(string name)
+    {
+        var source = MakeSource(name);
+        var sceSys = Path.Combine(source, "sce_sys");
+        File.Copy(Fixture("playgo-hash-table.dat"), Path.Combine(sceSys, "playgo-ficm.dat"), overwrite: true);
+        File.Copy(Path.Combine(sceSys, "param.json"), Path.Combine(sceSys, "playgo-hash-table.dat"), overwrite: true);
+        return source;
+    }
+
+    [Fact]
+    public void Parse_ExplainsWhyTheFileMapIsUnusable()
+    {
+        var misnamed = SonySdkPlayGo.TryRead(Path.Combine(MakeMisnamedSource("misnamed"), "sce_sys"), out var problem)!;
+        Assert.Null(problem);
+        Assert.Equal(3, misnamed.Chunks.Count);
+        Assert.Empty(misnamed.FileChunks);
+        Assert.Contains("playgo-ficm.dat holds the FLT hash table", misnamed.FileMapProblem);
+
+        Assert.Null(SonySdkPlayGo.TryRead(Path.Combine(MakeSource("valid"), "sce_sys"), out _)!.FileMapProblem);
+        var table = File.ReadAllBytes(Fixture("playgo-chunk.dat"));
+        Assert.Equal("playgo-ficm.dat is missing", SonySdkPlayGo.Parse(table, default, default).FileMapProblem);
+        Assert.Equal("playgo-hash-table.dat is not a valid PlayGo table", SonySdkPlayGo.Parse(table, File.ReadAllBytes(Fixture("playgo-ficm.dat")), new byte[64]).FileMapProblem);
+    }
+
+    /// <summary>Chunk không có tệp nào (ở đây chunk 1 và 2) nhận mỗi chunk một tệp giữ chỗ 1 MiB không nén; tắt tuỳ chọn thì GP5 như script.</summary>
+    [Fact]
+    public void Create_FillsChunksThatHaveNoFiles()
+    {
+        var source = MakeMisnamedSource("fill");
+        var structure = SonySdkPlayGo.TryRead(Path.Combine(source, "sce_sys"), out _)!;
+        var filled = SonySdkProject.Create(source, Path.Combine(_root, "fill-on", "game.gp5"), Passcode, path => path, SonySdkSourcePlan.Pure with { PlayGo = structure, FillEmptyChunks = true });
+        var plain = SonySdkProject.Create(source, Path.Combine(_root, "fill-off", "game.gp5"), Passcode, path => path, SonySdkSourcePlan.Pure with { PlayGo = structure });
+
+        Assert.Equal([1, 2], filled.FilledChunks);
+        Assert.Equal(plain.FileCount + 2, filled.FileCount);
+        var gp5 = File.ReadAllText(filled.ProjectPath);
+        foreach (var chunk in new[] { 1, 2 })
+        {
+            var line = System.Text.RegularExpressions.Regex.Match(gp5, $"<file dst_path=\"playgo-chunks/00{chunk}\\.bin\" src_path=\"([^\"]+)\" chunk=\"{chunk}\" pfs_compression=\"disable\" />");
+            Assert.True(line.Success, gp5);
+            Assert.Equal(SonySdkPlayGo.LanguagePayloadSize, new FileInfo(line.Groups[1].Value).Length);
+            Assert.All(File.ReadAllBytes(line.Groups[1].Value), value => Assert.Equal(0, value));
+        }
+
+        Assert.Contains("Filled 2 empty PlayGo chunk(s) with uncompressed 1 MiB placeholders: 1, 2", filled.Report);
+        Assert.Empty(plain.FilledChunks);
+        Assert.DoesNotContain("playgo-chunks", File.ReadAllText(plain.ProjectPath));
+    }
+
+    /// <summary>
+    /// Chỉ chunk thật sự không có dữ liệu mới được lấp: chunk 1 còn data0.bin; chunk 2 chỉ còn tệp 0 byte (không tạo extent nào). Nguồn đã
+    /// có playgo-chunks/002.bin (gói cũ của công cụ giải nén ra) thì tệp giữ chỗ đổi tên để GP5 không có hai tệp cùng đường dẫn.
+    /// </summary>
+    [Fact]
+    public void Create_FillsOnlyChunksWithoutDataAndAvoidsSourceNames()
+    {
+        var source = MakeSource("fill-partial");
+        File.Delete(Path.Combine(source, "data2.bin"));
+        File.WriteAllBytes(Path.Combine(source, "data1.bin"), []);
+        Directory.CreateDirectory(Path.Combine(source, "playgo-chunks"));
+        File.WriteAllBytes(Path.Combine(source, "playgo-chunks", "002.bin"), new byte[16]);
+        var structure = SonySdkPlayGo.TryRead(Path.Combine(source, "sce_sys"), out _)!;
+
+        var result = SonySdkProject.Create(source, Path.Combine(_root, "fill-partial-out", "game.gp5"), Passcode, path => path, SonySdkSourcePlan.Pure with { PlayGo = structure, FillEmptyChunks = true });
+
+        Assert.Equal([2], result.FilledChunks);
+        var gp5 = File.ReadAllText(result.ProjectPath);
+        Assert.Contains("dst_path=\"playgo-chunks/002-2.bin\"", gp5);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(gp5, "dst_path=\"playgo-chunks/002\\.bin\""));
+    }
+
+    /// <summary>Bố cục script: game ở chunk 0, ngôn ngữ ở chunk 1..2, các chunk còn lại (3..9) nhận tệp giữ chỗ.</summary>
+    [Fact]
+    public void Create_FillsTheSpareChunksOfTheScriptLayout()
+    {
+        var source = MakeSource("fill-script", withTables: false);
+        File.WriteAllText(Path.Combine(source, "sce_sys", "playgo-scenario.json"),
+            "{\"scenarioCount\":1,\"scenarioDefaultId\":0,\"scenarioDefaultLanguage\":\"en-US\",\"chunkSupportedLanguages\":[\"en-US\",\"vi-VN\"],\"scenarios\":[{\"id\":0,\"type\":\"playmode\",\"en-US\":{\"title\":\"Story\"}}]}");
+        var structure = SonySdkPlayGo.ScriptFallback(Path.Combine(source, "sce_sys"), "en-US", out _, chunkCount: 10);
+
+        var result = SonySdkProject.Create(source, Path.Combine(_root, "fill-script-out", "game.gp5"), Passcode, path => path, SonySdkSourcePlan.Pure with { PlayGo = structure, FillEmptyChunks = true });
+
+        Assert.Equal(Enumerable.Range(3, 7), result.FilledChunks);
+        Assert.Equal(2, result.PlayGoLanguagePayloads);
+        var gp5 = File.ReadAllText(result.ProjectPath);
+        Assert.Contains("dst_path=\"playgo-chunks/009.bin\"", gp5);
+        // Tệp giữ chỗ chunk đứng ngay sau tệp giữ chỗ ngôn ngữ, trước tệp game (thứ tự tệp quyết định bố cục gói).
+        Assert.True(gp5.IndexOf("playgo-languages/02-vi-VN.bin", StringComparison.Ordinal) < gp5.IndexOf("playgo-chunks/003.bin", StringComparison.Ordinal));
+        Assert.True(gp5.IndexOf("playgo-chunks/009.bin", StringComparison.Ordinal) < gp5.IndexOf("dst_path=\"data0.bin\"", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Control (PPSA34547) qua Publishing Tools: không lấp thì chunk 1 và 2 của gói có 0 byte (PS5 coi là chưa cài — game đứng ở "Đang cài
+    /// đặt trò chơi 0GB/0"); mặc định thì mọi chunk có dữ liệu và tệp giữ chỗ nằm đúng chunk của nó.
+    /// </summary>
+    [Fact]
+    public async Task Build_FillsEmptyChunksSoEveryChunkHasData()
+    {
+        if (SonySdkToolchain.Resolve(out _) == null)
+        {
+            return;
+        }
+
+        var source = MakeMisnamedSource("control");
+        async Task<(IReadOnlyList<ulong> Sizes, PlayGoStructure Rebuilt, List<LogEntry> Log)> BuildAsync(string name, bool fill)
+        {
+            var log = new List<LogEntry>();
+            var outcome = await new BuildEngine().BuildAsync(new BuildRequest
+            {
+                SourcePath = source,
+                OutputFolder = Path.Combine(_root, name + "-out"),
+                TemporaryFolder = Path.Combine(_root, name + "-tmp"),
+                ContentId = ContentId,
+                PreventSleep = false,
+                SdkFillEmptyChunks = fill,
+            }, log.Add, null, CancellationToken.None);
+            var cnt = Path.Combine(_root, name + "-cnt");
+            PackageReader.ExportCntEntries(outcome.OutputPath, cnt, Passcode, CancellationToken.None);
+            var table = File.ReadAllBytes(Path.Combine(cnt, "playgo-chunk.dat"));
+            var rebuilt = SonySdkPlayGo.Parse(table, File.ReadAllBytes(Path.Combine(cnt, "playgo-ficm.dat")), File.ReadAllBytes(Path.Combine(cnt, "playgo-hash-table.dat")));
+            return (SonySdkPlayGo.ChunkDataSizes(table), rebuilt, log);
+        }
+
+        var (emptySizes, _, emptyLog) = await BuildAsync("control-off", fill: false);
+        Assert.Equal(3, emptySizes.Count);
+        Assert.True(emptySizes[0] > 0);
+        Assert.Equal([0UL, 0UL], emptySizes.Skip(1));
+        Assert.Contains(emptyLog, e => e.Level == LogLevel.Warning && e.Message.Contains("playgo-ficm.dat holds the FLT hash table", StringComparison.Ordinal));
+
+        var (sizes, rebuilt, log) = await BuildAsync("control-on", fill: true);
+        Assert.All(sizes, size => Assert.True(size > 0));
+        Assert.Equal(1, rebuilt.ChunkOf("playgo-chunks/001.bin"));
+        Assert.Equal(2, rebuilt.ChunkOf("playgo-chunks/002.bin"));
+        Assert.Equal(0, rebuilt.ChunkOf("data0.bin"));
+        Assert.Contains(log, e => e.Message.Contains("playgo-chunks/", StringComparison.Ordinal) && e.Message.Contains("1, 2", StringComparison.Ordinal));
+    }
+
     /// <summary>Gói tạo qua Publishing Tools từ nguồn có bảng gốc phải có đúng 3 chunk, 2 kịch bản và ánh xạ tệp như gói gốc.</summary>
     [Fact]
     public async Task Build_ReproducesTheOriginalChunksInTheNewPackage()
@@ -246,6 +406,43 @@ public sealed class SonySdkPlayGoTests : IDisposable
         Assert.Equal(2, rebuilt.ChunkOf("data1.bin"));
         Assert.Equal(2, rebuilt.ChunkOf("data2.bin"));
         Assert.Equal(0, rebuilt.ChunkOf("data5.bin"));
+    }
+
+    /// <summary>
+    /// Bảng nguồn cho kịch bản 0 chỉ chunk 0 và 2 (như gói retail tải chunk 1 sau): Publishing Tools nhận GP5 có kịch bản "0 2 1", và gói
+    /// tạo ra cho mọi kịch bản đủ 3 chunk, đều initial — chunk 1 không bị coi là chưa cài khi game chạy tới phần dùng nó.
+    /// </summary>
+    [Fact]
+    public async Task Build_GivesEveryScenarioEveryChunk()
+    {
+        if (SonySdkToolchain.Resolve(out _) == null)
+        {
+            return;
+        }
+
+        var source = MakeSource("subset");
+        var table = File.ReadAllBytes(Path.Combine(source, "sce_sys", "playgo-chunk.dat"));
+        var scenarios = (int)System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(table.AsSpan(224));
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(table.AsSpan(scenarios + 22), 2);
+        File.WriteAllBytes(Path.Combine(source, "sce_sys", "playgo-chunk.dat"), table);
+        var parsed = SonySdkPlayGo.Parse(table, default, default);
+        Assert.Equal([0, 2], parsed.Scenarios[0].ChunkOrder);
+
+        var outcome = await new BuildEngine().BuildAsync(new BuildRequest
+        {
+            SourcePath = source,
+            OutputFolder = Path.Combine(_root, "subset-out"),
+            TemporaryFolder = Path.Combine(_root, "subset-tmp"),
+            ContentId = ContentId,
+            PreventSleep = false,
+        }, _ => { }, null, CancellationToken.None);
+
+        var cnt = Path.Combine(_root, "subset-cnt");
+        PackageReader.ExportCntEntries(outcome.OutputPath, cnt, Passcode, CancellationToken.None);
+        var rebuilt = SonySdkPlayGo.Parse(File.ReadAllBytes(Path.Combine(cnt, "playgo-chunk.dat")), default, default);
+        Assert.Equal([0, 2, 1], rebuilt.Scenarios[0].ChunkOrder);
+        Assert.Equal([0, 1, 2], rebuilt.Scenarios[1].ChunkOrder);
+        Assert.All(rebuilt.Scenarios, scenario => Assert.Equal(3, scenario.InitialChunkCount));
     }
 
     [Fact]
@@ -388,6 +585,9 @@ public sealed class SonySdkPlayGoTests : IDisposable
         Assert.Equal(SonySdkPlayGo.LanguageBit(2), rebuilt.Chunks[2].LanguageMask);
         Assert.Equal(SonySdkPlayGo.LanguageBit(1) | SonySdkPlayGo.LanguageBit(2), rebuilt.Chunks[3].LanguageMask);
         Assert.All(rebuilt.Scenarios, scenario => Assert.Equal(100, scenario.InitialChunkCount));
+        // Chunk 3..99 của bố cục script không có tệp nào: mỗi chunk nhận một tệp giữ chỗ nên không chunk nào rỗng (PS5 coi chunk rỗng là chưa cài).
+        Assert.All(SonySdkPlayGo.ChunkDataSizes(File.ReadAllBytes(Path.Combine(cnt, "playgo-chunk.dat"))), size => Assert.True(size > 0));
+        Assert.Contains(log, e => e.Message.Contains("97", StringComparison.Ordinal) && e.Message.Contains("playgo-chunks/", StringComparison.Ordinal));
         var listing = PackageInspector.Inspect(outcome.OutputPath, Passcode, CancellationToken.None);
         Assert.NotNull(listing);
     }

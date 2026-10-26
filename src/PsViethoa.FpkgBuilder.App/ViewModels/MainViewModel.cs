@@ -284,6 +284,10 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>SDK Sony: PlayGo dự phòng (N chunk + số kịch bản gốc) khi nguồn không còn playgo-chunk.dat (mặc định bật: hầu hết dump đã mất bảng gốc).</summary>
     [ObservableProperty] private bool _sdkPlayGoFallback = true;
 
+    /// <summary>SDK Sony: giữ thư mục rỗng của nguồn trong gói như engine tích hợp (mặc định bật).</summary>
+    [ObservableProperty] private bool _sdkKeepEmptyFolders = true;
+    [ObservableProperty] private bool _sdkFillEmptyChunks = true;
+
     /// <summary>Mức --compression_level mà mỗi preset ở bước 3 chọn khi SDK Sony bật: null = không truyền (7, như bộ gốc).</summary>
     private static int? SdkLevelForPreset(BuildPreset preset) =>
         preset.Id == BuildPresets.Fast.Id ? 2 : preset.Id == BuildPresets.Balanced.Id ? 4 : preset.Id == BuildPresets.Maximum.Id ? 9 : null;
@@ -436,6 +440,8 @@ public sealed partial class MainViewModel : ObservableObject
         // Hàng chờ: tên/phiên bản giữ nguyên của từng nguồn.
         request.SdkApplyPackageDetails = false;
         request.SdkPatchBaseFolder = null;
+        // URL metadata gõ ở tab Tạo gói là của game đang chọn; mỗi mục hàng chờ dùng versionFileUri của chính nó.
+        request.MetadataSourceUrl = null;
         // Hàng chờ luôn tạo gói đầy đủ: gói gốc của bản vá là của riêng một game.
         request.SdkReferencePackage = null;
         return request;
@@ -772,6 +778,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>Xoá versionFileUri trong param.json khi tạo gói (bước 2 của hướng dẫn sửa lỗi PlayGo).</summary>
     [ObservableProperty] private bool _clearVersionFileUri = true;
+
+    /// <summary>Khôi phục metadata online (tải *_sc.pkg đúng phiên bản từ máy chủ Sony) trước khi đóng gói.</summary>
+    [ObservableProperty] private bool _restoreMetadataOnline;
+
+    /// <summary>URL tuỳ chọn cho khôi phục metadata (XML phiên bản, manifest JSON hoặc *_sc.pkg); trống = versionFileUri của param.json.</summary>
+    [ObservableProperty] private string _metadataSourceUrl = string.Empty;
 
     /// <summary>Đặt attribute3 trong param.json về 0 khi tạo gói (mặc định tắt từ 2.2.1: attribute3 giữ cờ PS5 Pro / 120 Hz / VRR).</summary>
     [ObservableProperty] private bool _clearPlayGoAttributes;
@@ -1628,6 +1640,9 @@ public sealed partial class MainViewModel : ObservableObject
         _sourceDebounce.Stop();
         _sourceDebounce.Start();
         RefreshValidation();
+
+        // URL metadata là của đúng một game/phiên bản: đổi nguồn thì bỏ, để game khác dùng versionFileUri của chính nó.
+        MetadataSourceUrl = string.Empty;
     }
 
     partial void OnOutputFolderChanged(string value)
@@ -1910,6 +1925,7 @@ public sealed partial class MainViewModel : ObservableObject
             RemovePlayGoFiles = s.RemovePlayGoFiles;
             KeepDlcEmu = s.KeepDlcEmu;
             ClearVersionFileUri = s.ClearVersionFileUri;
+            RestoreMetadataOnline = s.RestoreMetadataOnline;
             ClearPlayGoAttributes = s.ClearPlayGoAttributes;
             KrakenLevel = Math.Clamp(s.KrakenLevel, BuildRequest.MinKrakenLevel, BuildRequest.MaxKrakenLevel);
             // Mặc định hiện đúng số nhân của máy; settings lưu 0 nghĩa là "mọi nhân" (đổi máy vẫn đúng).
@@ -1953,6 +1969,8 @@ public sealed partial class MainViewModel : ObservableObject
             SdkPrescan = s.SdkPrescan;
             SdkKeepIntermediate = s.SdkKeepIntermediate;
             SdkPlayGoFallback = s.SdkPlayGoFallback;
+            SdkKeepEmptyFolders = s.SdkKeepEmptyFolders;
+            SdkFillEmptyChunks = s.SdkFillEmptyChunks;
             SdkCompressionIndex = SdkIndexFromLevel(s.SdkCompressionLevel);
             PreventSleep = s.PreventSleep;
             OverrideSdk = s.OverrideSdk;
@@ -2024,6 +2042,7 @@ public sealed partial class MainViewModel : ObservableObject
         s.RemoveDumpLeftovers = d.RemoveDumpLeftovers;
         s.KeepDlcEmu = d.KeepDlcEmu;
         s.ClearVersionFileUri = d.ClearVersionFileUri;
+        s.RestoreMetadataOnline = d.RestoreMetadataOnline;
         s.ClearPlayGoAttributes = d.ClearPlayGoAttributes;
         s.PlayGoChunks = d.PlayGoChunks;
         s.Deterministic = d.Deterministic;
@@ -2033,6 +2052,8 @@ public sealed partial class MainViewModel : ObservableObject
         s.SdkPrescan = d.SdkPrescan;
         s.SdkKeepIntermediate = d.SdkKeepIntermediate;
         s.SdkPlayGoFallback = d.SdkPlayGoFallback;
+        s.SdkKeepEmptyFolders = d.SdkKeepEmptyFolders;
+        s.SdkFillEmptyChunks = d.SdkFillEmptyChunks;
         s.SdkCompressionLevel = d.SdkCompressionLevel;
         s.PreventSleep = d.PreventSleep;
         s.OverrideSdk = d.OverrideSdk;
@@ -2089,6 +2110,7 @@ public sealed partial class MainViewModel : ObservableObject
         s.RemovePlayGoFiles = RemovePlayGoFiles;
         s.KeepDlcEmu = KeepDlcEmu;
         s.ClearVersionFileUri = ClearVersionFileUri;
+        s.RestoreMetadataOnline = RestoreMetadataOnline;
         s.ClearPlayGoAttributes = ClearPlayGoAttributes;
         s.KrakenLevel = (int)Math.Round(KrakenLevel);
         s.Threads = SelectedThreads;
@@ -2104,6 +2126,8 @@ public sealed partial class MainViewModel : ObservableObject
         s.SdkPrescan = SdkPrescan;
         s.SdkKeepIntermediate = SdkKeepIntermediate;
         s.SdkPlayGoFallback = SdkPlayGoFallback;
+        s.SdkKeepEmptyFolders = SdkKeepEmptyFolders;
+        s.SdkFillEmptyChunks = SdkFillEmptyChunks;
         s.SdkCompressionLevel = SdkLevelFromIndex(SdkCompressionIndex);
         s.PreventSleep = PreventSleep;
         s.OverrideSdk = OverrideSdk;
@@ -2659,7 +2683,8 @@ public sealed partial class MainViewModel : ObservableObject
             var entries = _dlcEntries;
             var title = Title;
             var dlcSource = Directory.Exists(SourcePath.Trim()) ? SourcePath.Trim() : null;
-            var results = await Task.Run(() => DlcPackageBuilder.BuildAll(entries, output, temporary, title, e => Log(e.Level, e.Message), CancellationToken.None, AskOutputConflict, dlcSource));
+            var imageMode = ImageModeIndex == 1 ? OuterImageMode.Native : OuterImageMode.PlaintextNoAuth;
+            var results = await Task.Run(() => DlcPackageBuilder.BuildAll(entries, output, temporary, title, e => Log(e.Level, e.Message), CancellationToken.None, AskOutputConflict, dlcSource, imageMode));
             var ok = results.Count(r => r.Success);
             await _dialogs.ShowInfoAsync(Loc.T("Dlc.DoneTitle"), Loc.F("Dlc.DoneBody", ok, results.Count, output));
         }
@@ -2795,6 +2820,8 @@ public sealed partial class MainViewModel : ObservableObject
         SdkPatchOutput = UpdateKind switch { 1 => SdkPatchOutput.FullOnly, 2 => SdkPatchOutput.Both, _ => SdkPatchOutput.UpdateOnly },
         SdkApplyPackageDetails = true,
         SdkPlayGoFallback = SdkPlayGoFallback,
+        SdkKeepEmptyFolders = SdkKeepEmptyFolders,
+        SdkFillEmptyChunks = SdkFillEmptyChunks,
         SdkCompressionLevel = SdkLevelFromIndex(SdkCompressionIndex),
         RemoveAmprLeftovers = RemoveAmprLeftovers,
         RemoveDumpLeftovers = RemoveDumpLeftovers,
@@ -2803,6 +2830,8 @@ public sealed partial class MainViewModel : ObservableObject
         PlayGoLanguages = SelectedPlayGoLanguages(),
         KeepDlcEmu = KeepDlcEmu,
         ClearVersionFileUri = ClearVersionFileUri,
+        RestoreMetadataOnline = RestoreMetadataOnline,
+        MetadataSourceUrl = string.IsNullOrWhiteSpace(MetadataSourceUrl) ? null : MetadataSourceUrl.Trim(),
         ClearPlayGoAttributes = ClearPlayGoAttributes,
         KrakenLevel = (int)Math.Round(KrakenLevel),
         Threads = SelectedThreads,

@@ -138,15 +138,23 @@ public sealed class SourceMirror : IDisposable
         foreach (var relative in plan.Skip.Select(Normalize).Distinct(StringComparer.OrdinalIgnoreCase))
         {
             var target = Full(root, relative);
+            // Bỏ tệp rác thì thư mục vẫn là thư mục của gói gốc (rỗng từ đầu) — chỉ thư mục rỗng vì dọn tệp thật mới bị bỏ.
+            var name = System.IO.Path.GetFileName(target);
             if (File.Exists(target))
             {
                 RobustDelete.File(target);
-                emptied.Add(System.IO.Path.GetDirectoryName(target)!);
+                if (!JunkFileFinder.IsJunkFileName(name))
+                {
+                    emptied.Add(System.IO.Path.GetDirectoryName(target)!);
+                }
             }
             else if (Directory.Exists(target))
             {
                 RobustDelete.Tree(target);
-                emptied.Add(System.IO.Path.GetDirectoryName(target)!);
+                if (!JunkFileFinder.IsJunkDirectoryName(name))
+                {
+                    emptied.Add(System.IO.Path.GetDirectoryName(target)!);
+                }
             }
         }
 
@@ -297,8 +305,9 @@ public sealed class SourceMirror : IDisposable
                     Build(entry, destination, relative, skip, replace, add, copy);
 
                     // Thư mục chỉ còn rỗng sau khi dọn (ví dụ fakelib chỉ chứa module giả lập) thì bỏ hẳn khỏi gói:
-                    // một thư mục fakelib rỗng vẫn có thể làm bộ nạp của PS5 rẽ nhánh.
-                    if (Directory.Exists(destination) && !Directory.EnumerateFileSystemEntries(destination).Any())
+                    // một thư mục fakelib rỗng vẫn có thể làm bộ nạp của PS5 rẽ nhánh. Thư mục chỉ có tệp rác (.DS_Store…) thì rỗng từ
+                    // gói gốc nên được giữ, như mọi thư mục rỗng khác của nguồn.
+                    if (Directory.Exists(destination) && !Directory.EnumerateFileSystemEntries(destination).Any() && HasRealEntries(entry))
                     {
                         Directory.Delete(destination);
                     }
@@ -346,6 +355,12 @@ public sealed class SourceMirror : IDisposable
                || add.Keys.Any(path => path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                || copy.Any(path => path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
     }
+
+    /// <summary>Thư mục có mục nào không phải tệp/thư mục rác hệ điều hành không.</summary>
+    private static bool HasRealEntries(string directory) =>
+        new DirectoryInfo(directory).EnumerateFileSystemInfos().Any(info => (info.Attributes & FileAttributes.Directory) != 0
+            ? !JunkFileFinder.IsJunkDirectoryName(info.Name)
+            : !JunkFileFinder.IsJunkFileName(info.Name));
 
     /// <summary>Tệp nằm trong (hoặc dưới) một thư mục được yêu cầu sao chép thật.</summary>
     private static bool InCopiedFolder(string relative, HashSet<string> copy)

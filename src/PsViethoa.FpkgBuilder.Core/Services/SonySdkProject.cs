@@ -42,6 +42,33 @@ public sealed record SonySdkSourcePlan(IReadOnlySet<string> Skip, IReadOnlyDicti
     /// </summary>
     public string? AutoSizeProfile { get; init; }
 
+    /// <summary>
+    /// Thư mục (a/b, tên đúng trên đĩa) phải có trong gói dù rỗng — thư mục gắn DLC của dlc_emu.ini khi giữ bộ giả lập DLC. Script gốc
+    /// chỉ liệt kê tệp nên thư mục rỗng mất khỏi gói; thư mục nào ở đây mà không chứa tệp nào của GP5 được khai báo bằng
+    /// <c>&lt;empty_dir dst_path="…"/&gt;</c> (đúng phần tử Publishing Tools tự ghi qua <c>gp5_dir_add --virtual true</c>). Rỗng = như script.
+    /// </summary>
+    public IReadOnlyList<string> KeepDirectories { get; init; } = Array.Empty<string>();
+
+    /// <summary>
+    /// Khai báo mọi thư mục rỗng của nguồn (kể cả thư mục chỉ chứa tệp rác) bằng <c>&lt;empty_dir&gt;</c>, như engine tích hợp giữ cây
+    /// thư mục nguyên vẹn. Game có thể mở hay liệt kê một thư mục rỗng giữa chừng (thư mục gắn DLC, thư mục nội dung tuỳ chọn); thiếu nó
+    /// thì game lỗi ở đúng đoạn đó. Bỏ qua thư mục trong sce_sys. False = như script (chỉ <see cref="KeepDirectories"/>).
+    /// </summary>
+    public bool KeepEmptyDirectories { get; init; }
+
+    /// <summary>
+    /// Thư mục sce_sys thay thế (metadata khôi phục online, trong thư mục tạm): tệp ở đây đè lên hoặc thêm vào sce_sys của nguồn khi liệt
+    /// kê GP5, như thư mục update của bản vá nhưng chỉ cho cây sce_sys. Null = sce_sys của nguồn như script.
+    /// </summary>
+    public string? SceSysOverlay { get; init; }
+
+    /// <summary>
+    /// Cho mỗi chunk PlayGo không có tệp nào một tệp giữ chỗ 1 MiB không nén (như chunk ngôn ngữ của script). PS5 coi chunk rỗng là chưa
+    /// cài: game chạy tới phần cần chunk đó thì hiện "Đang cài đặt trò chơi 0GB/0" (đo trên Control PPSA34547: bảng gốc 2 chunk, bản dump
+    /// mất bảng ánh xạ tệp nên mọi tệp vào chunk 0, chunk 1 rỗng). False = như script (chunk thừa để rỗng).
+    /// </summary>
+    public bool FillEmptyChunks { get; init; }
+
     /// <summary>Đúng như script gốc: không bỏ, không thay, không sửa gì ngoài applicationDrmType.</summary>
     public static readonly SonySdkSourcePlan Pure = new(new HashSet<string>(StringComparer.OrdinalIgnoreCase), new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), false);
 }
@@ -86,6 +113,9 @@ public sealed record SonySdkProjectResult(
 {    /// <summary>Số tệp giữ chỗ ngôn ngữ PlayGo (bố cục script fix6) đã thêm vào GP5.</summary>
     public int PlayGoLanguagePayloads { get; init; }
 
+    /// <summary>Chunk PlayGo không có tệp nào đã nhận tệp giữ chỗ (<see cref="SonySdkSourcePlan.FillEmptyChunks"/>).</summary>
+    public IReadOnlyList<int> FilledChunks { get; init; } = Array.Empty<int>();
+
     /// <summary>Thư mục update: tệp của gói gốc bị thay bằng bản trong thư mục update (đường dẫn trong gói).</summary>
     public IReadOnlyList<string> OverlayReplaced { get; init; } = Array.Empty<string>();
 
@@ -94,6 +124,12 @@ public sealed record SonySdkProjectResult(
 
     /// <summary>Tệp SELF đã sửa header (đường dẫn trong gói, mô tả cách sửa) — bản sửa nằm trong .gp5-assets/&lt;tên&gt;/normalized-self.</summary>
     public IReadOnlyList<(string Relative, string Repairs)> RepairedSelfs { get; init; } = Array.Empty<(string, string)>();
+
+    /// <summary>UCP (sce_sys/trophy2, sce_sys/uds) có digest lệch đã được tính lại — bản sửa nằm trong .gp5-assets/&lt;tên&gt;/repaired-ucp.</summary>
+    public IReadOnlyList<string> RepairedUcps { get; init; } = Array.Empty<string>();
+
+    /// <summary>UCP không đọc được (bản niêm phong của gói gốc, tệp cụt…) — đưa nguyên vào gói, kèm lý do.</summary>
+    public IReadOnlyList<(string Relative, string Error)> InvalidUcps { get; init; } = Array.Empty<(string, string)>();
 
     /// <summary>Cỡ gói đã chọn (attributePub…) khi bật <see cref="SonySdkSourcePlan.AutoSizeProfile"/>; null khi không chọn.</summary>
     public SonySdkSizeSelection? SizeSelection { get; init; }
@@ -107,6 +143,14 @@ public sealed record SonySdkProjectResult(
     /// <summary>Các dòng script in ra trước dòng "Created …" (chuyển DDS, sửa SELF, chọn cỡ gói), đúng thứ tự.</summary>
     public IReadOnlyList<string> ScriptLines { get; init; } = Array.Empty<string>();
 
+    /// <summary>Thư mục rỗng đã khai báo bằng &lt;empty_dir&gt; (<see cref="SonySdkSourcePlan.KeepDirectories"/> không chứa tệp nào).</summary>
+    public IReadOnlyList<string> KeptEmptyDirectories { get; init; } = Array.Empty<string>();
+
+    /// <summary>Đường dẫn trong <see cref="SkippedByApp"/> là tệp/thư mục rác hệ điều hành (.DS_Store, ._tên, Thumbs.db…), bỏ phần lý do.</summary>
+    public IReadOnlyList<string> SkippedJunk => SkippedByApp.Where(SonySdkProject.IsJunkSkip).Select(SonySdkProject.SkipPath).ToList();
+
+    /// <summary>Đường dẫn trong <see cref="SkippedByApp"/> bị bỏ theo tuỳ chọn (tàn dư AMPR emu, bản dump, bộ giả lập DLC khi tắt giữ…).</summary>
+    public IReadOnlyList<string> SkippedByOption => SkippedByApp.Where(item => !SonySdkProject.IsJunkSkip(item)).Select(SonySdkProject.SkipPath).ToList();
 
     /// <summary>Đầu ra chuẩn của create-gp5-from-folder.py cho lượt này (ghi vào 01-create-gp5.log như build-from-folder.ps1).</summary>
     public string Report
@@ -141,6 +185,20 @@ public sealed record SonySdkProjectResult(
             foreach (var item in Replaced)
             {
                 builder.Append("Replaced ").Append(item).Append(" with the substitute file.\n");
+            }
+
+            if (FilledChunks.Count > 0)
+            {
+                builder.Append("Filled ").Append(FilledChunks.Count).Append(" empty PlayGo chunk(s) with uncompressed 1 MiB placeholders: ").Append(string.Join(", ", FilledChunks)).Append('\n');
+            }
+
+            if (KeptEmptyDirectories.Count > 0)
+            {
+                builder.Append("Kept ").Append(KeptEmptyDirectories.Count).Append(" empty folder(s) as <empty_dir> entries (DLC mount folders from dlc_emu.ini, empty source folders):\n");
+                foreach (var item in KeptEmptyDirectories)
+                {
+                    builder.Append("  ").Append(item).Append("/\n");
+                }
             }
 
             if (OverlayReplaced.Count + OverlayAdded.Count > 0)
@@ -215,6 +273,33 @@ public static partial class SonySdkProject
         "origin-relocinfo.dat",
         "target-relocinfo.dat",
     };
+
+    /// <summary>Lý do ghi sau đường dẫn trong <see cref="SonySdkProjectResult.SkippedByApp"/> (01-create-gp5.log, tiếng Anh như log của script).</summary>
+    public const string JunkFileReason = " (OS junk file)";
+
+    public const string JunkFolderReason = "/ (OS junk folder)";
+
+    public const string OptionFileReason = " (excluded by option)";
+
+    public const string OptionFolderReason = "/ (excluded by option)";
+
+    /// <summary>Mục bỏ là tệp/thư mục rác hệ điều hành.</summary>
+    public static bool IsJunkSkip(string item) =>
+        item.EndsWith(JunkFileReason, StringComparison.Ordinal) || item.EndsWith(JunkFolderReason, StringComparison.Ordinal);
+
+    /// <summary>Đường dẫn của một mục bỏ, không có phần lý do (thư mục giữ dấu "/").</summary>
+    public static string SkipPath(string item)
+    {
+        foreach (var (reason, keep) in new[] { (JunkFolderReason, "/"), (OptionFolderReason, "/"), (JunkFileReason, ""), (OptionFileReason, "") })
+        {
+            if (item.EndsWith(reason, StringComparison.Ordinal))
+            {
+                return item[..^reason.Length] + keep;
+            }
+        }
+
+        return item;
+    }
 
     /// <summary><c>GENERATED_ROOT_DIRECTORIES</c> (fix12): thư mục ở gốc mà Publishing Tools giữ riêng, bản giải nén có thể mang theo.</summary>
     private static readonly HashSet<string> GeneratedRootDirectories = new(StringComparer.Ordinal) { "sce_suppl", "sce_sc" };
@@ -428,9 +513,13 @@ public static partial class SonySdkProject
         var scriptLines = new List<string>();
         var recovered = ConvertDdsImages(conversions, generatedSystem, ddsConverter, scriptLines, cancellationToken);
         var repairs = PrepareExecutableInputs(files, generatedRoot, scriptLines, cancellationToken);
+        var ucpRepairs = PrepareUcpInputs(files, generatedRoot, scriptLines, out var invalidUcps, cancellationToken);
 
         // write_language_payloads(): tệp giữ chỗ 1 MiB (không nén) cho từng ngôn ngữ trong .gp5-assets/<tên>/playgo-languages/.
-        var payloads = playGo?.LanguagePayloads ?? Array.Empty<PlayGoLanguagePayload>();
+        // Rồi tới chunk không có tệp nào (FillEmptyChunks): cũng một tệp giữ chỗ để PS5 thấy chunk đó đã cài.
+        var languagePayloads = playGo?.LanguagePayloads ?? Array.Empty<PlayGoLanguagePayload>();
+        var fillers = EmptyChunkFillers(plan, playGo, files, languagePayloads);
+        IReadOnlyList<PlayGoLanguagePayload> payloads = fillers.Count == 0 ? languagePayloads : languagePayloads.Concat(fillers).ToList();
         var payloadPaths = new List<string>(payloads.Count);
         foreach (var payload in payloads)
         {
@@ -460,7 +549,9 @@ public static partial class SonySdkProject
                     continue;
                 }
 
-                unpacked += repairs.TryGetValue(index, out var repaired) ? new FileInfo(repaired.Path).Length : files[index].Length;
+                unpacked += repairs.TryGetValue(index, out var repaired) ? new FileInfo(repaired.Path).Length
+                    : ucpRepairs.TryGetValue(index, out var ucp) ? new FileInfo(ucp).Length
+                    : files[index].Length;
                 mappedCount++;
             }
 
@@ -539,12 +630,22 @@ public static partial class SonySdkProject
 
             var actual = string.Equals(file.FullPath, paramSource, StringComparison.Ordinal)
                 ? generatedParam
-                : repairs.TryGetValue(index, out var repaired) ? repaired.Path : file.FullPath;
+                : repairs.TryGetValue(index, out var repaired) ? repaired.Path
+                : ucpRepairs.TryGetValue(index, out var ucp) ? ucp
+                : file.FullPath;
             AppendFile(xml, file.Relative, toolPath(actual), explicitChunk || chunk > 0 ? chunk : -1);
             if ((index + 1) % 2000 == 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
             }
+        }
+
+        // Thư mục phải có dù rỗng (thư mục gắn DLC, thư mục rỗng của nguồn): script chỉ liệt kê tệp nên chúng mất; khai báo như Publishing
+        // Tools tự ghi (gp5_dir_add --virtual true → <empty_dir dst_path="…"/>, sau các tệp). Không có thư mục nào thì GP5 giống hệt script.
+        var emptyDirectories = EmptyDirectoriesToKeep(plan, files, plan.KeepEmptyDirectories ? walker.EmptyDirectories : Array.Empty<string>());
+        foreach (var directory in emptyDirectories)
+        {
+            xml.Append("    <empty_dir dst_path=\"").Append(EscapeAttribute(directory)).Append("\" />\n");
         }
 
         xml.Append("  </files>\n");
@@ -568,15 +669,62 @@ public static partial class SonySdkProject
             files.Where(file => !IsSdkPackagePath(file.Relative)).Select(file => file.Relative).ToList(),
             files.Select(file => file.FullPath).ToList())
         {
-            PlayGoLanguagePayloads = payloads.Count,
+            PlayGoLanguagePayloads = languagePayloads.Count,
+            FilledChunks = fillers.Select(filler => filler.ChunkId).ToList(),
             OverlayReplaced = walker.OverlayReplaced,
             OverlayAdded = walker.OverlayAdded,
             RepairedSelfs = repairs.OrderBy(pair => pair.Key).Select(pair => (files[pair.Key].Relative, pair.Value.Repairs)).ToList(),
+            RepairedUcps = ucpRepairs.OrderBy(pair => pair.Key).Select(pair => files[pair.Key].Relative).ToList(),
+            InvalidUcps = invalidUcps,
             SizeSelection = selection,
             SizeInputs = sizeInputs,
             OriginalMountLevel = originalMountLevel,
             ScriptLines = scriptLines,
+            KeptEmptyDirectories = emptyDirectories,
         };
+    }
+
+    /// <summary>
+    /// Thư mục cần khai báo &lt;empty_dir&gt;: thư mục của <see cref="SonySdkSourcePlan.KeepDirectories"/> không chứa tệp nào của GP5
+    /// (rỗng, hoặc chỉ còn tệp rác/tệp bị bỏ) rồi tới <paramref name="sourceEmpty"/> (thư mục rỗng của nguồn). Bỏ qua thư mục (hoặc thư
+    /// mục cha) bị loại theo tuỳ chọn, thư mục rác, thư mục trong sce_sys và đường dẫn Publishing Tools không nhận.
+    /// </summary>
+    private static IReadOnlyList<string> EmptyDirectoriesToKeep(SonySdkSourcePlan plan, List<(string Relative, string FullPath, long Length)> files, IReadOnlyList<string> sourceEmpty)
+    {
+        if (plan.KeepDirectories.Count == 0 && sourceEmpty.Count == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        // Mọi thư mục cha của các tệp trong GP5 (không phân biệt hoa thường): thư mục có ở đây thì không rỗng.
+        var occupied = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var file in files)
+        {
+            for (var slash = file.Relative.LastIndexOf('/'); slash > 0 && occupied.Add(file.Relative[..slash]); slash = file.Relative.LastIndexOf('/', slash - 1))
+            {
+            }
+        }
+
+        var result = new List<string>();
+        foreach (var raw in plan.KeepDirectories.Concat(sourceEmpty))
+        {
+            var directory = raw.Replace('\\', '/').Trim('/');
+            var parts = directory.Split('/');
+            if (directory.Length == 0 || !IsSdkPackagePath(directory) || parts.Any(part => JunkFileFinder.IsJunkDirectoryName(part)) ||
+                Enumerable.Range(1, parts.Length).Any(depth => plan.Skip.Contains(string.Join('/', parts.Take(depth)))) ||
+                PythonCaseFold.Fold(parts[0]) is var root && (root == AssetsFolderName || root == "sce_sys" || GeneratedRootDirectories.Contains(root)) ||
+                result.Contains(directory, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (!occupied.Contains(directory))
+            {
+                result.Add(directory);
+            }
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -923,6 +1071,92 @@ public static partial class SonySdkProject
         return repairs;
     }
 
+    /// <summary>
+    /// Chunk của <paramref name="playGo"/> không có dữ liệu sau khi ánh xạ → mỗi chunk một tệp giữ chỗ trong
+    /// <see cref="SonySdkPlayGo.ChunkPayloadFolder"/>. Chunk 0 luôn có dữ liệu (tệp không có trong bảng, param.json, scenario, PNG khôi phục
+    /// đều vào đó); tệp 0 byte không tạo extent nào nên không tính. Bố cục script ghi chunk="0" trên mọi tệp game nên chỉ chunk ngôn ngữ có dữ liệu.
+    /// </summary>
+    private static List<PlayGoLanguagePayload> EmptyChunkFillers(SonySdkSourcePlan plan, PlayGoStructure? playGo, List<(string Relative, string FullPath, long Length)> files, IReadOnlyList<PlayGoLanguagePayload> languagePayloads)
+    {
+        var fillers = new List<PlayGoLanguagePayload>();
+        if (!plan.FillEmptyChunks || playGo == null || playGo.Chunks.Count < 2)
+        {
+            return fillers;
+        }
+
+        var occupied = new HashSet<int> { 0 };
+        occupied.UnionWith(languagePayloads.Select(payload => payload.ChunkId));
+        if (!playGo.ScriptLayout)
+        {
+            foreach (var file in files)
+            {
+                if (file.Length > 0 && playGo.ChunkOf(file.Relative) is { } chunk)
+                {
+                    occupied.Add(chunk);
+                }
+            }
+        }
+
+        // Nguồn là gói đã giải nén từng tạo bằng công cụ (còn playgo-chunks/) thì tránh trùng dst_path — Publishing Tools từ chối GP5 có hai tệp cùng đường dẫn.
+        var taken = new HashSet<string>(files.Select(file => file.Relative), StringComparer.OrdinalIgnoreCase);
+        taken.UnionWith(languagePayloads.Select(payload => payload.Destination));
+        foreach (var chunk in playGo.Chunks.Where(chunk => !occupied.Contains(chunk.Id)))
+        {
+            var destination = $"{SonySdkPlayGo.ChunkPayloadFolder}/{chunk.Id:000}.bin";
+            for (var suffix = 2; taken.Contains(destination); suffix++)
+            {
+                destination = $"{SonySdkPlayGo.ChunkPayloadFolder}/{chunk.Id:000}-{suffix}.bin";
+            }
+
+            taken.Add(destination);
+            fillers.Add(new PlayGoLanguagePayload(destination, chunk.Id, string.Empty));
+        }
+
+        return fillers;
+    }
+
+    /// <summary>Thư mục con trong .gp5-assets/&lt;tên&gt; chứa UCP đã tính lại digest.</summary>
+    public const string RepairedUcpFolderName = "repaired-ucp";
+
+    /// <summary>
+    /// UCP của sce_sys/trophy2 và sce_sys/uds có digest SHA-1 lệch: ghi bản đã tính lại digest vào .gp5-assets/&lt;tên&gt;/repaired-ucp/ và
+    /// cho GP5 trỏ tới đó. Script gốc đưa nguyên tệp vào GP5 và Publishing Tools từ chối cả lượt ("ucp_header.ucp_digest is invalid"); đường
+    /// engine tích hợp cũng được sửa trong gương. UCP không đọc được thì giữ nguyên và báo
+    /// trong <paramref name="invalid"/>. Không có UCP lệch thì GP5 giống hệt script. Trả về chỉ số tệp → bản sửa.
+    /// </summary>
+    private static Dictionary<int, string> PrepareUcpInputs(List<(string Relative, string FullPath, long Length)> files, string generatedRoot, List<string> lines, out IReadOnlyList<(string Relative, string Error)> invalid, CancellationToken cancellationToken)
+    {
+        var repairs = new Dictionary<int, string>();
+        var broken = new List<(string, string)>();
+        for (var index = 0; index < files.Count; index++)
+        {
+            var (relative, fullPath, length) = files[index];
+            if (!UcpInspector.IsCandidate(relative) || length > UcpInspector.MaxSize)
+            {
+                continue;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            var data = File.ReadAllBytes(fullPath);
+            switch (UcpInspector.Inspect(data, out var error))
+            {
+                case UcpState.StaleDigest:
+                    var destination = Path.Combine(generatedRoot, RepairedUcpFolderName, relative.Replace('/', Path.DirectorySeparatorChar));
+                    Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+                    lines.Add($"Repairing UCP digest {relative}...");
+                    File.WriteAllBytes(destination, UcpInspector.Repair(data));
+                    repairs[index] = destination;
+                    break;
+                case UcpState.Invalid:
+                    broken.Add((relative, error ?? "invalid"));
+                    break;
+            }
+        }
+
+        invalid = broken;
+        return repairs;
+    }
+
     /// <summary>param.json (utf-8-sig) → JsonObject; lỗi phân tích báo như script.</summary>
     private static JsonObject ParseParamObject(string source)
     {
@@ -1079,6 +1313,9 @@ public static partial class SonySdkProject
 
         public List<string> OverlayAdded { get; } = new();
 
+        /// <summary>Thư mục rỗng trong nguồn (không có mục nào ngoài tệp/thư mục rác), theo thứ tự duyệt — xem <see cref="SonySdkSourcePlan.KeepEmptyDirectories"/>.</summary>
+        public List<string> EmptyDirectories { get; } = new();
+
         public void Walk(string directory)
         {
             DirectoryResult result;
@@ -1098,6 +1335,7 @@ public static partial class SonySdkProject
             Replaced.AddRange(result.Replaced);
             OverlayReplaced.AddRange(result.OverlayReplaced);
             OverlayAdded.AddRange(result.OverlayAdded);
+            EmptyDirectories.AddRange(result.EmptyDirectories);
         }
 
         private sealed class DirectoryResult
@@ -1114,6 +1352,8 @@ public static partial class SonySdkProject
 
             public List<string> OverlayAdded { get; } = new();
 
+            public List<string> EmptyDirectories { get; } = new();
+
             public void Append(DirectoryResult other)
             {
                 Files.AddRange(other.Files);
@@ -1122,6 +1362,7 @@ public static partial class SonySdkProject
                 Replaced.AddRange(other.Replaced);
                 OverlayReplaced.AddRange(other.OverlayReplaced);
                 OverlayAdded.AddRange(other.OverlayAdded);
+                EmptyDirectories.AddRange(other.EmptyDirectories);
             }
         }
 
@@ -1224,14 +1465,14 @@ public static partial class SonySdkProject
 
                 if (plan.SkipJunk && (isDirectory ? JunkFileFinder.IsJunkDirectoryName(entry.Name) : JunkFileFinder.IsJunkFileName(entry.Name)))
                 {
-                    piece.SkippedByApp.Add(relative + (isDirectory ? "/ (OS junk folder)" : " (OS junk file)"));
+                    piece.SkippedByApp.Add(relative + (isDirectory ? JunkFolderReason : JunkFileReason));
                     continue;
                 }
 
                 if (isDirectory && plan.Skip.Contains(relative))
                 {
                     // Cả thư mục bị bỏ theo tuỳ chọn (tàn dư của bản dump: _DUBLEX_, Saved của Unreal…).
-                    piece.SkippedByApp.Add(relative + "/ (excluded by option)");
+                    piece.SkippedByApp.Add(relative + OptionFolderReason);
                     continue;
                 }
 
@@ -1256,7 +1497,7 @@ public static partial class SonySdkProject
 
                 if (plan.Skip.Contains(relative))
                 {
-                    piece.SkippedByApp.Add(relative + " (excluded by option)");
+                    piece.SkippedByApp.Add(relative + OptionFileReason);
                     continue;
                 }
 
@@ -1284,8 +1525,17 @@ public static partial class SonySdkProject
                 }
             }
 
-            DirectoryResult Descend(int index) =>
-                WalkDirectory(entries[index].BaseDirectory, entries[index].OverlayDirectory, prefix.Length == 0 ? entries[index].Name : prefix + "/" + entries[index].Name);
+            DirectoryResult Descend(int index)
+            {
+                var overlay = entries[index].OverlayDirectory;
+                if (prefix.Length == 0 && plan.SceSysOverlay != null && PythonCaseFold.Fold(entries[index].Name) == "sce_sys")
+                {
+                    // Metadata khôi phục online: sce_sys trong thư mục tạm đè lên sce_sys của nguồn.
+                    overlay = plan.SceSysOverlay;
+                }
+
+                return WalkDirectory(entries[index].BaseDirectory, overlay, prefix.Length == 0 ? entries[index].Name : prefix + "/" + entries[index].Name);
+            }
 
             if (directories.Count == 1)
             {
@@ -1300,6 +1550,15 @@ public static partial class SonySdkProject
             }
 
             var result = new DirectoryResult();
+
+            // Thư mục rỗng của nguồn (hoặc chỉ có tệp rác như .DS_Store mà máy chép thêm): script chỉ liệt kê tệp nên nó mất khỏi gói.
+            if (prefix.Length > 0 && entries.All(entry => plan.SkipJunk && ((entry.Entry.Attributes & FileAttributes.Directory) != 0
+                    ? JunkFileFinder.IsJunkDirectoryName(entry.Name)
+                    : JunkFileFinder.IsJunkFileName(entry.Name))))
+            {
+                result.EmptyDirectories.Add(prefix);
+            }
+
             foreach (var piece in pieces)
             {
                 result.Append(piece!);

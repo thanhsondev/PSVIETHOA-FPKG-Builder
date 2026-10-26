@@ -5851,6 +5851,25 @@
         <member name="T:LibProsperoPkg.PKG.ProsperoDirectoryLicenseProvider">
             <summary>Simple provider that loads <c>license.dat</c>/<c>license.info</c> from one directory.</summary>
         </member>
+        <member name="T:LibProsperoPkg.PKG.ProsperoMetadataRecoveryOptions">
+            <summary>Restores publisher metadata for the exact content/version of an existing dump.</summary>
+        </member>
+        <member name="P:LibProsperoPkg.PKG.ProsperoMetadataRecoveryOptions.SourceUrl">
+            <summary>Optional version XML, manifest JSON or _sc.pkg URL. Defaults to versionFileUri.</summary>
+        </member>
+        <member name="P:LibProsperoPkg.PKG.ProsperoMetadataRecoveryOptions.CertificatePath">
+            <summary>Optional trusted root CA certificate; hostname checks still apply.</summary>
+        </member>
+        <member name="P:LibProsperoPkg.PKG.ProsperoMetadataRecoveryOptions.RestoreOriginalRuntimeSettings">
+            <summary>Keep local sdkVersion, requiredSystemSoftwareVersion and applicationDrmType by default.</summary>
+        </member>
+        <member name="T:LibProsperoPkg.PKG.ProsperoMetadataRecovery">
+            <summary>
+            Downloads only the metadata piece, verifies its manifest hash and identity, stages all
+            changes, and backs up originals outside the game folder. Protected records are reported.
+            This class intentionally has no publisher keys or dependency on the package builder.
+            </summary>
+        </member>
         <member name="T:LibProsperoPkg.PKG.NapsLayoutCounts">
             <summary>
             Section counts of a <c>naps_pkg_layout.dat</c> structure. Every count is the number of records

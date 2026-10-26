@@ -5,9 +5,16 @@ using Xunit;
 namespace PsViethoa.FpkgBuilder.Tests;
 
 /// <summary>
+/// Đo số nhân CPU một tiến trình dùng chỉ đúng khi máy rảnh: chạy riêng, không song song với các lượt tạo gói thật của lớp khác.
+/// </summary>
+[CollectionDefinition(nameof(CpuTimingCollection), DisableParallelization = true)]
+public sealed class CpuTimingCollection;
+
+/// <summary>
 /// Issue #6: Publishing Tools không có tuỳ chọn số luồng, nên ô "Luồng nén" ở chế độ SDK Sony giới hạn img_create từ bên ngoài
 /// (<see cref="CpuLimiter"/>): mặc định chạy hết tốc độ, hạ xuống hay tăng lại được ngay khi đang chạy.
 /// </summary>
+[Collection(nameof(CpuTimingCollection))]
 public sealed class SonySdkCoresTests
 {
     [Fact]

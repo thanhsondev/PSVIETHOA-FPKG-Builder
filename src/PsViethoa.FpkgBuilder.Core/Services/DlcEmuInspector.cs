@@ -19,7 +19,7 @@ public sealed record DlcEmuInfo(bool Config, IReadOnlyList<string> Paths)
 /// Ứng dụng phát hiện để cảnh báo và cho phép loại khỏi gói khi người dùng chọn.
 /// </para>
 /// </summary>
-public static class DlcEmuInspector
+public static partial class DlcEmuInspector
 {
     public const string ConfigName = "dlc_emu.ini";
 
@@ -104,4 +104,116 @@ public static class DlcEmuInspector
     }
 
     public static string Describe(DlcEmuInfo info) => info.Present ? string.Join(", ", info.Paths) : "—";
+
+    /// <summary>
+    /// Thư mục gắn DLC (<c>mount_point</c> dưới <c>/app0</c> trong dlc_emu.ini) của nguồn. DLC-emu không tự tạo thư mục này (README của
+    /// drakmor/dlc_emu: "DLC-emu does not create the directory") nên nó phải có trong gói dù rỗng — bản dump thường để rỗng vì nội dung
+    /// DLC đã nằm sẵn trong game. <paramref name="overlayFolder"/>: thư mục update của bản vá (ini của nó được ưu tiên, thư mục tìm ở cả
+    /// hai bên). Đường dẫn trả về dùng đúng tên trên đĩa (a/b).
+    /// </summary>
+    public static DlcEmuMounts FindMounts(string appFolder, string? overlayFolder = null)
+    {
+        var iniFolder = overlayFolder != null && File.Exists(Path.Combine(overlayFolder, ConfigName)) ? overlayFolder : appFolder;
+        var existing = new List<string>();
+        var missing = new List<string>();
+        foreach (var entry in DlcEmuIni.Read(iniFolder, CancellationToken.None))
+        {
+            if (RelativeMountPoint(entry.MountPoint) is not { } relative)
+            {
+                continue;
+            }
+
+            var actual = ResolveDirectory(appFolder, relative) ?? (overlayFolder == null ? null : ResolveDirectory(overlayFolder, relative));
+            var list = actual == null ? missing : existing;
+            var path = actual ?? relative;
+            if (!list.Contains(path, StringComparer.OrdinalIgnoreCase))
+            {
+                list.Add(path);
+            }
+        }
+
+        // Mục gắn được không ghi mount_point thì DLC-emu dùng mặc định /app0/addcontN: giữ mọi thư mục addcontN ở gốc game.
+        foreach (var folder in new[] { appFolder, overlayFolder })
+        {
+            if (folder == null || !Directory.Exists(folder))
+            {
+                continue;
+            }
+
+            try
+            {
+                foreach (var directory in new DirectoryInfo(folder).EnumerateDirectories())
+                {
+                    if (DefaultMountName().IsMatch(directory.Name) && !existing.Contains(directory.Name, StringComparer.OrdinalIgnoreCase))
+                    {
+                        existing.Add(directory.Name);
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+            {
+            }
+        }
+
+        return new DlcEmuMounts(existing, missing);
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex("^addcont[0-9]+$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant)]
+    private static partial System.Text.RegularExpressions.Regex DefaultMountName();
+
+    /// <summary><c>/app0/addcont0</c> → <c>addcont0</c>; null khi không nằm dưới /app0 hoặc không hợp lệ (rỗng, "..", ký tự lạ).</summary>
+    public static string? RelativeMountPoint(string? mountPoint)
+    {
+        if (string.IsNullOrWhiteSpace(mountPoint))
+        {
+            return null;
+        }
+
+        var mount = mountPoint.Trim().Replace('\\', '/').TrimEnd('/');
+        const string prefix = "/app0/";
+        if (!mount.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var parts = mount[prefix.Length..].Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length == 0 || parts.Any(part => part is "." or ".." || part.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            ? null
+            : string.Join('/', parts);
+    }
+
+    /// <summary>Thư mục <paramref name="relative"/> trong <paramref name="root"/> với đúng hoa thường trên đĩa; null khi không có.</summary>
+    private static string? ResolveDirectory(string root, string relative)
+    {
+        try
+        {
+            var current = new DirectoryInfo(root);
+            var names = new List<string>();
+            foreach (var part in relative.Split('/'))
+            {
+                var children = current.EnumerateDirectories().ToList();
+                var match = children.FirstOrDefault(child => child.Name == part) ??
+                            children.FirstOrDefault(child => string.Equals(child.Name, part, StringComparison.OrdinalIgnoreCase));
+                if (match == null)
+                {
+                    return null;
+                }
+
+                names.Add(match.Name);
+                current = match;
+            }
+
+            return string.Join('/', names);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            return null;
+        }
+    }
+}
+
+/// <summary>Thư mục gắn DLC của dlc_emu.ini: có trong nguồn (<paramref name="Existing"/>) và bị thiếu (<paramref name="Missing"/>).</summary>
+public sealed record DlcEmuMounts(IReadOnlyList<string> Existing, IReadOnlyList<string> Missing)
+{
+    public static readonly DlcEmuMounts None = new(Array.Empty<string>(), Array.Empty<string>());
 }

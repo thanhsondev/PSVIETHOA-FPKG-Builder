@@ -606,6 +606,22 @@
                                                 </StackPanel>
                                             </Grid>
 
+                                            <Grid ColumnDefinitions="Auto,12,*">
+                                                <ToggleSwitch IsChecked="{Binding SdkKeepEmptyFolders, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" VerticalAlignment="Top" />
+                                                <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{l:T Advanced.SdkKeepEmptyFolders}" TextWrapping="Wrap" />
+                                                    <TextBlock Classes="xs muted" Text="{l:T Advanced.SdkKeepEmptyFoldersHint}" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <Grid ColumnDefinitions="Auto,12,*">
+                                                <ToggleSwitch IsChecked="{Binding SdkFillEmptyChunks, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" VerticalAlignment="Top" />
+                                                <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{l:T Advanced.SdkFillEmptyChunks}" TextWrapping="Wrap" />
+                                                    <TextBlock Classes="xs muted" Text="{l:T Advanced.SdkFillEmptyChunksHint}" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Grid>
+
                                             <Grid ColumnDefinitions="Auto,12,*" IsVisible="{Binding IsWindows}">
                                                 <ToggleSwitch IsChecked="{Binding SdkPrescan, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" VerticalAlignment="Top" />
                                                 <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
@@ -824,10 +840,22 @@
                                         </StackPanel>
                                     </Border>
 
+                                    <StackPanel Spacing="6">
+                                        <Grid ColumnDefinitions="Auto,12,*">
+                                            <ToggleSwitch IsChecked="{Binding RestoreMetadataOnline, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" VerticalAlignment="Top" />
+                                            <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{l:T Advanced.RestoreMetadata}" TextWrapping="Wrap" />
+                                                <TextBlock Classes="xs muted" Text="{l:T Advanced.RestoreMetadataHint}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBox Text="{Binding MetadataSourceUrl, Mode=TwoWay}" Watermark="{l:T Advanced.MetadataUrlWatermark}" IsVisible="{Binding RestoreMetadataOnline}" IsEnabled="{Binding CanEdit}" Margin="56,0,0,0" AutomationProperties.Name="{l:T Advanced.RestoreMetadata}" />
+                                    </StackPanel>
+
                                     <Grid ColumnDefinitions="Auto,12,*">
-                                        <ToggleSwitch IsChecked="{Binding KeepDlcEmu, Mode=TwoWay}" VerticalAlignment="Center" />
+                                        <ToggleSwitch IsChecked="{Binding KeepDlcEmu, Mode=TwoWay}" VerticalAlignment="Top" />
                                         <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
                                             <TextBlock Text="{l:T Advanced.KeepDlcEmu}" />
+                                            <TextBlock Classes="xs muted" Text="{l:T Advanced.KeepDlcEmuHint}" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </Grid>
 

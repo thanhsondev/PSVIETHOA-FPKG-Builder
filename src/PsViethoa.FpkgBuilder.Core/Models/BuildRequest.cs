@@ -130,6 +130,17 @@ public sealed class BuildRequest
     public bool ClearVersionFileUri { get; set; } = true;
 
     /// <summary>
+    /// Khôi phục metadata online (engine fpkg-gui 0.6.12): trước khi đóng gói, tải mảnh metadata <c>*_sc.pkg</c> đúng Content ID và
+    /// phiên bản của bản dump từ máy chủ Sony (theo versionFileUri của param.json, hoặc <see cref="MetadataSourceUrl"/>) rồi đưa các tệp
+    /// sce_sys mà bản dump làm mất/hỏng vào gói (param.json giữ SDK/firmware/DRM của bản dump, icon, bảng PlayGo, trophy/uds khi không
+    /// bị niêm phong). Thư mục nguồn chỉ được đọc. Cần mạng; lỗi thì chỉ cảnh báo. Mặc định tắt; không dùng cho dự án GP5 và gói update.
+    /// </summary>
+    public bool RestoreMetadataOnline { get; set; }
+
+    /// <summary>URL tuỳ chọn cho <see cref="RestoreMetadataOnline"/>: XML phiên bản, manifest JSON hoặc *_sc.pkg đúng phiên bản; null = versionFileUri.</summary>
+    public string? MetadataSourceUrl { get; set; }
+
+    /// <summary>
     /// Đặt <c>attribute3</c> trong param.json về 0 lúc tạo gói — bước "xoá cờ PlayGo trong attribute3" của hướng dẫn sửa lỗi
     /// màn hình đen cũ. <b>Mặc định tắt từ 2.2.1</b>: attribute3 chứa các cờ tính năng (bit 7 = 120 Hz, bit 19 = VRR, bit 23 =
     /// PS5 Pro Enhanced…), đặt về 0 làm PS5 Pro không nhận "PS5 Pro Enhanced" và mất 120 Hz/VRR; tài liệu công khai không mô tả
@@ -217,6 +228,22 @@ public sealed class BuildRequest
     /// Tuỳ chọn opt-in, mặc định tắt (như bộ công cụ).
     /// </summary>
     public bool SdkPlayGoFallback { get; set; } = true;
+
+    /// <summary>
+    /// SDK Sony: giữ mọi thư mục rỗng của nguồn trong gói (khai báo &lt;empty_dir&gt; trong GP5), như engine tích hợp giữ nguyên cây thư
+    /// mục. Script gốc chỉ liệt kê tệp nên thư mục rỗng mất; game mở hay liệt kê thư mục đó giữa chừng (thư mục gắn DLC, nội dung tuỳ
+    /// chọn) thì lỗi ở đúng đoạn ấy trong khi bản dump và gói của fpkg-gui chạy được. Mặc định bật (khác bộ công cụ khi nguồn có thư
+    /// mục rỗng); thư mục gắn DLC của dlc_emu.ini vẫn được giữ khi tắt.
+    /// </summary>
+    public bool SdkKeepEmptyFolders { get; set; } = true;
+
+    /// <summary>
+    /// SDK Sony: cho mỗi chunk PlayGo không có tệp nào một tệp giữ chỗ 1 MiB không nén (<c>playgo-chunks/NNN.bin</c>), như script đã làm
+    /// cho chunk ngôn ngữ. PS5 coi chunk rỗng là chưa cài: game chờ chunk đó thì đứng ở "Đang cài đặt trò chơi 0GB/0" (Control PPSA34547:
+    /// bản dump mất bảng ánh xạ tệp nên mọi tệp vào chunk 0, chunk 1 rỗng, game kẹt ở thang máy). Mặc định bật (khác bộ công cụ khi có
+    /// chunk rỗng, kể cả các chunk thừa của bố cục 100 chunk); tắt = để rỗng như script.
+    /// </summary>
+    public bool SdkFillEmptyChunks { get; set; } = true;
 
     /// <summary>
     /// Do BuildEngine đặt khi lượt này thật sự chạy SDK Sony: bộ công cụ luôn chuẩn hoá param.json với applicationDrmType =
