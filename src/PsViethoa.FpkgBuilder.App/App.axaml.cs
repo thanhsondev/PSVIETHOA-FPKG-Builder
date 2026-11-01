@@ -28,6 +28,10 @@ public partial class App : Application
 
         InstallExceptionSafetyNet();
 
+        // Bản sao lưu save và log PS4 nằm chung thư mục dữ liệu của ứng dụng (cạnh settings.json).
+        Core.Saves.SaveResigner.BackupRoot = System.IO.Path.Combine(SettingsService.Directory, "save-backups");
+        Core.Ps4.Ps4JobRunner.LogRoot = System.IO.Path.Combine(SettingsService.Directory, "ps4-logs");
+
         var settings = SettingsService.Load();
         Core.Localization.Loc.Current.SetLanguage(settings.Language);
         RequestedThemeVariant = settings.Theme == "Light" ? ThemeVariant.Light : ThemeVariant.Dark;

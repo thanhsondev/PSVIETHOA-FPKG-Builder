@@ -1,0 +1,17 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:l="using:PsViethoa.FpkgBuilder.App.Localization"
+        x:Class="PsViethoa.FpkgBuilder.App.Views.InputDialog"
+        Width="460" SizeToContent="Height" CanResize="False" ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+    <StackPanel Margin="22,20" Spacing="12">
+        <TextBlock Name="TitleText" Classes="h2" TextWrapping="Wrap" />
+        <TextBlock Name="MessageText" Classes="hint" TextWrapping="Wrap" Margin="0" />
+        <TextBox Name="ValueBox" />
+        <TextBlock Name="ErrorText" Classes="xs" Foreground="{DynamicResource DangerBrush}" IsVisible="False" TextWrapping="Wrap" />
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Name="CancelButton" MinWidth="100" IsCancel="True" Click="Cancel_Click" Content="{l:T Common.Cancel}" />
+            <Button Name="OkButton" Classes="primary" MinWidth="120" IsDefault="True" Click="Ok_Click" />
+        </StackPanel>
+    </StackPanel>
+</Window>

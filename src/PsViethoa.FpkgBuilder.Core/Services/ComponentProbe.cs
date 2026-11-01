@@ -17,19 +17,20 @@ public sealed record ComponentStatus(string Id, string Name, ComponentState Stat
 
 /// <summary>
 /// Kiểm tra từng thành phần có hoạt động không (không chỉ có mặt): engine LibProsperoPkg, khoá debug PS5, bộ nén Kraken,
-/// Oodle gốc (libScePubTools.dll), cách gắn ảnh không sao chép (hdiutil / driver Dokan đang chạy) và chống ngủ máy.
+/// SDK Sony, bộ công cụ PS4 (orbis-pub-cmd), Oodle gốc (libScePubTools.dll), cách gắn ảnh không sao chép (hdiutil / driver Dokan đang chạy) và chống ngủ máy.
 /// Dùng cho ô "Thành phần & plugin" trong ứng dụng và lệnh <c>fpkg-cli info</c>.
 /// </summary>
 public static class ComponentProbe
 {
     public static IReadOnlyList<ComponentStatus> Run(string? publishingToolsPath = null)
     {
-        var rows = new List<ComponentStatus>(6)
+        var rows = new List<ComponentStatus>(8)
         {
             Engine(),
             Keys(),
             new ComponentStatus("kraken", Loc.T("Comp.Kraken"), ComponentState.Ok, Loc.T("Comp.KrakenOk")),
             SonySdk(),
+            Ps4Tools(),
             Oodle(publishingToolsPath),
             Mount(),
             SleepGuard(),
@@ -87,6 +88,29 @@ public static class ComponentProbe
         return SonySdkToolchain.VcRuntimeInstalled
             ? new ComponentStatus("sony-sdk", Loc.T("Comp.Sdk"), ComponentState.Ok, Loc.F("Comp.SdkOk", runtime.Directory))
             : new ComponentStatus("sony-sdk", Loc.T("Comp.Sdk"), ComponentState.Warning, Loc.F("Comp.SdkVcMissing", runtime.Directory));
+    }
+
+    /// <summary>Bộ công cụ PS4 (orbis-pub-cmd 3.87): Windows chạy thẳng (cần VC++ x86), macOS / Linux qua Wine có thư viện 32-bit.</summary>
+    private static ComponentStatus Ps4Tools()
+    {
+        var runtime = Ps4.Ps4Engine.Resolve(out var problem);
+        if (runtime == null)
+        {
+            return new ComponentStatus("ps4", Loc.T("Comp.Ps4"), ComponentState.Missing, Loc.F("Comp.Ps4Unavailable", problem ?? "?"));
+        }
+
+        if (runtime.UsesWine)
+        {
+            var wine = SonySdkToolchain.WineVersion(runtime.WinePath!) ?? runtime.WinePath!;
+            return Ps4.Ps4Engine.Wine32Missing(runtime.WinePath!)
+                ? new ComponentStatus("ps4", Loc.T("Comp.Ps4"), ComponentState.Warning, Loc.F("Comp.Ps4Wine32Missing", runtime.ToolDirectory, wine))
+                : new ComponentStatus("ps4", Loc.T("Comp.Ps4"), ComponentState.Ok, Loc.F("Comp.Ps4WineOk", runtime.ToolDirectory, wine));
+        }
+
+        var missing = Ps4.Ps4Engine.MissingVcRuntimes();
+        return missing.Count == 0
+            ? new ComponentStatus("ps4", Loc.T("Comp.Ps4"), ComponentState.Ok, Loc.F("Comp.Ps4Ok", runtime.ToolDirectory))
+            : new ComponentStatus("ps4", Loc.T("Comp.Ps4"), ComponentState.Warning, Loc.F("Comp.Ps4VcMissing", runtime.ToolDirectory, string.Join(", ", missing)));
     }
 
     private static ComponentStatus Oodle(string? explicitPath)

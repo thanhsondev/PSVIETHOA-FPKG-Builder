@@ -10,15 +10,15 @@
     <Grid RowDefinitions="Auto,*,Auto">
 
         <Border Grid.Row="0" Background="{DynamicResource HeaderBrush}" Padding="24,18">
-            <StackPanel Orientation="Horizontal" Spacing="14">
-                <Border Width="42" Height="42" CornerRadius="12" Background="{DynamicResource AccentBrush}">
+            <Grid ColumnDefinitions="Auto,14,*">
+                <Border Width="42" Height="42" CornerRadius="12" Background="{DynamicResource AccentBrush}" VerticalAlignment="Center">
                     <PathIcon Data="{StaticResource IconHelp}" Width="22" Height="22" Foreground="{DynamicResource OnAccentBrush}" />
                 </Border>
-                <StackPanel VerticalAlignment="Center" Spacing="2">
+                <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="2">
                     <TextBlock Text="{l:T Help.Title}" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC" />
-                    <TextBlock Text="{l:T Help.Subtitle}" FontSize="12.5" Foreground="#94A3B8" />
+                    <TextBlock Text="{l:T Help.Subtitle}" FontSize="12.5" Foreground="#94A3B8" TextWrapping="Wrap" />
                 </StackPanel>
-            </StackPanel>
+            </Grid>
         </Border>
 
         <ScrollViewer Grid.Row="1" Name="HelpScroll" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
@@ -67,6 +67,34 @@
                         <TextBlock TextWrapping="Wrap" Text="{l:T Help.Extract.1}" />
                         <TextBlock TextWrapping="Wrap" Text="{l:T Help.Extract.2}" />
                         <TextBlock TextWrapping="Wrap" Text="{l:T Help.Extract.3}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="card">
+                    <StackPanel Spacing="10">
+                        <TextBlock Classes="h2" Text="{l:T Help.Ps4.Title}" />
+                        <TextBlock TextWrapping="Wrap" Text="{l:T Help.Ps4.1}" />
+                        <TextBlock TextWrapping="Wrap" Text="{l:T Help.Ps4.2}" />
+                        <TextBlock TextWrapping="Wrap" Text="{l:T Help.Ps4.3}" />
+                        <TextBlock TextWrapping="Wrap" Text="{l:T Help.Ps4.4}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="card">
+                    <StackPanel Spacing="10">
+                        <TextBlock Classes="h2" Text="{l:T Help.Ftp.Title}" />
+                        <TextBlock TextWrapping="Wrap" Text="{l:T Help.Ftp.1}" />
+                        <TextBlock TextWrapping="Wrap" Text="{l:T Help.Ftp.2}" />
+                        <TextBlock TextWrapping="Wrap" Text="{l:T Help.Ftp.3}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="card">
+                    <StackPanel Spacing="10">
+                        <TextBlock Classes="h2" Text="{l:T Help.Save.Title}" />
+                        <TextBlock TextWrapping="Wrap" Text="{l:T Help.Save.1}" />
+                        <TextBlock TextWrapping="Wrap" Text="{l:T Help.Save.2}" />
+                        <TextBlock TextWrapping="Wrap" Text="{l:T Help.Save.3}" />
                     </StackPanel>
                 </Border>
 

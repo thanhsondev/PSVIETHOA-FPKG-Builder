@@ -1,0 +1,41 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:PsViethoa.FpkgBuilder.App.Views"
+        xmlns:l="using:PsViethoa.FpkgBuilder.App.Localization"
+        x:Class="PsViethoa.FpkgBuilder.App.Views.TransferSaveWindow"
+        x:DataType="vm:TransferChoice"
+        Width="640" Height="460" MinWidth="480" MinHeight="320"
+        ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        Title="{l:T Save.Transfer.Title}">
+
+    <DockPanel Margin="22,20">
+        <StackPanel DockPanel.Dock="Top" Spacing="4" Margin="0,0,0,14">
+            <TextBlock Classes="h2" Text="{l:T Save.Transfer.Heading}" />
+            <TextBlock Name="HintText" Classes="hint" Margin="0" />
+        </StackPanel>
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button Name="CancelButton" MinWidth="100" IsCancel="True" Click="Cancel_Click" Content="{l:T Common.Cancel}" />
+            <Button Name="RunButton" Classes="primary" MinWidth="200" IsDefault="True" Click="Run_Click">
+                <StackPanel Classes="btn">
+                    <PathIcon Data="{StaticResource IconTransfer}" />
+                    <TextBlock Text="{l:T Save.Transfer.Run}" />
+                </StackPanel>
+            </Button>
+        </StackPanel>
+        <Border Classes="surface" Padding="4">
+            <ListBox Name="SaveList" Background="Transparent" DoubleTapped="List_DoubleTapped">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:TransferChoice">
+                        <Grid ColumnDefinitions="*,Auto" Margin="2,2">
+                            <StackPanel Spacing="2">
+                                <TextBlock Classes="mono" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Classes="xs muted" Text="{Binding User}" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <Border Grid.Column="1" Classes="chip info"><TextBlock Text="PS5" /></Border>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Border>
+    </DockPanel>
+</Window>

@@ -37,6 +37,8 @@ for RID in "${RIDS[@]}"; do
   cp -R "$ROOT/libs/sony-sdk" "$APP/Contents/Resources/sony-sdk"
   WINE_DIR="$("$ROOT/scripts/fetch-wine.sh")"
   cp -R "$WINE_DIR" "$APP/Contents/Resources/wine"
+  # PS4 PKG: PS4 Fake PKG Tools 3.87 (orbis-pub-cmd, 32-bit) — chạy qua cùng Wine (giữ thư viện i386).
+  cp -R "$ROOT/libs/orbis-pub" "$APP/Contents/Resources/orbis-pub"
 
   cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

@@ -2,7 +2,9 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using PsViethoa.FpkgBuilder.App.Services;
 using PsViethoa.FpkgBuilder.App.ViewModels;
+using PsViethoa.FpkgBuilder.App.ViewModels.Shell;
 using PsViethoa.FpkgBuilder.Core.Services;
 using PsViethoa.FpkgBuilder.Core.ExFat;
 
@@ -27,6 +29,71 @@ public partial class MainWindow : Window
         // Cửa sổ hẹp (MacBook 13", laptop 1366×768): chip "Khoá debug" chỉ còn biểu tượng để tên ứng dụng không bị đè.
         SizeChanged += (_, e) => UpdateHeaderDensity(e.NewSize.Width);
         Closing += OnClosing;
+
+        // Cột phải trang tạo gói PS5: nhật ký luôn giữ tối thiểu LogMinHeight, phần dư thì cuộn (xem UpdateRightColumn).
+        // Tự cuộn nhật ký chỉ cuộn bên trong ô nhật ký: chặn yêu cầu "đưa vào tầm nhìn" lan ra cột ngoài, nếu không cột phải tự trôi
+        // xuống mỗi khi có dòng log mới và che khung trạng thái.
+        LogCard.AddHandler(RequestBringIntoViewEvent, (_, e) => e.Handled = true, Avalonia.Interactivity.RoutingStrategies.Bubble);
+        RightScroll.SizeChanged += (_, _) => UpdateRightColumn();
+        ControlCard.SizeChanged += (_, e) =>
+        {
+            UpdateRightColumn();
+            OpenOutputText.IsVisible = e.NewSize.Width >= 470;
+        };
+        PresetGrid.SizeChanged += (_, e) => LayoutPresets(e.NewSize.Width < 580);
+        ResultCard.SizeChanged += (_, _) => UpdateRightColumn();
+        ResultCard.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == IsVisibleProperty)
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(UpdateRightColumn, Avalonia.Threading.DispatcherPriority.Loaded);
+            }
+        };
+    }
+
+    private bool? _presetsTwoRows;
+
+    /// <summary>Bốn ô preset một hàng; cột hẹp (dưới 580 px) thì xếp 2×2 để tên và mô tả không bị cắt.</summary>
+    private void LayoutPresets(bool twoRows)
+    {
+        if (_presetsTwoRows == twoRows)
+        {
+            return;
+        }
+
+        _presetsTwoRows = twoRows;
+        PresetGrid.ColumnDefinitions = new ColumnDefinitions(twoRows ? "*,6,*" : "*,6,*,6,*,6,*");
+        PresetGrid.RowDefinitions = new RowDefinitions(twoRows ? "Auto,6,Auto" : "Auto");
+        var index = 0;
+        foreach (var preset in PresetGrid.Children.OfType<RadioButton>())
+        {
+            Grid.SetColumn(preset, twoRows ? index % 2 * 2 : index * 2);
+            Grid.SetRow(preset, twoRows ? index / 2 * 2 : 0);
+            index++;
+        }
+    }
+
+    /// <summary>Chiều cao tối thiểu của ô nhật ký ở trang tạo gói PS5.</summary>
+    private const double LogMinHeight = 280;
+
+    /// <summary>
+    /// Cột phải là lưới Auto/Auto/* nằm trong ScrollViewer: lưới cao bằng khung nhìn khi đủ chỗ (nhật ký lấp phần còn lại), còn khi
+    /// bảng điều khiển + khung kết quả chiếm gần hết thì lưới cao hơn khung nhìn để nhật ký vẫn còn LogMinHeight — cuộn xuống để xem.
+    /// </summary>
+    private void UpdateRightColumn()
+    {
+        var viewport = RightScroll.Bounds.Height;
+        if (viewport <= 0)
+        {
+            return;
+        }
+
+        var above = ControlCard.Bounds.Height + (ResultCard.IsVisible ? ResultCard.Bounds.Height + ResultCard.Margin.Top : 0);
+        var height = Math.Max(viewport, above + LogCard.Margin.Top + LogMinHeight);
+        if (double.IsNaN(RightColumn.Height) || Math.Abs(RightColumn.Height - height) > 0.5)
+        {
+            RightColumn.Height = height;
+        }
     }
 
     private MainViewModel? ViewModel => DataContext as MainViewModel;
@@ -37,6 +104,7 @@ public partial class MainWindow : Window
         {
             _attached.LogAppended -= OnLogAppended;
             _attached.FocusFieldRequested -= OnFocusFieldRequested;
+            _attached.PropertyChanged -= OnViewModelPropertyChanged;
         }
 
         _attached = ViewModel;
@@ -44,22 +112,57 @@ public partial class MainWindow : Window
         {
             _attached.LogAppended += OnLogAppended;
             _attached.FocusFieldRequested += OnFocusFieldRequested;
+            _attached.PropertyChanged += OnViewModelPropertyChanged;
+            _lastPlatform = _attached.PagePlatform;
         }
+    }
+
+    private Platform? _lastPlatform;
+
+    /// <summary>Đổi trang: nội dung mới mờ dần hiện lên và trồi lên vài điểm ảnh; sang nhóm khác thì huy hiệu đầu trang bật lên.</summary>
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(MainViewModel.CurrentPage) || ViewModel is not { } vm)
+        {
+            return;
+        }
+
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            Control? page = vm.CurrentPage switch
+            {
+                AppPage.Ps5Build or AppPage.Ps5Update => Ps5BuildPage,
+                AppPage.Ps5Extract => Ps5ExtractPage,
+                AppPage.Ps5Queue => Ps5QueuePage,
+                AppPage.Ftp => FtpPage,
+                AppPage.SaveResign => SavePage,
+                _ => Ps4Page,
+            };
+            Motion.Enter(page, 14, 260);
+            Motion.Enter(PageHeaderText, 6, 200);
+            if (_lastPlatform != vm.PagePlatform)
+            {
+                PageBadge.Pop();
+            }
+
+            _lastPlatform = vm.PagePlatform;
+        }, Avalonia.Threading.DispatcherPriority.Loaded);
     }
 
     private const double CompactHeaderWidth = 1240;
 
-    private const double TightHeaderWidth = 1040;
+    /// <summary>Dưới mức này thanh bên tự thu gọn (chỉ biểu tượng) để trang Tạo gói vẫn đủ hai cột.</summary>
+    private const double NarrowSidebarWidth = 1200;
 
     private void UpdateHeaderDensity(double width)
     {
         var full = width >= CompactHeaderWidth;
         KeysReadyText.IsVisible = full;
         KeysMissingText.IsVisible = full;
-        // Hẹp hơn nữa (gần mức tối thiểu 960): nhãn phiên bản (đã có ở thanh dưới) và chữ "Hướng dẫn" nhường chỗ.
-        var roomy = width >= TightHeaderWidth;
-        HeaderVersionBadge.IsVisible = roomy;
-        HelpText.IsVisible = roomy;
+        if (ViewModel != null)
+        {
+            ViewModel.SidebarNarrow = width < NarrowSidebarWidth;
+        }
     }
 
     private void OnOpened(object? sender, EventArgs e)
@@ -94,7 +197,53 @@ public partial class MainWindow : Window
         var screenshotPath = Environment.GetEnvironmentVariable("PSVIETHOA_SCREENSHOT");
         if (!string.IsNullOrWhiteSpace(screenshotPath))
         {
+            // Ảnh chụp không được bắt khung hình dở dang của hiệu ứng.
+            Motion.Suppressed = true;
             _ = CaptureAndExitAsync(screenshotPath);
+        }
+
+        // Mở thẳng một trang khi khởi động (chụp màn hình/kiểm thử): PSVIETHOA_PAGE=Ps4Patch|Ftp|SaveResign|… (tên AppPage)
+        if (Enum.TryParse<AppPage>(Environment.GetEnvironmentVariable("PSVIETHOA_PAGE"), ignoreCase: true, out var startPage))
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (ViewModel != null)
+                {
+                    ViewModel.CurrentPage = startPage;
+
+                    // Điền sẵn nguồn PS4 để chụp phần xem trước game: PSVIETHOA_PS4_SOURCE=/đường/dẫn, PSVIETHOA_PS4_BASE=/đường/dẫn
+                    if (Environment.GetEnvironmentVariable("PSVIETHOA_PS4_SOURCE") is { Length: > 0 } ps4Source)
+                    {
+                        ViewModel.Ps4.SourcePath = ps4Source;
+                    }
+
+                    if (Environment.GetEnvironmentVariable("PSVIETHOA_PS4_BASE") is { Length: > 0 } ps4Base)
+                    {
+                        ViewModel.Ps4.BasePath = ps4Base;
+                    }
+
+                    if (Environment.GetEnvironmentVariable("PSVIETHOA_PS4_SFO") == "1")
+                    {
+                        ViewModel.Ps4.ShowSfoEditor = true;
+                    }
+
+                    // Thêm save vào hàng đợi Resign (chụp màn hình / kiểm thử): PSVIETHOA_SAVE_ADD=đường/dẫn1;đường/dẫn2
+                    if (Environment.GetEnvironmentVariable("PSVIETHOA_SAVE_ADD") is { Length: > 0 } saves)
+                    {
+                        ViewModel.Save.AddPaths(saves.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+                    }
+
+                    // Tự kết nối FTP (chụp màn hình / kiểm thử): PSVIETHOA_FTP_CONNECT=host:port; PSVIETHOA_FTP_UPLOAD=/đường/dẫn tải lên ngay
+                    if (Environment.GetEnvironmentVariable("PSVIETHOA_FTP_CONNECT") is { Length: > 0 } ftp)
+                    {
+                        var parts = ftp.Split(':');
+                        ViewModel.Ftp.Host = parts[0];
+                        ViewModel.Ftp.Port = parts.Length > 1 ? parts[1] : "2121";
+                        ViewModel.Ftp.EnsureLoaded();
+                        _ = ConnectFtpForTestAsync(ViewModel.Ftp);
+                    }
+                }
+            }, Avalonia.Threading.DispatcherPriority.Background);
         }
 
         // Đổi ngôn ngữ lúc chạy trước khi chụp (kiểm thử binding {l:T}): PSVIETHOA_SWITCH_LANG=en|vi
@@ -212,6 +361,11 @@ public partial class MainWindow : Window
             await build;
             await Task.Delay(TimeSpan.FromSeconds(1.5));
             Capture(prefix + "-done.png");
+
+            // Cuộn cột phải xuống cuối: nhật ký phải còn chỗ và xem được khi khung kết quả đang hiện.
+            RightScroll.ScrollToEnd();
+            await Task.Delay(TimeSpan.FromSeconds(0.6));
+            Capture(prefix + "-done-log.png");
         }
         catch (Exception ex)
         {
@@ -243,11 +397,41 @@ public partial class MainWindow : Window
             scroll.UpdateLayout();
         }
 
-        var scale = RenderScaling <= 0 ? 1 : RenderScaling;
+        // PSVIETHOA_SCREENSHOT_SCALE=<hệ số>: tỉ lệ ảnh chụp (mặc định = tỉ lệ màn hình). RenderTargetBitmap của Avalonia 11.3 vẽ sai
+        // nội dung trong Border có BoxShadow khi DPI khác 96, nên ảnh cho tài liệu chụp ở 1× rồi phóng nếu cần.
+        var scale = double.TryParse(Environment.GetEnvironmentVariable("PSVIETHOA_SCREENSHOT_SCALE"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var requested) && requested > 0
+            ? requested
+            : RenderScaling <= 0 ? 1 : RenderScaling;
         var size = new Avalonia.PixelSize((int)(Bounds.Width * scale), (int)(Bounds.Height * scale));
         using var bitmap = new Avalonia.Media.Imaging.RenderTargetBitmap(size, new Avalonia.Vector(96 * scale, 96 * scale));
         bitmap.Render(this);
         bitmap.Save(path);
+    }
+
+    private static async Task ConnectFtpForTestAsync(ViewModels.FtpViewModel ftp)
+    {
+        await ftp.ConnectCommand.ExecuteAsync(null);
+        if (Environment.GetEnvironmentVariable("PSVIETHOA_FTP_LOCAL") is { Length: > 0 } local)
+        {
+            ftp.LoadLocal(local);
+        }
+
+        if (Environment.GetEnvironmentVariable("PSVIETHOA_FTP_REMOTE") is { Length: > 0 } remote)
+        {
+            await ftp.LoadRemoteAsync(remote);
+        }
+
+        if (Environment.GetEnvironmentVariable("PSVIETHOA_FTP_UPLOAD") is { Length: > 0 } upload)
+        {
+            ftp.UploadPaths(upload.Split(';'), null);
+        }
+
+        // PSVIETHOA_FTP_DOWNLOAD=/thư/mục/trên/ps5: tải cả thư mục về thư mục máy tính đang mở.
+        if (Environment.GetEnvironmentVariable("PSVIETHOA_FTP_DOWNLOAD") is { Length: > 0 } download)
+        {
+            var name = Core.Ftp.Ps5Ftp.FileName(download);
+            await ftp.DownloadRowsAsync([new ViewModels.FtpFileRow(name, download, true, 0, null, string.Empty)], null);
+        }
     }
 
     private async Task CaptureAndExitAsync(string path)
@@ -257,19 +441,43 @@ public partial class MainWindow : Window
             // PSVIETHOA_SCREENSHOT_DELAY=<giây>: chờ lâu hơn để chụp lúc đang chạy (mặc định 2,5 s).
             var delay = double.TryParse(Environment.GetEnvironmentVariable("PSVIETHOA_SCREENSHOT_DELAY"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var seconds) ? seconds : 2.5;
             await Task.Delay(TimeSpan.FromSeconds(delay));
+
+            // Chạy tác vụ của trang rồi chụp khi xong (ảnh "đóng gói thành công" cho tài liệu):
+            // PSVIETHOA_PS4_AUTOSTART=1 (tác vụ PS4 của trang đang mở), PSVIETHOA_SAVE_START=1 (resign hàng đợi save).
+            if (ViewModel != null && Environment.GetEnvironmentVariable("PSVIETHOA_PS4_AUTOSTART") == "1")
+            {
+                await ViewModel.Ps4.StartCommand.ExecuteAsync(null);
+                await Task.Delay(TimeSpan.FromSeconds(1.5));
+            }
+
+            if (ViewModel != null && Environment.GetEnvironmentVariable("PSVIETHOA_SAVE_START") == "1")
+            {
+                await ViewModel.Save.StartCommand.ExecuteAsync(null);
+                await Task.Delay(TimeSpan.FromSeconds(1.5));
+            }
             if (Environment.GetEnvironmentVariable("PSVIETHOA_SHOW_HELP") == "1")
             {
                 // Chụp cửa sổ Hướng dẫn thay vì cửa sổ chính.
                 var help = new HelpWindow();
                 help.Show(this);
                 await Task.Delay(TimeSpan.FromSeconds(1.5));
-                if (Environment.GetEnvironmentVariable("PSVIETHOA_SCROLL") == "end")
+                if (Environment.GetEnvironmentVariable("PSVIETHOA_SCROLL") is { } helpScroll)
                 {
-                    help.ScrollToEnd();
+                    if (helpScroll == "end")
+                    {
+                        help.ScrollToEnd();
+                    }
+                    else if (double.TryParse(helpScroll, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var helpOffset))
+                    {
+                        help.ScrollTo(helpOffset);
+                    }
+
                     await Task.Delay(300);
                 }
 
-                var scale = help.RenderScaling <= 0 ? 1 : help.RenderScaling;
+                var scale = double.TryParse(Environment.GetEnvironmentVariable("PSVIETHOA_SCREENSHOT_SCALE"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var requested) && requested > 0
+                    ? requested
+                    : help.RenderScaling <= 0 ? 1 : help.RenderScaling;
                 var size = new Avalonia.PixelSize((int)(help.Bounds.Width * scale), (int)(help.Bounds.Height * scale));
                 using var helpBitmap = new Avalonia.Media.Imaging.RenderTargetBitmap(size, new Avalonia.Vector(96 * scale, 96 * scale));
                 helpBitmap.Render(help);
@@ -369,7 +577,7 @@ public partial class MainWindow : Window
 
     private void Help_Click(object? sender, RoutedEventArgs e) => ShowHelp();
 
-    private void ShowHelp()
+    public void ShowHelp()
     {
         var help = new HelpWindow();
         help.ShowDialog(this);

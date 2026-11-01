@@ -18,6 +18,10 @@
       <HintPath>$(MSBuildThisFileDirectory)../../libs/LibProsperoPkg.dll</HintPath>
       <Private>true</Private>
     </Reference>
+    <Reference Include="LibOrbisPkg">
+      <HintPath>$(MSBuildThisFileDirectory)../../libs/LibOrbisPkg/LibOrbisPkg.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>

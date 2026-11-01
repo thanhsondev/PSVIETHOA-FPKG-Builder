@@ -147,6 +147,13 @@ internal static class CommandLine
                 "pkg-list" => PackageCommands.List(arguments),
                 "pkg-extract" => PackageCommands.Extract(arguments),
                 "pkg-dlc-template" => PackageCommands.DlcTemplate(arguments),
+                "ps4-info" => Ps4Commands.Info(arguments),
+                "ps4-list" => Ps4Commands.List(arguments),
+                "ps4-extract" => await Ps4Commands.ExtractAsync(arguments),
+                "ps4-base" => await Ps4Commands.BaseAsync(arguments),
+                "ps4-patch" => await Ps4Commands.PatchAsync(arguments),
+                "ps4-dlc" => await Ps4Commands.DlcAsync(arguments),
+                "ps4-merge" => await Ps4Commands.MergeAsync(arguments),
                 _ => Unknown(command),
             };
         }

@@ -29,6 +29,8 @@ for RID in "${RIDS[@]}"; do
 
   # SDK Sony (Publishing Tools 2.79 đã vá, bộ sdk-fpkg279-fixdss3) cạnh app/ và fpkg-cli/: cả hai tìm ở thư mục cha.
   cp -R "$ROOT/libs/sony-sdk" "$OUT/sony-sdk"
+  # PS4 PKG: PS4 Fake PKG Tools 3.87 (orbis-pub-cmd, 32-bit) — cần Wine của distro có hỗ trợ 32-bit.
+  cp -R "$ROOT/libs/orbis-pub" "$OUT/orbis-pub"
   cp "$ROOT/src/PsViethoa.FpkgBuilder.App/Assets/icon-256.png" "$OUT/psviethoa-fpkg-builder.png"
 
   cat > "$OUT/install-desktop-entry.sh" <<'SH'
@@ -41,7 +43,7 @@ cat > "$HOME/.local/share/applications/psviethoa-fpkg-builder.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
 Name=PSVIETHOA FPKG Builder
-Comment=Build PS5 FPKG (FIH debug) packages
+Comment=PS5 FPKG · PS4 PKG · PS5 FTP · Save resign
 Exec="$HERE/app/PsViethoa.FpkgBuilder.App"
 Icon=$HERE/psviethoa-fpkg-builder.png
 Terminal=false
@@ -59,6 +61,9 @@ Menu:        ./install-desktop-entry.sh              (thêm vào menu ứng dụ
 Sony SDK:    cần Wine của distro — Debian/Ubuntu: sudo apt install wine64 · Fedora: sudo dnf install wine · Arch: sudo pacman -S wine
              (hoặc PSVIETHOA_WINE=/đường/dẫn/wine). Lần tạo gói đầu tiên tạo WINEPREFIX riêng ở ~/.local/share/psviethoa-fpkg-builder/wine-prefix.
              Không có Wine thì ứng dụng dùng engine tích hợp (bỏ tích "Sony SDK").
+PS4 PKG:     đóng gói PS4 chạy orbis-pub-cmd.exe (32-bit) qua Wine có thư viện 32-bit —
+             Debian/Ubuntu: sudo dpkg --add-architecture i386 && sudo apt update && sudo apt install wine wine32 · Fedora: sudo dnf install wine
+             (xả PKG PS4, FTP và Resign Save không cần Wine).
 Ảnh .exfat:  được giải nén bằng bộ đọc .NET (không gắn ổ); cần dung lượng trống bằng nội dung ảnh.
 Chống ngủ:   dùng systemd-inhibit nếu có.
 Yêu cầu:     glibc 2.31+ (Ubuntu 20.04+/Debian 11+/Fedora 34+), X11 hoặc XWayland, fontconfig.
@@ -67,7 +72,7 @@ TXT
   find "$OUT" \( -name "*.pdb" -o -name "LibProsperoPkg.xml" \) -delete
   chmod +x "$OUT/app/PsViethoa.FpkgBuilder.App" "$OUT/fpkg-cli/fpkg-cli" "$OUT/install-desktop-entry.sh"
 
-  (cd "$OUT" && rm -f "$APP_NAME-$VERSION-$RID.tar.gz" && tar -czf "$APP_NAME-$VERSION-$RID.tar.gz" app fpkg-cli sony-sdk psviethoa-fpkg-builder.png install-desktop-entry.sh README-Linux.txt)
+  (cd "$OUT" && rm -f "$APP_NAME-$VERSION-$RID.tar.gz" && tar -czf "$APP_NAME-$VERSION-$RID.tar.gz" app fpkg-cli sony-sdk orbis-pub psviethoa-fpkg-builder.png install-desktop-entry.sh README-Linux.txt)
   echo "   -> $OUT/$APP_NAME-$VERSION-$RID.tar.gz"
 done
 

@@ -124,7 +124,7 @@
                                 <Button Grid.Column="2" Command="{Binding BrowsePackageCommand}">
                                     <StackPanel Classes="btn">
                                         <PathIcon Data="{StaticResource IconFolderOpen}" />
-                                        <TextBlock Text="{l:T Common.Browse}" />
+                                        <TextBlock Text="{l:T Common.PickPkg}" />
                                     </StackPanel>
                                 </Button>
                                 <Button Grid.Column="4" Width="40" Height="40" Padding="0" Command="{Binding ReloadCommand}"
@@ -179,7 +179,7 @@
                                 <Button Grid.Column="2" Command="{Binding BrowseOutputCommand}" IsEnabled="{Binding CanEditOutput}">
                                     <StackPanel Classes="btn">
                                         <PathIcon Data="{StaticResource IconFolder}" />
-                                        <TextBlock Text="{l:T Common.Browse}" />
+                                        <TextBlock Text="{l:T Common.PickFolder}" />
                                     </StackPanel>
                                 </Button>
                             </Grid>

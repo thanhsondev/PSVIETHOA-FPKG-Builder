@@ -10,7 +10,7 @@ public sealed class ComponentProbeTests
     public void Run_ReportsEveryComponentWithLocalizedText()
     {
         var rows = ComponentProbe.Run();
-        Assert.Equal(new[] { "engine", "keys", "kraken", "sony-sdk", "oodle", "mount", "sleep" }, rows.Select(r => r.Id).ToArray());
+        Assert.Equal(new[] { "engine", "keys", "kraken", "sony-sdk", "ps4", "oodle", "mount", "sleep" }, rows.Select(r => r.Id).ToArray());
         Assert.All(rows, r =>
         {
             Assert.False(string.IsNullOrWhiteSpace(r.Name));

@@ -35,6 +35,60 @@ public sealed class DialogService
         return result.Count > 0 ? result[0].TryGetLocalPath() : null;
     }
 
+    /// <summary>Chọn nhiều thư mục một lúc (hệ điều hành không hỗ trợ thì trả về rỗng).</summary>
+    public async Task<IReadOnlyList<string>> PickFoldersAsync(string title, string? initialDirectory)
+    {
+        var provider = _owner.StorageProvider;
+        if (!provider.CanPickFolder)
+        {
+            return Array.Empty<string>();
+        }
+
+        var result = await provider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = title,
+            AllowMultiple = true,
+            SuggestedStartLocation = await TryGetFolderAsync(provider, initialDirectory),
+        });
+        return result.Select(item => item.TryGetLocalPath()).OfType<string>().ToList();
+    }
+
+    /// <summary>Chọn nhiều tệp một lúc.</summary>
+    public async Task<IReadOnlyList<string>> PickFilesAsync(string title, string? initialDirectory, params FilePickerFileType[] fileTypes)
+    {
+        var provider = _owner.StorageProvider;
+        if (!provider.CanOpen)
+        {
+            return Array.Empty<string>();
+        }
+
+        var result = await provider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = title,
+            AllowMultiple = true,
+            FileTypeFilter = fileTypes.Length > 0 ? fileTypes : null,
+            SuggestedStartLocation = await TryGetFolderAsync(provider, initialDirectory),
+        });
+        return result.Select(item => item.TryGetLocalPath()).OfType<string>().ToList();
+    }
+
+    /// <summary>Cửa sổ chủ của các hộp thoại (cho hộp thoại riêng của từng trang).</summary>
+    public Window Owner => _owner;
+
+    /// <summary>Bộ lọc "Gói PKG (*.pkg)" + "Mọi tệp" (nhãn theo ngôn ngữ đang dùng).</summary>
+    public static FilePickerFileType[] PkgFiles =>
+    [
+        new FilePickerFileType(Loc.T("Extract.PkgFilter")) { Patterns = ["*.pkg"] },
+        new FilePickerFileType(Loc.T("Pick.AllFiles")) { Patterns = ["*"] },
+    ];
+
+    /// <summary>Bộ lọc "param.sfo (*.sfo)" + "Mọi tệp".</summary>
+    public static FilePickerFileType[] SfoFiles =>
+    [
+        new FilePickerFileType(Loc.T("Ps4.SfoEdit.Filter")) { Patterns = ["*.sfo", "param.sfo"] },
+        new FilePickerFileType(Loc.T("Pick.AllFiles")) { Patterns = ["*"] },
+    ];
+
     public async Task<string?> PickFileAsync(string title, string? initialDirectory, params FilePickerFileType[] fileTypes)
     {
         var provider = _owner.StorageProvider;

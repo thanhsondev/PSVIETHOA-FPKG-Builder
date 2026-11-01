@@ -389,9 +389,62 @@ public static class SonySdkToolchain
         return "Z:" + full.Replace('/', '\\');
     }
 
-    /// <summary>Phiên bản Wine (dòng đầu của <c>wine --version</c>), null nếu không chạy được.</summary>
+    /// <summary>
+    /// Phiên bản Wine đọc từ tệp, không chạy chương trình: README-PSVIETHOA.txt của bản kèm theo ("Wine 11.17 for macOS…"),
+    /// hoặc Info.plist của gói Wine*.app (bản cài riêng của Gcenx / WineHQ). Null nếu không có.
+    /// </summary>
+    public static string? WineVersionFromFiles(string winePath)
+    {
+        try
+        {
+            var root = Path.GetDirectoryName(Path.GetDirectoryName(Path.GetFullPath(winePath)));
+            if (root == null)
+            {
+                return null;
+            }
+
+            var readme = Path.Combine(root, "README-PSVIETHOA.txt");
+            if (File.Exists(readme))
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(File.ReadLines(readme).FirstOrDefault() ?? string.Empty, @"^Wine\s+([0-9][\w.\-]*)");
+                if (match.Success)
+                {
+                    return "wine-" + match.Groups[1].Value;
+                }
+            }
+
+            // …/Wine Devel.app/Contents/Resources/wine/bin/wine → …/Wine Devel.app/Contents/Info.plist
+            var plist = Path.Combine(root, "..", "..", "Info.plist");
+            if (File.Exists(plist))
+            {
+                var text = File.ReadAllText(plist);
+                var match = System.Text.RegularExpressions.Regex.Match(text, @"<key>CFBundleShortVersionString</key>\s*<string>([^<]+)</string>");
+                if (match.Success)
+                {
+                    return "wine-" + match.Groups[1].Value.Trim();
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Phiên bản Wine dạng "wine-X.Y" (như <c>wine --version</c>), null nếu không xác định được. Trên macOS chỉ đọc tệp đi kèm,
+    /// không chạy Wine: Wine là chương trình x86-64 chạy qua Rosetta 2, và từ macOS 27 mỗi lần một ứng dụng khởi chạy mã Intel,
+    /// hệ thống hiện thông báo "includes a component that will not open in macOS 28" — chỉ để hỏi phiên bản khi mở ứng dụng thì
+    /// không đáng. Wine chỉ còn chạy khi thật sự đóng gói (SDK Sony / PS4).
+    /// </summary>
     public static string? WineVersion(string winePath)
     {
+        if (OperatingSystem.IsMacOS())
+        {
+            return WineVersionFromFiles(winePath);
+        }
+
         try
         {
             using var process = Process.Start(new ProcessStartInfo(winePath, "--version")
@@ -419,7 +472,7 @@ public static class SonySdkToolchain
     /// Các thư mục có thể chứa <paramref name="name"/>: cạnh ứng dụng, Contents/Resources của .app, thư mục "app" cạnh fpkg-cli,
     /// .app nằm cạnh fpkg-cli, và libs/ của repo khi chạy bản build tay.
     /// </summary>
-    private static IEnumerable<string> CandidateDirectories(string name)
+    internal static IEnumerable<string> CandidateDirectories(string name)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var roots = new List<string>();

@@ -1,5 +1,53 @@
 # Changelog
 
+## 3.0.0 — 2026-11-02
+
+A big update: the app grows from a PS5 FPKG builder into a toolbox for PS4 packages, PS5 file transfer and save resigning. The PS5 FPKG pages keep the 2.2.7 mechanism unchanged.
+
+- **New shell and branding.**
+  - A redesigned sidebar groups the pages by console — *PS5 FPKG* (Build PKG, Build Update PKG, Extract PKG, Queue), *PS4 PKG* (Extract PKG, Build Base, Build Update, Build DLC, Merge Base + Update), *PS5 Connect* (PS5 FTP) and *Save Game* (Resign Save) — with numbered pages, an accent colour per section, a compact icon-only mode, and the language, theme, update and help buttons at the bottom.
+  - New PSVH logo (psviethoa.com) in the sidebar, the app icon (`.icns`, `.ico`, PNGs, made by `scripts/make-icons.py`), the installer and the README banner.
+  - Vietnamese stays the default language. Every new string — UI, logs, CLI help and errors — is in both `vi.json` and `en.json`.
+- **PS4 PKG** — ported from PSVIETHOA STUDIO 1.7.0 (Ngô Phi Phương), keeping its mechanism:
+  - Packages are read with **LibOrbisPkg** (Maxton, LGPL-3.0; `libs/LibOrbisPkg`, source included). The PFS opens with the passcode, or with the FPKG key recovered through `GetEkpfs` when the passcode is unknown (including the KDF compat flag `pfs_flags ^ 0x2000000000000000`).
+  - Packages are built with **orbis-pub-cmd 3.87** from PS4 Fake PKG Tools (CyB1K patch; `libs/orbis-pub`): `img_create --oformat pkg --no_progress_bar [--skip_digest] --tmp_path … project.gp4`. The fast engine (Studio patch: no reference-package integrity precheck, no base delta scan) is used unless *Full mode* is on; the binaries are checked by SHA-256 and `engine.json` records the choice.
+  - GP4 projects follow the Studio's rules: the same excluded files (`playgo-*`, `license.*`, `origin-deltainfo`, `pubtoolinfo`, `sce_sys/app`, `about`, `_unknown`, old `.gp4`, the keystone of a patch), `pfs_compression="enable"` on every file, a staged `param.sfo` with CATEGORY / APP_VER / VERSION patched in place, the PlayGo chunk count from the old GP4 or the manifest, and the `PSVIETHOA.COM.txt` credit file.
+  - **Extract PKG**: everything or a picked selection into `CUSAxxxxx-base / -update / -dlc` (`image0` + `Sc0`), optional verification.
+  - **Build Base / Build Update / Build DLC**: an update is retargeted to the base's Content ID and borrows its `nptitle` / `npbind`; a base with a different passcode is replaced by a stub reference package; the DLC entitlement key comes from the debug licence, `dlc_rebuild.json`, the GP4 or `license.dat`.
+  - **Merge Base + Update**: one base PKG with the update inside (update files win, keystone from the base, APP_VER 01.00, VERSION from the update).
+  - Live preview of the source (icon, title, Content ID, Title ID, version, category, passcode / FPKG-key state), a file picker for selective extraction, and a **param.sfo editor** (title in every language at once, version, any field; the edited copy is saved under the app's settings folder, the source stays untouched).
+  - Each job works in its own folder; after a successful build the PKG is moved to the output folder, the log is copied to the app's `ps4-logs` folder and the job folder is removed. A failed or stopped job keeps everything for inspection.
+  - **macOS / Linux** run the 32-bit tool through Wine with its own prefix (`wine-prefix-ps4`), so the bundled Wine now keeps `lib/wine/i386-windows` (`scripts/fetch-wine.sh`). Drive letters `m:`–`y:` are mapped to the job and source folders so GP4 paths stay under `MAX_PATH`; temp and output use `Z:`. Linux needs Wine with 32-bit support.
+  - **Windows** needs the VC++ 2008 SP1 x86 runtime (orbis-pub-cmd) and VC++ 2015–2022 x86 (`zlib1.dll`). The installer installs both; otherwise the app installs the bundled redistributables on the first PS4 build (UAC prompt).
+  - Progress comes from the tool's IO counters (`GetProcessIoCounters`, `/proc/<pid>/io`, `proc_pid_rusage`).
+- **PS5 FTP**:
+  - Two panes (computer / PS5) with filters, quick paths, new folder, rename, delete (recursive on the PS5), copy path and reveal in Finder / Explorer.
+  - Drag and drop between the panes, from Finder / Explorer into the PS5 pane, onto a folder to transfer straight into it, and between PS5 folders to move.
+  - Transfer queue with automatic parallelism (a cap for heavy files and the console's connection ceiling), several connections per large file (segmented `REST` download), resume after a dropped connection, an ETA from a least-squares speed model, Pending / Failed / Done tabs, retry and options (parallel files, threads per big file, what to do with existing files).
+  - User and password empty by default (anonymous); the password is never saved. Saved consoles, NOOP keep-alive, FTP command log, keyboard shortcuts.
+- **Resign Save**:
+  - Folders, `.zip`, `param.sfo`, PS5 save images (`pfsSKKey` at 0x800) and PS4 save images with their sealed key are detected by content.
+  - Decrypted saves are resigned on the computer: `ACCOUNT_ID` (PS4 `uint64`, PS5 binary), optional `TITLE_ID`, a `.bak` of the original `param.sfo`; a `.zip` gets a new `_resigned.zip`. `param.sfo` is patched in place without changing its size.
+  - Encrypted saves are decrypted, resigned and installed through **garlic-savemgr** (earthonion; the PSVIETHOA STUDIO build with the PS5PARAM ownership fix, `libs/garlic-savemgr`, sources included). *Load ELF* sends it to the ELF loader on port 9021, *Scan users* lists the console's users, *Take a save from another user* copies a save between users, and a backup of a save about to be overwritten is downloaded to the app's `save-backups` folder first.
+- **CLI**: `ps4-info`, `ps4-list`, `ps4-extract`, `ps4-base`, `ps4-patch`, `ps4-dlc`, `ps4-merge` with `--output`, `--base`, `--passcode`, `--base-passcode`, `--version`, `--verify`, `--gp4-only`, `--engine`, `--only`, `--entitlement-key`, `--sfo`, `--quiet`; Ctrl+C cancels. `fpkg-cli info` and the *Components* box report whether the PS4 tools can run (Wine with 32-bit libraries, VC++ x86 runtimes).
+- **Help window** gains PS4, FTP and save sections and the new credits.
+- **Page animations no longer raise "Unexpected error".** The new page-enter and badge animations ran their `TranslateTransform` / `ScaleTransform` keyframes on the transform object instead of the control, which Avalonia rejects; the failed task was only noticed when the garbage collector ran, so a random moment later — often right after a build finished — the status bar showed *Unexpected error: Unable to cast object of type 'Avalonia.Media.TranslateTransform'…* and a stack trace filled the build log. The animations now run on the control, and any animation failure is only logged for diagnostics.
+- **PS5 Build page usability** (the build mechanism is unchanged):
+  - *Auto from source* is switched on once for existing settings, and picking a different game turns it back on, so a package can no longer end up in the folder chosen for the previous game.
+  - The right column scrolls: while the result card is shown the build log keeps at least 280 px instead of shrinking to its header, and the log's auto-scroll no longer drags the whole column down.
+  - Buttons name what they pick: *Game folder…*, *Choose PKG…*, *Choose folder…*, *Choose .dll…* (PS5 build, update, extract and the PS4 pages).
+- **Small windows** (down to the 980 × 640 minimum), checked page by page in both languages and both themes:
+  - The PS4, FTP, Save and Queue pages scroll when the window is short instead of squeezing their panels: the PS4 form keeps at least 150 px, the FTP panes 280 px, the save panels 420 px, the queue list 180 px. A list's auto-scroll (logs, queues) never drags the page along, and a page always opens at the top.
+  - Narrow layouts: the speed presets become a 2 × 2 grid, the *Open output folder* and PS4 pick buttons shrink to icons (the label stays in the tooltip), the save drop zone and the save action buttons wrap, the Queue log column and the Save account column shrink, and *Components & plugins* puts its two links under the title.
+  - The FTP *Recent connections* hint wraps instead of running off the pane; the FTP user / password hints are shorter (the full text is in the tooltip).
+  - Light theme: the selected PS4 tab, the FTP queue tabs and *FTP log* now use the page's ink colour instead of white text; the buttons at the bottom of the (always dark) sidebar are readable; the PS5 page badge has a visible border.
+  - Hints and the help text name the renamed buttons (*Game folder…*, *Choose PKG…*).
+- **PS4 pages**: Build Base / Update / DLC take an extracted folder, as in the Studio; giving them a `.pkg` now says so (extract it first, or use Merge, which takes PKGs) instead of "source folder not found". *Log* opens the log file itself. The source status stays visible above the result buttons.
+- **macOS: opening the app no longer starts Wine.** The *Components* check used to run `wine --version`; Wine is an x86-64 program that runs through Rosetta 2, and macOS 27 answers every launch of Intel code with "includes a component that will not open in macOS 28". The version is now read from the bundled files, so Wine only runs during a Sony SDK or PS4 build.
+- **Packaging**: the macOS, Windows and Linux bundles ship `orbis-pub/`; the Windows bundle adds `vc_redist.x86.exe` and `vcredist_x86_2008.exe`, and the NSIS installer installs them when missing.
+- **Tests**: 550+ (PS4 SFO / GP4 / merge rules and a gated real orbis-pub-cmd round trip, FTP client and queue against a fake server, save SFO patching / detection / offline resign / zip safety / garlic ping / ELF send, runtime probes).
+- **PS5 FPKG**: no change to the build, update, extraction or queue mechanism (Sony SDK profile `sdk279-plaintext-direct-v3`, LibProsperoPkg from fpkg-gui 0.6.12). Verified by building `PPSA29802` through the Sony SDK.
+
 ## 2.2.7 — 2026-10-27
 
 - **Built-in engine updated to Drakmor's fpkg-gui 0.6.12** (`libs/LibProsperoPkg.dll`; `libScePubTools.dll` unchanged). Decompiling and diffing the 0.6.11 and 0.6.12 engines shows what this build changes:

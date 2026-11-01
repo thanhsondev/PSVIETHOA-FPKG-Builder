@@ -1,0 +1,426 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PsViethoa.FpkgBuilder.App.ViewModels"
+             xmlns:models="using:PsViethoa.FpkgBuilder.Core.Models"
+             xmlns:saves="using:PsViethoa.FpkgBuilder.Core.Saves"
+             xmlns:l="using:PsViethoa.FpkgBuilder.App.Localization"
+             xmlns:c="using:PsViethoa.FpkgBuilder.App.Controls"
+             x:Class="PsViethoa.FpkgBuilder.App.Views.SaveView"
+             x:DataType="vm:SaveViewModel"
+             DragDrop.AllowDrop="True">
+
+    <UserControl.Styles>
+        <!-- Nhãn ô nhập kiểu chữ hoa nhỏ, như bản Studio -->
+        <Style Selector="TextBlock.caps">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="LetterSpacing" Value="0.6" />
+            <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+        <Style Selector="TextBlock.section">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource FgBrush}" />
+        </Style>
+        <Style Selector="TextBlock.info">
+            <Setter Property="Foreground" Value="{DynamicResource InfoBrush}" />
+        </Style>
+        <Style Selector="TextBox.field">
+            <Setter Property="MinHeight" Value="36" />
+        </Style>
+
+        <!-- Chấm trạng thái -->
+        <Style Selector="Ellipse.sdot">
+            <Setter Property="Width" Value="8" />
+            <Setter Property="Height" Value="8" />
+            <Setter Property="Fill" Value="{DynamicResource FgFaintBrush}" />
+        </Style>
+        <Style Selector="Ellipse.sdot.ok">
+            <Setter Property="Fill" Value="{DynamicResource SuccessBrush}" />
+        </Style>
+        <Style Selector="Ellipse.sdot.info">
+            <Setter Property="Fill" Value="{DynamicResource InfoBrush}" />
+        </Style>
+        <Style Selector="Ellipse.sdot.warn">
+            <Setter Property="Fill" Value="{DynamicResource WarningBrush}" />
+        </Style>
+        <Style Selector="Ellipse.sdot.danger">
+            <Setter Property="Fill" Value="{DynamicResource DangerBrush}" />
+        </Style>
+        <Style Selector="Ellipse.sdot.busy">
+            <Style.Animations>
+                <Animation Duration="0:0:1.2" IterationCount="Infinite">
+                    <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+                    <KeyFrame Cue="50%"><Setter Property="Opacity" Value="0.3" /></KeyFrame>
+                    <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+
+        <!-- Vùng thả save: viền nét đứt, sáng lên khi kéo tệp vào -->
+        <Style Selector="Border.dropzone">
+            <Setter Property="Background" Value="{DynamicResource BgElevatedBrush}" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="16,13" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.15" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.dropzone:pointerover">
+            <Setter Property="Background" Value="{DynamicResource MutedBrush}" />
+        </Style>
+        <Style Selector="Border.dropzone.active">
+            <Setter Property="Background" Value="{DynamicResource WarningSoftBrush}" />
+        </Style>
+        <Style Selector="Rectangle.dropline">
+            <Setter Property="Stroke" Value="{DynamicResource BorderStrongBrush}" />
+            <Setter Property="StrokeThickness" Value="1.5" />
+            <Setter Property="StrokeDashArray" Value="5,3" />
+            <Setter Property="RadiusX" Value="12" />
+            <Setter Property="RadiusY" Value="12" />
+        </Style>
+        <Style Selector="Border.dropzone.active Rectangle.dropline">
+            <Setter Property="Stroke" Value="{DynamicResource WarningBrush}" />
+        </Style>
+
+        <!-- Bảng hàng đợi -->
+        <Style Selector="ListBox.savelist">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        </Style>
+        <Style Selector="ListBox.savelist ListBoxItem" x:DataType="vm:SaveJobRow">
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="MinHeight" Value="38" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
+        </Style>
+        <Style Selector="ListBox.savelist ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource MutedBrush}" />
+        </Style>
+        <Style Selector="ListBox.savelist ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource WarningSoftBrush}" />
+        </Style>
+        <Style Selector="TextBlock.colhead">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="LetterSpacing" Value="0.6" />
+            <Setter Property="Foreground" Value="{DynamicResource FgFaintBrush}" />
+        </Style>
+        <Style Selector="TextBlock.kind">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Foreground" Value="{DynamicResource FgSecondaryBrush}" />
+        </Style>
+        <Style Selector="TextBlock.kind.ps4">
+            <Setter Property="Foreground" Value="{DynamicResource InfoBrush}" />
+        </Style>
+        <Style Selector="TextBlock.kind.ps5">
+            <Setter Property="Foreground" Value="{DynamicResource Ps5KindBrush}" />
+        </Style>
+        <Style Selector="TextBlock.kind.key">
+            <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+        </Style>
+        <Style Selector="TextBlock.state">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}" />
+        </Style>
+        <Style Selector="TextBlock.state.info">
+            <Setter Property="Foreground" Value="{DynamicResource InfoBrush}" />
+        </Style>
+        <Style Selector="TextBlock.state.ok">
+            <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+        </Style>
+        <Style Selector="TextBlock.state.warn">
+            <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+        </Style>
+        <Style Selector="TextBlock.state.danger">
+            <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+        </Style>
+    </UserControl.Styles>
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="Ps5KindBrush" Color="#C4B5FD" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="Ps5KindBrush" Color="#7C3AED" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <!-- Cửa sổ thấp: trang cuộn được, hai khung trên giữ tối thiểu 420 px thay vì bị ép mất chữ (ViewportFill). -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" c:ViewportFill.MinContentHeight="620">
+    <Grid Margin="26,14,26,12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" MinHeight="420" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="290" MaxWidth="340" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="2*" MinWidth="440" />
+            </Grid.ColumnDefinitions>
+
+            <!-- ============ TÀI KHOẢN & MÁY PS5 ============ -->
+            <Border Classes="card" Padding="18,16,8,16">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel IsEnabled="{Binding !IsBusy}" Margin="0,0,16,0">
+                        <TextBlock Classes="section" Text="{l:T Save.Account.Title}" />
+                        <TextBlock Classes="hint" Text="{l:T Save.Account.Hint}" Margin="0,3,0,14" />
+
+                        <Border Classes="banner danger" Margin="0,0,0,12" IsVisible="{Binding HasFormError}">
+                            <TextBlock Classes="small" Text="{Binding FormError}" TextWrapping="Wrap" />
+                        </Border>
+
+                        <TextBlock Classes="caps" Text="{l:T Save.AccountId.Label}" />
+                        <TextBox Classes="mono field" Classes.error="{Binding AccountError}" Text="{Binding AccountId, Mode=TwoWay}" MaxLength="18"
+                                 Watermark="1ab6ffd98ef91465" ToolTip.Tip="{l:T Save.AccountId.Tip}" Margin="0,0,0,12" />
+
+                        <Grid ColumnDefinitions="*,8,84" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Classes="caps" Text="{l:T Save.Ip.Label}" />
+                                <TextBox Classes="mono field" Classes.error="{Binding HostError}" Text="{Binding Host, Mode=TwoWay}" Watermark="192.168.1.2" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Classes="caps" Text="{l:T Save.Port.Label}" />
+                                <TextBox Classes="mono field" Classes.error="{Binding PortError}" Text="{Binding Port, Mode=TwoWay}" MaxLength="5" ToolTip.Tip="{l:T Save.Port.Tip}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Classes="caps" Text="{l:T Save.UserId.Label}" />
+                        <Grid ColumnDefinitions="*,8,Auto" Margin="0,0,0,8">
+                            <TextBox Classes="mono field" Classes.error="{Binding UserError}" Text="{Binding UserId, Mode=TwoWay}" MaxLength="10"
+                                     Watermark="179a0cd8" ToolTip.Tip="{l:T Save.UserId.Tip}" />
+                            <Button Grid.Column="2" Command="{Binding ScanUsersCommand}" ToolTip.Tip="{l:T Save.ScanUsers.Tip}">
+                                <StackPanel Classes="btn">
+                                    <PathIcon Data="{StaticResource IconAccount}" />
+                                    <TextBlock Text="{l:T Save.ScanUsers}" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                        <Border Classes="surface" Padding="4" Margin="0,0,0,10" IsVisible="{Binding ShowUsers}">
+                            <ListBox ItemsSource="{Binding Users}" SelectedItem="{Binding SelectedUser, Mode=TwoWay}" MaxHeight="132" Background="Transparent">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="saves:Ps5User">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" Classes="mono xs muted" Text="{Binding Id}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Border>
+
+                        <TextBlock Classes="caps" Text="{l:T Save.TitleId.Label}" Margin="0,4,0,6" />
+                        <TextBox Classes="mono field" Classes.error="{Binding TitleError}" Text="{Binding TitleId, Mode=TwoWay}" MaxLength="9"
+                                 Watermark="PPSA01234" ToolTip.Tip="{l:T Save.TitleId.Tip}" />
+                        <TextBlock Classes="hint" Text="{l:T Save.TitleId.Hint}" Margin="0,5,0,12" />
+
+                        <Border Classes="divider" Margin="0,0,0,10" />
+                        <CheckBox IsChecked="{Binding Install, Mode=TwoWay}" Content="{l:T Save.Install}" />
+                        <TextBlock Classes="hint" Text="{l:T Save.Install.Hint}" Margin="28,2,0,14" />
+
+                        <Grid ColumnDefinitions="*,8,*" Margin="0,0,0,8">
+                            <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding TestConnectionCommand}">
+                                <StackPanel Classes="btn">
+                                    <PathIcon Data="{StaticResource IconConnect}" />
+                                    <TextBlock Text="{l:T Save.Test}" />
+                                </StackPanel>
+                            </Button>
+                            <Button Grid.Column="2" Classes="primary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                    Command="{Binding LoadElfCommand}" ToolTip.Tip="{l:T Save.LoadElf.Tip}">
+                                <StackPanel Classes="btn">
+                                    <PathIcon Data="{StaticResource IconSend}" />
+                                    <TextBlock Text="{l:T Save.LoadElf}" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                        <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding TransferCommand}"
+                                ToolTip.Tip="{l:T Save.Transfer.Tip}" Margin="0,0,0,12">
+                            <StackPanel Classes="btn">
+                                <PathIcon Data="{StaticResource IconTransfer}" />
+                                <TextBlock Text="{l:T Save.Transfer}" />
+                            </StackPanel>
+                        </Button>
+
+                        <Border Classes="surface" Padding="12,10">
+                            <StackPanel Spacing="3">
+                                <TextBlock Classes="xs info" FontWeight="SemiBold" LetterSpacing="0.6" Text="{l:T Save.Elf.Title}" />
+                                <TextBlock Classes="small" Text="{Binding ElfInfo}" />
+                                <TextBlock Classes="xs muted" Text="{l:T Save.Elf.Ports}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- ============ HÀNG ĐỢI SAVE ============ -->
+            <Border Grid.Column="2" Classes="card" Padding="18,16">
+                <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto">
+                    <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,0,0,12">
+                        <TextBlock Classes="section" Text="{l:T Save.Queue.Title}" VerticalAlignment="Center" />
+                        <Border Grid.Column="1" Classes="chip" Margin="10,0,0,0">
+                            <TextBlock Classes="mono" Text="{Binding CountText}" />
+                        </Border>
+                        <Border Grid.Column="3" Classes="surface" CornerRadius="16" Padding="12,6">
+                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                <Ellipse Classes="sdot" Classes.ok="{Binding StatusOk}" Classes.info="{Binding StatusInfo}" Classes.warn="{Binding StatusWarn}"
+                                         Classes.danger="{Binding StatusDanger}" Classes.busy="{Binding IsBusy}" VerticalAlignment="Center" />
+                                <TextBlock Classes="small" Text="{Binding StatusText}" MaxWidth="360" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <Border Grid.Row="1" Name="DropZone" Classes="dropzone" Classes.active="{Binding IsDropTarget}" Margin="0,0,0,12"
+                            ToolTip.Tip="{l:T Save.Drop.Tip}" IsEnabled="{Binding !IsBusy}">
+                        <Panel>
+                            <Rectangle Classes="dropline" Margin="-16,-13" IsHitTestVisible="False" />
+                            <!-- Hẹp (< 600 px): hai nút xuống hàng dưới để chữ hướng dẫn không bị ép (SaveView.axaml.cs). -->
+                            <Grid Name="DropGrid" ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
+                                <Border Width="42" Height="42" CornerRadius="12" Background="{DynamicResource WarningSoftBrush}" Margin="0,0,14,0" VerticalAlignment="Center">
+                                    <PathIcon Classes="warning" Width="20" Height="20" Data="{StaticResource IconUpload}" />
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock FontSize="14" FontWeight="SemiBold" Text="{Binding DropTitle}" />
+                                    <TextBlock Classes="xs muted" Text="{l:T Save.Drop.Hint}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <StackPanel Name="DropButtons" Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="12,0,0,0">
+                                    <Button Command="{Binding AddFilesCommand}">
+                                        <StackPanel Classes="btn">
+                                            <PathIcon Data="{StaticResource IconFile}" />
+                                            <TextBlock Text="{l:T Save.AddFiles}" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Command="{Binding AddFoldersCommand}">
+                                        <StackPanel Classes="btn">
+                                            <PathIcon Data="{StaticResource IconFolderPlus}" />
+                                            <TextBlock Text="{l:T Save.AddFolders}" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                        </Panel>
+                    </Border>
+
+                    <!-- Tiêu đề cột -->
+                    <Grid Grid.Row="2" ColumnDefinitions="120,2*,3*,120" Margin="10,0,10,6">
+                        <TextBlock Classes="colhead" Text="{l:T Save.Col.Kind}" />
+                        <TextBlock Grid.Column="1" Classes="colhead" Text="{l:T Save.Col.Name}" />
+                        <TextBlock Grid.Column="2" Classes="colhead" Text="{l:T Save.Col.Location}" Margin="12,0,0,0" />
+                        <TextBlock Grid.Column="3" Classes="colhead" Text="{l:T Save.Col.State}" />
+                    </Grid>
+
+                    <Border Grid.Row="3" Classes="surface" Padding="4">
+                        <Panel>
+                            <ListBox Name="QueueList" Classes="savelist" ItemsSource="{Binding Jobs}" SelectionMode="Multiple"
+                                     DoubleTapped="QueueList_DoubleTapped" KeyDown="QueueList_KeyDown">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:SaveJobRow">
+                                        <Grid ColumnDefinitions="120,2*,3*,120" Background="Transparent">
+                                            <TextBlock Classes="kind" Classes.ps4="{Binding IsPs4Kind}" Classes.ps5="{Binding IsPs5Kind}" Classes.key="{Binding IsKeyKind}"
+                                                       Text="{Binding KindLabel}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Name}" ToolTip.Tip="{Binding Path}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Grid.Column="2" Classes="small muted" Text="{Binding Folder}" ToolTip.Tip="{Binding Folder}" VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis" Margin="12,0,0,0" />
+                                            <TextBlock Grid.Column="3" Classes="state" Classes.info="{Binding IsInfo}" Classes.ok="{Binding IsOk}" Classes.warn="{Binding IsWarn}"
+                                                       Classes.danger="{Binding IsDanger}" Text="{Binding StateText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6" IsHitTestVisible="False" IsVisible="{Binding !HasJobs}">
+                                <PathIcon Classes="muted" Width="28" Height="28" Data="{StaticResource IconTable}" HorizontalAlignment="Center" />
+                                <TextBlock Classes="hint" Text="{l:T Save.Queue.Empty}" TextAlignment="Center" Margin="0" />
+                            </StackPanel>
+                        </Panel>
+                    </Border>
+
+                    <Grid Grid.Row="4" ColumnDefinitions="*,12,180" Margin="0,10,0,0">
+                        <TextBlock Classes="small muted" Text="{Binding RunText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                        <ProgressBar Grid.Column="2" Classes="thin" MinWidth="0" Minimum="0" Maximum="{Binding ProgressMaximum}" Value="{Binding Progress}" IsIndeterminate="{Binding ProgressIndeterminate}" VerticalAlignment="Center" />
+                    </Grid>
+
+                    <Grid Grid.Row="5" ColumnDefinitions="*,12,Auto" Margin="0,10,0,0">
+                        <!-- Các nút phụ tự xuống dòng khi khung hẹp, nút chính luôn nằm trọn trong khung. -->
+                        <WrapPanel Orientation="Horizontal" VerticalAlignment="Center" ItemSpacing="6" LineSpacing="4">
+                            <Button Classes="ghost" Command="{Binding RemoveSelectedCommand}" ToolTip.Tip="{l:T Save.Remove.Tip}">
+                                <StackPanel Classes="btn">
+                                    <PathIcon Data="{StaticResource IconClose}" />
+                                    <TextBlock Text="{l:T Save.Remove}" />
+                                </StackPanel>
+                            </Button>
+                            <Button Classes="ghost" Command="{Binding ClearCommand}">
+                                <StackPanel Classes="btn">
+                                    <PathIcon Data="{StaticResource IconTrash}" />
+                                    <TextBlock Text="{l:T Save.Clear}" />
+                                </StackPanel>
+                            </Button>
+                            <Button Classes="ghost" Command="{Binding OpenLocationCommand}" ToolTip.Tip="{l:T Save.Open.Tip}">
+                                <StackPanel Classes="btn">
+                                    <PathIcon Data="{StaticResource IconFolderOpen}" />
+                                    <TextBlock Text="{l:T Save.Open}" />
+                                </StackPanel>
+                            </Button>
+                        </WrapPanel>
+                        <Button Grid.Column="2" Classes="primary" MinWidth="160" MinHeight="40" HorizontalContentAlignment="Center" VerticalAlignment="Bottom" Command="{Binding StartCommand}">
+                            <StackPanel Classes="btn">
+                                <PathIcon Data="{StaticResource IconPlay}" />
+                                <TextBlock FontWeight="Bold" Text="{Binding StartText}" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ============ NHẬT KÝ ============ -->
+        <Border Grid.Row="2" Classes="card" Padding="14,10,14,10" Height="176">
+            <Grid RowDefinitions="Auto,*">
+                <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" Margin="0,0,0,8">
+                    <TextBlock Classes="section" FontSize="13" Text="{l:T Save.Log.Title}" VerticalAlignment="Center" />
+                    <Border Grid.Column="1" Classes="chip" Margin="10,0,0,0"><TextBlock Classes="mono" Text="{Binding LogCountText}" /></Border>
+                    <TextBox Grid.Column="3" Width="220" Text="{Binding LogFilter, Mode=TwoWay}" Watermark="{l:T Save.Log.Filter}" Margin="0,0,8,0" />
+                    <Button Grid.Column="4" Classes="ghost" Command="{Binding CopyLogCommand}" ToolTip.Tip="{l:T Save.Log.Copy}">
+                        <StackPanel Classes="btn">
+                            <PathIcon Data="{StaticResource IconCopy}" />
+                            <TextBlock Text="{l:T Save.Log.Copy}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Grid.Column="5" Classes="ghost" Command="{Binding ClearLogCommand}" Margin="4,0,0,0">
+                        <StackPanel Classes="btn">
+                            <PathIcon Data="{StaticResource IconTrash}" />
+                            <TextBlock Text="{l:T Save.Log.Clear}" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+                <Border Grid.Row="1" Background="{DynamicResource LogBgBrush}" CornerRadius="8" Padding="6,4">
+                    <ListBox Name="LogList" Classes="log" ItemsSource="{Binding VisibleLog}" SelectionMode="Multiple">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="models:LogEntry">
+                                <Grid ColumnDefinitions="Auto,*">
+                                    <TextBlock Classes="logtime" Text="{Binding TimeText}" />
+                                    <TextBlock Grid.Column="1" Classes="logmsg" Classes.warn="{Binding IsWarning}" Classes.err="{Binding IsError}" Classes.ok="{Binding IsSuccess}"
+                                               Text="{Binding Message}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+    </ScrollViewer>
+</UserControl>

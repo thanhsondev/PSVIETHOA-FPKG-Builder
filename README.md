@@ -4,223 +4,199 @@
 
 🇻🇳 Tiếng Việt: [docs/README.vi.md](docs/README.vi.md)
 
-**Build PS5 FPKG (FIH debug) packages from an app folder, an `.exfat` / `.ffpfsc` disk image or a GP5 project — and extract existing packages — on macOS and Windows.**
-
-Bilingual UI (Vietnamese / English) · Speed presets · PFS v2 / v3 · `.exfat` / `.ffpfsc` images · GP5 projects · Package extraction · Update check · Free‑space & junk checks · ETA & throughput · Built‑in verification · CLI
+**One desktop app for the whole PlayStation homebrew workflow: build PS5 FPKGs, pack PS4 PKGs, move files to the PS5 over FTP and resign PS4 / PS5 saves — on macOS, Windows and Linux.**
 
 <a href="https://github.com/thanhsondev/PSVIETHOA-FPKG-Builder/releases/latest"><img alt="Download" src="https://img.shields.io/badge/Download-Releases-22C55E?style=for-the-badge&logo=github" /></a>
 
-![Platform](https://img.shields.io/badge/macOS-Apple%20Silicon%20%2B%20Intel-0F172A?logo=apple)
-![Platform](https://img.shields.io/badge/Windows-x64-0F172A?logo=windows)
+![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon%20%2B%20Intel-0F172A?logo=apple)
+![Windows](https://img.shields.io/badge/Windows-x64-0F172A?logo=windows)
+![Linux](https://img.shields.io/badge/Linux-x64%20%2B%20arm64-0F172A?logo=linux&logoColor=white)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
 ![UI](https://img.shields.io/badge/UI-Avalonia%2011-8B5CF6)
 ![Languages](https://img.shields.io/badge/UI-VI%20%2F%20EN-22C55E)
 ![Version](https://img.shields.io/github/v/release/thanhsondev/PSVIETHOA-FPKG-Builder?label=version&color=F59E0B)
-![Tests](https://img.shields.io/badge/tests-170%20passing-22C55E)
+![Tests](https://img.shields.io/badge/tests-550%2B%20passing-22C55E)
 
 </div>
 
 <p align="center">
-  <img src="docs/screenshots/en-source.png" width="32%" />
-  <img src="docs/screenshots/en-extract.png" width="32%" />
-  <img src="docs/screenshots/en-advanced.png" width="32%" />
+  <img src="docs/screenshots/en-ps5-done.png" width="49%" alt="PS5 FPKG built and verified" />
+  <img src="docs/screenshots/en-ps4-merge-done.png" width="49%" alt="PS4 base + update merged" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/en-ftp.png" width="49%" alt="PS5 FTP transfer" />
+  <img src="docs/screenshots/en-save-done.png" width="49%" alt="Saves resigned" />
 </p>
 
 <div align="center">
 
-**Credits:** PSVIETHOA — Nguyễn Thanh Sơn & Ngô Phi Phương · **Main project:** [Drakmor](https://github.com/) (LibProsperoPkg)
+**Credits:** PSVIETHOA — Nguyễn Thanh Sơn & Ngô Phi Phương · **Main project:** Drakmor (LibProsperoPkg) · PS4, FTP & save tools ported from **PSVIETHOA STUDIO** (Ngô Phi Phương)
 
 </div>
 
 ---
 
-## Why?
+## What's in the box
 
-Existing FPKG tooling for PS5 (`LibProsperoPkg.Gui`) is **Windows‑only WPF**. PSVIETHOA FPKG Builder is a full rewrite in **C# / .NET 10 + Avalonia UI** that runs natively on **macOS (Apple Silicon & Intel) and Windows**, adds a **bilingual interface**, accepts **`.exfat` / `.ffpfsc` disk images and GP5 projects** as sources, can **extract existing packages**, checks GitHub for **updates**, and focuses on being **smooth and fast when building very large game folders** (tens of GB). The package engine is **LibProsperoPkg** by **Drakmor** (the October 2026 build shipped with fpkg‑gui 0.6.12), so the packages it produces are byte‑for‑byte correct.
+| | Page | What it does |
+|---|---|---|
+| <img src="https://img.shields.io/badge/PS5-FPKG-3B82F6" /> | **Build PKG · Build Update PKG · Extract PKG · Queue** | PS5 FPKG (FIH debug) from an app folder, an `.exfat` / `.ffpfsc` / `.ffpkg` image or a `.gp5` project — through **Sony's Publishing Tools 2.79** (default) or Drakmor's **LibProsperoPkg** engine. Delta updates against an installed base, package inspection / extraction, parallel build queue. *Unchanged from 2.2.7.* |
+| <img src="https://img.shields.io/badge/PS4-PKG-6366F1" /> | **Extract PKG · Build Base · Build Update · Build DLC · Merge Base + Update** | PS4 fake PKGs with **orbis-pub-cmd 3.87** (CyB1K patch) and **LibOrbisPkg**, following the PSVIETHOA STUDIO workflow. Live preview of the game (icon, title, Content ID, version), `param.sfo` editor, per-file extraction. |
+| <img src="https://img.shields.io/badge/PS5-FTP-14B8A6" /> | **PS5 FTP** | Two-pane file manager for the PS5's FTP server (ftpsrv, etaHEN…): drag files between the panes or from Finder / Explorer, multi-connection transfers with resume, rename / delete / new folder, saved consoles. |
+| <img src="https://img.shields.io/badge/SAVE-Resign-F59E0B" /> | **Resign Save** | Re-own PS4 / PS5 saves to your Account ID. Decrypted saves are fixed right on the computer; encrypted ones go through **garlic-savemgr** on the PS5 (the app loads it for you). |
 
-> The result is a **debug FPKG** (FIH image, signed byte `0x00`) — it installs only on a **PS5 with debug mode enabled**.
+> PS5 packages are **debug FPKGs** (FIH image, signature byte `0x00`) and PS4 packages are **fake PKGs** — they install only on consoles running the matching homebrew. The source folders, images and packages you pick are only ever **read**.
 
-## What's new in 2.3
+## What's new in 3.0
 
-- **2.2.7 — engine fpkg-gui 0.6.12 (Drakmor), and Sony SDK packages match the engine's at the points a game only reaches mid-play**:
-  - New **Restore metadata online** option. It downloads only the matching `*_sc.pkg` from Sony's server and packs the `sce_sys` files the dump lost or damaged: `param.json` (keeping the dump's SDK, firmware and DRM), icons, PlayGo tables and trophy/UDS. The game folder is only read.
-  - A single-chunk source PlayGo is kept (thanks to @MangoScango).
-  - Fixes for packages that error after playing for a while, and for DLC packages that are not picked up:
-    - every PlayGo scenario contains every chunk;
-    - empty folders are kept in the package (new option, on by default);
-    - `trophy2`/`uds` UCPs with a stale digest are repaired on both paths. In Sony SDK mode such a dump used to stop the whole build with "ucp_digest is invalid", and the 0.6.12 engine packs the stale file as is;
-    - DLC packages made from `dlc_emu.ini` are PLAINTEXT_NOAUTH, like game packages, instead of Native;
-    - PlayGo chunks that have no files get a 1 MiB placeholder (new option, on by default). The PS5 counts an empty chunk as not installed, which stopped Control (PPSA34547) at an elevator with *Installing game… 0GB/0*.
-- **2.2.7 — DLC emulator works in Sony SDK packages** (thanks to Thomas H for [#9](https://github.com/thanhsondev/PSVIETHOA-FPKG-Builder/issues/9)): the empty DLC mount folders that `dlc_emu.ini` points to (`/app0/addcontN`) are now kept in the package — before, the toolkit's file-only GP5 dropped them, so DLC could not mount. Update packages keep them too, the log confirms what of the DLC emulator is inside the package, and macOS `._` sidecar files are no longer listed in a way that looked like `dlc_emu.ini` was deleted.
-- **2.2.6 — engine fpkg-gui 0.6.11 (Drakmor)**: the dump's PlayGo layout is kept (thanks to @MangoScango) — files stay in their original chunks and voice languages can be removed from the add-on menu; `sce_sys/playgo*` is now kept by default. New *PlayGo layout* option to generate chunks for chosen languages instead. Choose how many CPU cores the Sony SDK uses — full speed by default, lower it even during a build to keep working. Engine fixes for NAPS errors, DLC builds, files wrongly dropped as a "passcode", and automatic `about/right.sprx`.
-- **2.2.5 — Sony SDK toolkit `sdk-fpkg279-fix12`**: up to 500,000 files per package, PlayGo chunk count 1–255, automatic `attributePub` from the package size, `sce_sys` images converted from DDS when a PNG is missing or in the wrong colour mode, SELF header repair — all byte-identical to the toolkit's own script. New option **Clean up dump leftovers** (`_DUBLEX_`, Unreal `Engine/Saved`, `<project>/Saved`) fixes the hard splash lock of Stellar Blade (PPSA13197 EUR + DLC) — cleanup method shared by the community.
-- **2.2.4 — a base package that cannot be used for a patch is caught in 0.3 s, not after the whole build**: `img_create --ref_pkg_path` reads `prev_suppl/common/etc/naps_meta_18.dat` from the base package and decrypts it with Publishing Tools' own key. A base package built by the **built-in engine** carries that file intact but encrypted with the built-in engine's key, so Publishing Tools decrypts garbage and reports `NAPS metadata missing` — only after compressing everything (measured: 4 min 1 s for a 33 GB base; hours for a 100 GB one). The base package is now identified by its supplement region when it is chosen, with a message naming the engine that built it and what to do instead. This replaces 2.2.3's diagnosis, which blamed repacking tools for stripping the metadata and was wrong.
-- **2.2.3 — games that use `sce::Ampr` are flagged before compression starts.** The warning says plainly that `libSceAmpr` is a real PS5 library and **not** a sign of a patched executable (checked against the `eboot.bin.esbak` backups in real dumps: the backup always has the same AMPR status). Packages of such games can hang on the splash screen, so the warning arrives before the wait, not after it.
-- **2.2.2 — Build Update PKG tab**: pick the base `.pkg` installed on the console; the source can be the full new game or just an update folder with the files you changed or added (translations, `eboot.bin`, `sce_sys`…). The Sony SDK (`img_create --ref_pkg_path`, toolkit fix8) writes `UPDATE_….pkg` — a small delta to install over the base — and/or the full `….remastered.pkg`; files the source does not have come from the base package or from the original game folder. Content version / App title are applied from the fields; wrong game or a version that was not raised is caught before the build starts.
-- **2.2.2 — build queue**: a mode next to *Build PKG* / *Extract PKG*. Drop several game folders, disk images or a whole dump drive into the queue, pick how many builds run in parallel (1–4), press Start; every entry has its own progress, ETA, result and log, can be cancelled, retried, re-ordered or removed, and the whole queue can be paused or cancelled. Parallel builds share nothing: one Wine prefix / one Visual C++ install, separate temp, mirror and alias folders, and cancelling one build never stops another.
+- **A new home.** A redesigned sidebar groups everything by console: **PS5 FPKG**, **PS4 PKG**, **PS5 Connect** and **Save Game**, each page numbered (01–11) with its own accent colour. A compact mode keeps only the icons. New **PSVH logo** and app icon on every platform. Vietnamese is the default language; English is one click away and every string — UI, logs, CLI help — exists in both.
+- **PS4 PKG, the PSVIETHOA STUDIO way.** Five pages ported from PSVIETHOA STUDIO 1.7.0 by Ngô Phi Phương — the same mechanism, not a PS5 look-alike:
+  - **Extract PKG** opens the PFS with the passcode, or recovers the FPKG key when the passcode is unknown (LibOrbisPkg's `GetEkpfs`, including the KDF compat flag). Extracts everything or only the files you tick into `CUSAxxxxx-base / -update / -dlc` folders (`image0` + `Sc0`).
+  - **Build Base / Build Update / Build DLC** generate a GP4 project exactly like the Studio: same exclusions (`playgo-*`, `license.*`, `origin-deltainfo`, `pubtoolinfo`…), `pfs_compression` on every file, the source PlayGo layout, a staged `param.sfo` with CATEGORY / APP_VER / VERSION patched in place. Updates are retargeted to the base's Content ID and borrow its `nptitle` / `npbind`; a base locked with another passcode still works through a stub reference package. DLC entitlement keys are read from the debug licence, `dlc_rebuild.json`, the GP4 or `license.dat`.
+  - **Merge Base + Update** builds one base PKG that already holds the update (update files win, the keystone comes from the base, APP_VER 01.00, VERSION from the update).
+  - `orbis-pub-cmd` runs natively on Windows and through Wine on macOS / Linux. The **fast engine** (Studio patch: no reference-integrity precheck, no base delta scan) is the default; **Full mode** switches to the original binary with full digests.
+  - The right-hand card previews the game as soon as you pick it: icon, title, Content ID, Title ID, version, category and whether the passcode matches. The **param.sfo** tab edits the title (all languages at once), version and any other field before packing — the edited copy is saved apart from the source.
+- **PS5 FTP.** Connect to the console's FTP server (user and password empty by default; the password is never saved). Drag files and folders from one pane to the other, from Finder / Explorer into the PS5 pane, or onto a folder to send them straight into it; drag PS5 files onto another PS5 folder to move them. The queue picks how many files run in parallel, splits large files over several connections (segmented `REST` download), keeps an ETA from a least-squares speed model and retries / resumes after a drop. Pending / Failed / Done tabs, a raw FTP command log, keyboard shortcuts (Enter, Delete, F2, F5, Backspace).
+- **Resign Save.** Drop folders, `.zip`, `param.sfo` or encrypted save images; the type is detected from the content. Decrypted saves are resigned offline (`ACCOUNT_ID`, optional `TITLE_ID`, a `.bak` of the original `param.sfo`; a `.zip` gets a new `_resigned.zip`). Encrypted PS4 / PS5 saves are decrypted, resigned and installed through **garlic-savemgr** (earthonion): **Load ELF** sends the bundled build to the ELF loader (port 9021), **Scan users** lists the console's accounts, **Take a save from another user** copies a save between the console's users, and a backup of any save about to be overwritten is downloaded first.
+- **CLI:** new `ps4-info`, `ps4-list`, `ps4-extract`, `ps4-base`, `ps4-patch`, `ps4-dlc`, `ps4-merge`. `fpkg-cli info` reports whether the PS4 tools can run (Wine 32-bit / VC++ x86).
+- **PS5 FPKG keeps the 2.2.7 mechanism byte-for-byte** (Sony SDK toolkit `sdk279-plaintext-direct-v3`, LibProsperoPkg from fpkg-gui 0.6.12) — the same game builds to the same 1,706,966,020-byte package as 2.2.7. The page itself is easier to use: *Auto from source* is on, and picking another game switches the output folder back to it so packages never land in the previous game's folder; the right column scrolls, so the build log stays readable (at least 280 px) while the result card is shown; buttons say what they pick (*Game folder…*, *Choose PKG…*, *Choose folder…*).
 
-## What's new in 2.2
-
-- **2.2.0 — packages built by Sony's Publishing Tools, on macOS and Windows**: the new default build method runs the bundled `sdk-fpkg279-fix6` toolchain (GP5 project → `img_create`, which now writes the plaintext package directly) (it always sets DRM `standard`, drops the fake licence and the AMPR/PlayGo emulator modules, and recovers missing `pic*.png` splash screens from the `.dds` copies with the bundled `prospero-dds2png.exe`). It creates a flat GP5 project, then runs `prospero-pub-cmd img_create --oformat nwonly`, then converts the result to a `PLAINTEXT_NOAUTH` package; the conversion is a byte-identical C# port of the toolchain's Python script. On Windows the SDK runs natively (Visual C++ x64 is installed for you). On macOS it runs through a bundled, trimmed Wine (Apple Silicon needs Rosetta 2). A **Sony SDK** checkbox under the progress bar (on by default, CLI `--no-sony-sdk`) switches back to the built-in engine; while it is on, the engine-only options (presets, Kraken, PFS, PlayGo, SDK override…) are greyed out and the package type is fixed to Application + PLAINTEXT_NOAUTH, as in the toolkit. The GP5 the app writes is byte-identical to the toolkit script's (same file order — it decides the package layout), the `.gp5`, scenario and `-build-logs` stay next to the package like the toolkit leaves them, and no mirror folder is needed. The source needs a 96-byte `sce_sys/keystone`. The SDK stage has its own live progress bar.
-
-## What's new in 2.1.x
-
-- **2.1.9 — engine from fpkg‑gui 0.6.8, package verification, DLC templates, cross‑drive fix**: the engine now regenerates every PlayGo table itself (1–255 chunks, default 100; only the counts are read from a kept `playgo-chunk.dat`, and broken PlayGo files are left out instead of stopping the build), forces DRM `"standard"` in memory, and the tool lowers `requiredSystemSoftwareVersion` to the game's SDK (`--keep-required-fw`). Every build is checked by the engine: CNT signature, the complete PlayGo layout, NAPS and inodes. An optional **full check** test-decompresses every file (`--full-verify`). Extract PKG mode gains **Quick check / Full check** buttons (`fpkg-cli verify --full`) and **Export DLC template** for DLC packages with data (`sce_sys` + a `.gp5` project, `fpkg-cli pkg-dlc-template`). A temporary folder on a different drive from the source or output now works: the mirror falls back to the system temp folder when the drive cannot hold links (exFAT/FAT32 on Windows), extracted images are patched in place, a chosen temp folder is no longer reset at startup, and FAT32 drives get a 4 GB warning. On macOS, packages built through an exFAT/FAT drive no longer contain `._*` files, and temporary folders with accented names are removed again.
-- **2.1.8 — `.ffpkg` sources and no more extraction on macOS**: a `.ffpkg` dump is a FreeBSD **UFS2** filesystem image whose root is the app folder; neither macOS nor Windows can mount UFS, so the tool parses the format itself (superblock, cylinder groups, inodes, indirect blocks) and supports it everywhere `.exfat` is supported — new **.ffpkg file** button, drag and drop, `fpkg-cli --source x.ffpkg`. On macOS an `.exfat` image is now **mounted and read in place** even when files must be dropped or `param.json` patched, because the mirror folder is built on top of the read-only mount instead of extracting the whole image. The source buttons wrap to a second line on narrow windows.
-- **2.1.7 — "application error" at game start, fixed at packaging time**: an FPKG is one unified image while PlayGo expects chunk-based installs, so the dump's PlayGo data makes the PS5 look for chunks that do not exist (a splash-screen hang without an error is a different, kernel-side problem). Builds now apply the known fix by default for **folders, `.exfat`, `.ffpfsc` and GP5 projects**: the `sce_sys/playgo*` files are left out (the library regenerates a matching set), `versionFileUri` is cleared and `attribute3` is set to 0 — three toggles in the advanced options, CLI `--keep-playgo` / `--keep-version-uri` / `--keep-attribute3`. `fakelib/libScePlayGo.sprx` is never touched by the tool (the engine itself drops it, like `libSceAmpr.sprx`). The leftover `ampr_emu.index` is removed too (`--keep-ampr`). The engine itself always strips `fakelib/libScePlayGo.sprx` and `fakelib/libSceAmpr.sprx` and offers no option to keep them; this tool never touches those files. Drakmor's `dlc_emu` stays in the package, and when a dump carries one the source card offers to **build one DLC package per entry of `dlc_emu.ini`** (`fpkg-cli dlc-from-ini`), each with its own RIF licence. "DRM standard" and "Drop old playgo*" are checkboxes next to the Build button, plus a **Restore defaults** link. Building over a same-named package now asks whether to overwrite, keep the old one (`… (1).pkg`) or cancel. The source folder, image and `.gp5` project are strictly read-only: the build assembles a mirror of the dump in the temporary folder out of links, drops the skipped files there and writes the patched `param.json` there, so nothing in your own folder is ever opened for writing.
-- **2.1.6 — Windows mounts images too**: a read‑only virtual drive (Dokan) served by the app's own exFAT reader exposes the app folder of an `.exfat` **or `.ffpfsc`** image, so the packager reads straight from the image like `hdiutil` on macOS — no 149 GB extraction, no extra disk space; junk files are hidden and the DRM fix is applied on the virtual drive. **Windows installer** (`Setup.exe`) installs the app and the bundled Dokan driver in one go; the portable zip enables the driver by itself on first launch (only the UAC prompt) — nothing to download either way. New **Components & plugins** box in the advanced options checks for real that the engine, keys, Kraken, native Oodle, mounting and the sleep guard work. Without the driver the extraction path is used as before.
-- **2.1.5 — engine from fpkg‑gui 0.6.5 + DRM fix**: `applicationDrmType` is forced to `"standard"` while building (packages built with `"free"` DRM show a lock on the PS5 and refuse to start); the source `param.json` is restored byte‑for‑byte afterwards, read‑only images are extracted instead of mounted when needed (advanced toggle, CLI `--keep-drm`). **Disk‑full recovery**: when the temp or output disk fills up the build pauses and lets you free space and retry.
-- **2.1.4 — `.ffpfsc` sources**: a PS5 PFS container holding a PFSC‑compressed exFAT dump of a game opens like an `.exfat` image (decompressed on the fly, no intermediate file; separate **.ffpfsc file** button, drag & drop, `fpkg-cli inspect / build --source x.ffpfsc`). **Check for updates**: green header badge when a newer release exists (checked at every start, ↻ button, `fpkg-cli check-update`).
-- **2.1.1 – 2.1.3**: Sony‑layout extraction (rebuildable `sce_sys`), automatic output folders, "Standard" preset naming, version badge, clear history, UI safety net.
-
-- **Updated LibProsperoPkg engine** — overlapping reads / compression / writes with fewer intermediate copies, block deduplication and an in‑build compression cache, improved built‑in Kraken (especially levels 8–9), automatic fallback to built‑in Kraken when Oodle is unavailable, file‑handling and cancellation fixes, and existing packages are preserved if a rebuild fails.
-- **PFS v2 / v3 selection**, configurable **Kraken block size** (128–256 KiB), **pre‑compression shuffle patterns** and **automatic shuffle analysis** (PFS v3 texture optimisation through permutation selection — very slow, fully effective only at Kraken level 9), optional **physical layout optimisation**. PFS v3 packages need **PS5 firmware 7.00 or newer**; the app warns about it.
-- **Presets re‑mapped to the new encoder**: the default is now **Standard** = Kraken 4, the very encoder the 2.0.0 engine used for its "Kraken 7" (same size, same speed, plus dedup/layout gains); **Smallest** = Kraken 7 *Optimal* is a new deeper mode (~3 % smaller, 5–6× slower); new **Maximum** preset (Kraken 9 + PFS v3 + shuffle analysis).
-- Live **throughput** in the build panel, smoother progress on multi‑GB files, re‑tuned ETA.
-- CLI: `--pfs`, `--block-size`, `--shuffle`, `--shuffle-analysis`, `--shuffle-prediction-level`, `--skip-pfs-input-check`, `--no-layout-optimization`, `--source-mode`, `--project`, `--preset sony|standard`; new `pkg-info`, `pkg-list`, `pkg-extract` commands.
-- **Extract packages** — new **Extract PKG** mode (Build | Extract bar under the header): open a `.pkg` (or drop it onto the window) to see the FIH / CNT headers, every `param.json` field, the icon and the full file list of the inner PPR‑PFS image; tick files or folders and extract them (or the whole package), or export the `sce_sys` entries. PLAINTEXT_NOAUTH packages are read straight from the `.pkg` in 4 MiB chunks without rebuilding the image; Native (AES‑XTS) packages are decrypted to the temp folder first. CLI: `pkg-info`, `pkg-list`, `pkg-extract`.
-- **GP5 project sources** (`.gp5`, like fpkg‑gui's Folder | GP5 selector): pick a Publishing Tools / fpkg‑gui project in step 1 or drop it onto the window — Normal and Flat layouts, exclude masks and relative paths are honoured, the passcode comes from the project; `fpkg-cli inspect` / `build --source x.gp5`; an advanced **Source reading mode** chooses between an automatic top‑level `.gp5` and folder‑only packaging.
-
-See [CHANGELOG.md](CHANGELOG.md) for details.
-
-## Features
-
-| Area | Details |
-|---|---|
-| **Sources** | An app folder (containing `sce_sys`) **or an exFAT disk image (`.exfat`)** — bare volume, MBR, or GPT — **or a `.ffpfsc` container** (a PS5 PFS image holding a PFSC‑compressed exFAT image; decompressed on the fly through the library, no intermediate file). A pure‑.NET exFAT reader reads `param.json` / icon / size straight from the image. On macOS the image is **mounted read‑only via `hdiutil` (no copy)**; on Windows it is **mounted as a read‑only virtual drive (Dokan, bundled — one‑click install)** served by the app's exFAT reader, which also works for `.ffpfsc`, hides junk files and applies the DRM fix on the drive. Without the driver, or on macOS when the image contains junk files, it is **extracted to the temp folder** (skipping `.DS_Store`, `._*`, `Thumbs.db`…) and cleaned up afterwards. **Or a GP5 project (`.gp5`)** from Publishing Tools / fpkg‑gui — Normal layout (`rootdir` + exclude masks) or Flat layout (explicit file list); relative paths resolve from the project's folder, the metadata card shows the layout and project root, and only the files the project lists are counted. |
-| **Languages** | Vietnamese / English, switch instantly in the header, choice is remembered. CLI takes `--lang vi\|en` or the `FPKG_LANG` variable. |
-| **Packaging** | FIH debug image, PLAINTEXT_NOAUTH or Native AES‑XTS, APP / Homebrew / DLC, automatic PlayGo (1–64 chunks), SDK override (1–11), passcode, deterministic builds. |
-| **Compression** | Built‑in **managed Kraken encoder** (runs everywhere, multi‑threaded) or **native Oodle** via `libScePubTools.dll` (Windows, automatic fallback to built‑in Kraken). **PFS v2** (default, broadest compatibility) or **PFS v3** (pre‑compression shuffle patterns, automatic per‑block shuffle analysis), Kraken block size 128–256 KiB, physical layout optimisation. |
-| **Speed** | Presets **Fast · Standard · Smallest · Maximum**. **Standard** (default) = Kraken level 4, the very encoder the 2.0.0 engine used for its "Kraken 7": same size, same speed. **Smallest** = Kraken 7 *Optimal* — a new deep-compression mode, about 3 % smaller but 5–6× slower. **Maximum** = Kraken 9 + PFS v3 + shuffle analysis. Custom level `-4…9`, thread count, and an uncompressed mode for quick tests. |
-| **Before building** | Reads metadata + icon, scans size in parallel, **checks free space** on the temp/output volumes, and **detects & cleans OS junk files**. |
-| **While building** | Weighted overall progress bar with **ETA** and live **throughput**, byte‑weighted progress inside multi‑GB files, virtualized 20k‑line log, safe cancel, and **sleep prevention** (`caffeinate` / `SetThreadExecutionState`). |
-| **After building** | Verifies the FIH / outer‑PFS structure, optional SHA‑256, result panel, copy/save the log, open the output folder. |
-| **Extract packages** | **Extract PKG** mode (extracted app trees are in Sony layout — `sce_sys/param.json`, icon, playgo merged from the CNT — so they can be rebuilt directly): FIH / CNT headers, region map, every `param.json` field, icon and file list of a debug FPKG; filter and tick files/folders, extract a selection or everything with progress and cancel, export `sce_sys` (param.json, icon0.png, playgo…) and SI entries, optional SHA‑256. Plaintext packages are read in place (4 MiB chunk cache, no temp image); Native packages are decrypted to the temp folder first; retail packages are information‑only. |
-| **CLI** | `fpkg-cli build / inspect / verify / clean-junk / info / pkg-info / pkg-list / pkg-extract` for batch builds, scripting, and CI. |
+Earlier releases: see [CHANGELOG.md](CHANGELOG.md) — the 2.2 line brought Sony Publishing Tools builds, update packages, the build queue, online metadata restore and the PlayGo / DLC-emulator fixes.
 
 ## Download & run
 
-Grab the archive for your platform from the [**Releases**](https://github.com/thanhsondev/PSVIETHOA-FPKG-Builder/releases/latest) page. Each build is **self‑contained** — no .NET install required.
+Grab the archive for your platform from [**Releases**](https://github.com/thanhsondev/PSVIETHOA-FPKG-Builder/releases/latest). Every build is **self-contained** (no .NET install) and also contains the `fpkg-cli` command-line tool.
 
-- **macOS** — unzip, then right‑click `PSVIETHOA FPKG Builder.app` → **Open** the first time (the app is ad‑hoc signed).
-- **Windows** — unzip and run `PSVIETHOA FPKG Builder.exe`. SmartScreen may prompt → **Run anyway**.
-- **Linux** (x64 / arm64) — extract the `.tar.gz` and run `app/PsViethoa.FpkgBuilder.App` (`./install-desktop-entry.sh` adds a menu entry). The Sony SDK build method needs your distribution's Wine (`sudo apt install wine64` / `sudo dnf install wine` / `sudo pacman -S wine`); without it the built-in engine is used. Disk images are extracted with the pure-.NET reader.
-
-Each archive also contains the `fpkg-cli` command‑line tool.
+| Platform | Archive | Notes |
+|---|---|---|
+| **macOS** Apple Silicon / Intel | `…-macOS-AppleSilicon.zip` / `…-macOS-Intel.zip` | Right-click the app → **Open** the first time (ad-hoc signed). Wine is bundled (with 32-bit support for PS4). Apple Silicon needs Rosetta 2 — the app offers to install it. |
+| **Windows** x64 | `…-Windows-x64-Setup.exe` or `.zip` | The installer adds Dokan (copy-free image mounting) and the Visual C++ runtimes: x64 for the Sony SDK, **x86 2008 SP1 + 2015–2022 for PS4**. The portable zip installs what is missing on first use (UAC prompt). |
+| **Linux** x64 / arm64 | `…-Linux-x64.tar.gz` / `…-Linux-arm64.tar.gz` | Run `app/PsViethoa.FpkgBuilder.App` (`./install-desktop-entry.sh` adds a menu entry). Sony SDK and PS4 builds use your distro's Wine — for PS4 it needs 32-bit support (`wine32` / `wine:i386`). |
 
 ## Quick start
 
-1. Prepare an extracted PS5 app folder (with a `sce_sys` folder and `eboot.bin`), **or** point at a `.exfat` disk image, a `.ffpfsc` container or a `.gp5` project.
-2. In **step 1**, click **Browse…** / **.exfat image** / **.ffpfsc file** / **.gp5 project**, or drop the folder / file onto the window. Content ID, title, version, size and junk files are detected automatically; the output folder is set for you (toggle "Auto from source" off to choose your own).
-3. Pick a speed preset in **step 3** (Standard is the default and equals the old engine's "Kraken 7"; Smallest = level 7 Optimal, slow) or open the advanced options.
-4. Click **Build PKG** (`Ctrl/⌘+B` or `F5`). Watch the progress, ETA, and log; the structure is verified automatically when it finishes.
+**PS5 FPKG** — *Build PKG*: pick the app folder (or an `.exfat` / `.ffpfsc` / `.ffpkg` / `.gp5`), check the detected Content ID and version, press **Build PKG** (`Ctrl/⌘+B`). The package is verified before it is reported as done. *Build Update PKG* does the same against the base `.pkg` installed on the console.
+
+**PS4 PKG** — choose the page (Extract / Base / Update / DLC / Merge), drop the source `.pkg` or game folder (and the base for Update / Merge). The preview card fills in, the output folder is set next to the source, and the green button (*Start extracting*, *Build the base PKG*…) runs the job. Change the version or the title in the *param.sfo* tab first if you need to.
+
+**PS5 FTP** — start an FTP server on the PS5 (ftpsrv listens on port 2121; use your server's port otherwise), type its IP, **Connect**, then drag files across.
+
+**Resign Save** — enter your 16-digit Account ID (and the PS5 IP + User ID to install encrypted saves), drop the saves, **Resign all**.
 
 ## Command line
 
 ```bash
-fpkg-cli info --lang en
-fpkg-cli inspect "/path/PPSA12345"                 # folder
-fpkg-cli inspect "/path/PPSA12345.exfat"           # exFAT image — read directly, no mount
-fpkg-cli inspect "/path/PPSA12345.ffpfsc"          # .ffpfsc container — inner exFAT decompressed on the fly
-fpkg-cli check-update                              # newer release on GitHub?
-fpkg-cli build --source "/path/PPSA12345.exfat" --output "/path/out"           # default: Standard (level 4), exfat auto
-fpkg-cli build --source "/path/PPSA12345.exfat" --output "/path/out" --exfat extract
-fpkg-cli build --source "/path/PPSA12345" --output "/path/out" --preset fast --clean-junk
-fpkg-cli build --source "/path/PPSA12345" --output "/path/out" --preset maximum       # Kraken 9 + PFS v3 + shuffle analysis
-fpkg-cli build --source "/path/PPSA12345" --output "/path/out" --pfs v3 --shuffle PredictForBc3 --block-size 128
-fpkg-cli verify "/path/out/UP9000-PPSA12345_00-XXXX-A0100-V0100.pkg" --sha256
-fpkg-cli pkg-info "/path/out/UP9000-PPSA12345_00-XXXX-A0100-V0100.pkg"                # General + param.json
-fpkg-cli pkg-list "/path/out/UP9000-PPSA12345_00-XXXX-A0100-V0100.pkg" --include "*.sprx"
-fpkg-cli pkg-extract "/path/out/UP9000-PPSA12345_00-XXXX-A0100-V0100.pkg" --output "/path/unpacked" --include "sce_sys/**" --include "eboot.bin" --cnt
+fpkg-cli info                                        # which components work on this machine (SDK, Wine, PS4 tools, keys…)
+
+# PS5 FPKG
+fpkg-cli build --source "/games/PPSA12345-app" --output "/out"
+fpkg-cli build --source "/games/PPSA12345-update" --sdk-reference "/out/PPSA12345-base.pkg" --output "/out"
+fpkg-cli pkg-extract "/out/UP9000-PPSA12345_00-XXXX-A0100-V0100.pkg" --output "/unpacked" --include "sce_sys/**"
+
+# PS4 PKG
+fpkg-cli ps4-info  "/games/CUSA12345.pkg"
+fpkg-cli ps4-extract "/games/CUSA12345.pkg" --output "/unpacked"
+fpkg-cli ps4-base  "/unpacked/CUSA12345-base" --output "/out"
+fpkg-cli ps4-patch "/unpacked/CUSA12345-update" --base "/games/CUSA12345.pkg" --output "/out" --version 01.51
+fpkg-cli ps4-merge "/games/CUSA12345-patch.pkg" --base "/games/CUSA12345.pkg" --output "/out"
+fpkg-cli ps4-dlc   "/unpacked/CUSA12345-dlc" --output "/out"
 ```
 
-Exit codes: `0` success · `1` invalid arguments · `2` build failed · `3` cancelled.
+`fpkg-cli --help` lists every option (`--verify` for the full PS4 engine, `--gp4-only`, `--only <path>`, `--sfo <file>`, `--passcode`, `--base-passcode`, `--entitlement-key`, …). Exit codes: `0` success · `1` invalid arguments · `2` failed · `3` cancelled. Set `FPKG_LANG=vi|en` for the language.
 
-## Disk images (.exfat / .ffpfsc)
+## Tested on real games
 
-- Detected automatically by the `EXFAT   ` signature at the volume start, or inside an MBR/GPT partition; common offsets (sector 63, 2048…) are probed too.
-- The app folder is located up to 3 levels deep inside the image (root first, e.g. dumps with `sce_sys` at the root).
-- **macOS:** `hdiutil attach -readonly -imagekey diskimage-class=CRawDiskImage` → build straight from the mount point, unmount when done. *Automatic* only mounts a clean image; if junk files are present it extracts so they can be skipped.
-- **Windows:** the app's own exFAT reader is exposed as a read‑only virtual drive through the [Dokan](https://github.com/dokan-dev/dokany) driver (`Z:\<image name>\…`), so the packager reads straight from the image — `.exfat` and `.ffpfsc` alike, junk files hidden, `param.json` DRM fix applied on the drive, nothing written to the image. The unmodified `Dokan_x64.msi` (2.3.1.1000, LGPL/MIT) ships in `app/redist/`: the **Setup.exe** installs it together with the app, the portable zip installs it by itself on first launch (only the Windows UAC prompt; declining leaves **Enable direct mounting** in the advanced options and `fpkg-cli install-dokan`). Without the driver the image is extracted to the temp folder as before.
-- **Windows / Linux:** extracted with the pure‑.NET reader (3 workers, 4 MB buffers) to `<temp>/exfat-<name>-<hash>/`, needing extra free space ≈ the data in the image; removed after the build (even on cancel).
-- **Validated:** the same image built two ways — hdiutil mount vs. pure‑.NET extraction — produces **byte‑identical** packages (same SHA‑256), i.e. the reader matches the macOS driver exactly.
-- **`.ffpfsc` containers:** a PS5 PFS image (superblock v2, 64 KiB blocks) that holds one PFSC‑compressed file — the exFAT dump of the game. The app detects it by its header (any extension) or the `.ffpfsc` extension, layers the exFAT reader on the library's PFSC decompression (~900 MB/s, no temporary image); on Windows with Dokan it is **mounted** like an `.exfat` image, on macOS (where `hdiutil` cannot open a container) the app folder is **extracted** to the temp folder before building. Measured: 1.2 GB container (4.29 GB exFAT, 2.9 GB of game data) → info in 0.15 s, full build in 31 s.
+Every screenshot below is a real run of this build on an Apple-Silicon Mac (macOS 27, bundled Wine), with the owner's own dumps.
 
-## Performance
+**PS5 — Plants vs. Zombies Replanted (`PPSA29802`, 1.9 GB, 160 files), Sony SDK path**
 
-Measured on an Apple‑Silicon Mac (15 logical cores), built‑in Kraken, LibProsperoPkg build shipped with 2.1.0:
+| Built and verified | Build log (scroll down) |
+|---|---|
+| ![](docs/screenshots/en-ps5-done.png) | ![](docs/screenshots/en-ps5-done-log.png) |
 
-| Test | Config | Time | Package |
-|---|---|---|---|
-| 400 MB synthetic | Fast (Kraken 2) / **Standard (4, default)** | 6.8 s / 7.5 s | 254.3 MB / 254.2 MB |
-| 352 MB synthetic, **30,005 files** | Standard (4) | 14 s (scan 0.12 s) | 204 MB |
-| 400 MB synthetic | Smallest (Kraken 7) | 16.4 s | 250.3 MB |
-| 400 MB synthetic | Maximum (Kraken 9 + PFS v3 + shuffle analysis) | 47.6 s | 249.8 MB |
-| 813 MB real game (`PPSA06438`, mounted .exfat) | Smallest / Fast | 23.4 s / 4.9 s | 257.2 MB / 262.8 MB |
-| **21.3 GB real game** (`PPSA27625`, mounted .exfat) | Fast (Kraken 2) | 1 min 59 s | 8.86 GiB |
-| **21.3 GB real game** | **Standard (Kraken 4, default)** | **2 min 13 s** | **8.86 GiB** |
-| **21.3 GB real game** | Smallest (Kraken 7 Optimal) | 12 min 49 s | 8.54 GiB |
-| 1.2 GB `.ffpfsc` container (4.29 GB exFAT inside, 2.9 GB of game data) | Standard (Kraken 4) | 31 s (info 0.15 s) | 1.14 GiB |
-| 36 GB package (`PPSA21567`, 166,707 files) — **Extract PKG** | list / extract | 3.8 s / ~200 MB/s | — |
+1.6 GB package (1,706,966,020 bytes), all six package checks passed. The CLI, the GUI and 2.2.7 produce the same size.
 
-For comparison, the LibProsperoPkg build shipped with 2.0.0 built the same 21.3 GB game in 3 min 40 s to a 9.03 GiB package. Measured side by side on the same 400 MB set, the 2.0.0 engine produced **identical** packages at levels 4 and 7 (254,212,194 bytes) — its "level 7" was the Normal encoder — and the 2.1.0 engine at level 4 reproduces that result (254,211,794 bytes) at the same speed. So **Standard** (the default) gives you the old "Kraken 7" size at the old speed, and on the 21 GB game it is even faster and smaller than before (2 min 13 s, 8.86 GiB). **Smallest** is a genuinely new *Optimal* mode: another 3.5 % (8.54 GiB) for a 5–6× longer build on already‑compressed game data. Levels 4–6 produce identical output; level 7 and up switch to the optimal parser.
+**PS4 — Plants vs. Zombies Replanted (`CUSA55613`, base 1.00 + update 1.51), orbis-pub-cmd through Wine**
+
+| Build Update (from the extracted 1.51 update + the base PKG) | Merge Base + Update |
+|---|---|
+| ![](docs/screenshots/vi-ps4-patch-done.png) | ![](docs/screenshots/en-ps4-merge-done.png) |
+
+| Job | Result | Time |
+|---|---|---|
+| PS5 FPKG, Sony SDK | `PPSA29802` → 1.6 GB package, verified | 47–52 s |
+| PS4 Extract PKG | 1.75 GB base → 351 files (156 MB update → 34 files) | 7 s |
+| PS4 Build Update | 161,873,920-byte update PKG, same content as the original 1.51 update | 12 s |
+| PS4 Build Base | 1,748,697,088-byte base PKG | 15 s |
+| PS4 Merge Base + Update | one 1,748,697,088-byte base PKG with 1.51 inside (APP_VER 01.00, VERSION 01.51) | 27 s |
+| PS5 FPKG, built-in engine, Standard | 21.3 GB game → 8.86 GiB (2.1 measurement) | 2 min 13 s |
+
+The extracted files match the originals apart from the files the publishing tool regenerates, and the source PKGs keep their SHA-256. FTP and save resigning were tested against a local FTP server and sample saves (no console was connected for these screenshots).
 
 ## Build from source
 
-Requires the [.NET SDK 10](https://dotnet.microsoft.com/download) (`brew install dotnet` on macOS).
+Requires the [.NET SDK 10](https://dotnet.microsoft.com/download).
 
 ```bash
-dotnet build PsViethoa.FpkgBuilder.slnx -c Release   # build everything
-scripts/run-dev.sh                                   # run the GUI (macOS/Linux)
-dotnet test                                          # run the test suite
+dotnet build PsViethoa.FpkgBuilder.slnx -c Release
+dotnet test                                          # 550+ tests (real Sony SDK / PS4 builds run when Wine and the toolkits are present)
+scripts/run-dev.sh                                   # GUI in Debug (macOS / Linux)
+scripts/fetch-wine.sh                                # Wine for the Sony SDK and PS4 tools on macOS (keeps the 32-bit libraries)
 
-scripts/publish-macos.sh osx-arm64 osx-x64           # dist/: .app + fpkg-cli + zip
-scripts/publish-windows.sh                           # dist/win-x64: .exe + fpkg-cli + zip
-scripts/publish-linux.sh linux-x64 linux-arm64       # dist/: app + fpkg-cli + sony-sdk tar.gz
+scripts/publish-macos.sh osx-arm64 osx-x64           # .app + fpkg-cli + Wine + sony-sdk + orbis-pub, zipped
+scripts/publish-windows.sh                           # exe, fpkg-cli, sony-sdk, orbis-pub, Dokan + VC++ x64/x86, Setup.exe with makensis
+scripts/publish-linux.sh linux-x64 linux-arm64       # tar.gz with app/, fpkg-cli/, sony-sdk/, orbis-pub/
 ```
 
 <details>
 <summary>Project layout</summary>
 
 ```
-PsViethoa.FpkgBuilder.slnx
-Directory.Build.props                 # net10.0, version (2.1.0), GC/PGO
-CHANGELOG.md
-libs/                                 # LibProsperoPkg.dll, libScePubTools.dll (Windows)
-src/
-  PsViethoa.FpkgBuilder.Core/         # engine, validation, exFAT reader, progress, localization
-  PsViethoa.FpkgBuilder.App/          # Avalonia UI (MVVM), tokens/styles, views, assets
-  PsViethoa.FpkgBuilder.Cli/          # fpkg-cli
-tests/PsViethoa.FpkgBuilder.Tests/    # xUnit (170 tests)
-scripts/                              # publish + dev scripts
+src/PsViethoa.FpkgBuilder.Core/     PS5 engine & Sony SDK pipeline, Ps4/ (LibOrbisPkg + orbis-pub-cmd), Ftp/, Saves/, localization
+src/PsViethoa.FpkgBuilder.App/      Avalonia UI (MVVM): sidebar shell, PS5 / PS4 / FTP / Save pages
+src/PsViethoa.FpkgBuilder.Cli/      fpkg-cli
+tests/PsViethoa.FpkgBuilder.Tests/  xUnit, synthetic fixtures only
+libs/                               third-party, replaced only as a whole:
+  LibProsperoPkg.dll                  PS5 engine (Drakmor)
+  sony-sdk/                           Publishing Tools 2.79 toolkit
+  LibOrbisPkg/                        PS4 PKG / PFS / SFO (Maxton, LGPL-3.0, source included)
+  orbis-pub/                          PS4 Fake PKG Tools 3.87 (CyB1K), original + fast engine
+  garlic-savemgr/                     PS5 save payload (earthonion), source included
 ```
 </details>
 
 ## Screenshots
 
-| Light theme | PFS v3 options | Vietnamese UI |
-|---|---|---|
-| ![](docs/screenshots/en-light.png) | ![](docs/screenshots/en-advanced-pfs.png) | ![](docs/screenshots/vi-advanced.png) |
-
-| While building | Extract mode (Vietnamese) | Extraction finished |
-|---|---|---|
-| ![](docs/screenshots/en-building.png) | ![](docs/screenshots/vi-extract.png) | ![](docs/screenshots/vi-extract-done.png) |
-
-| Extract mode, light theme | Help — Credits |
+| PS5 — Build PKG done (Vietnamese) | PS4 — game preview |
 |---|---|
-| ![](docs/screenshots/en-extract-light.png) | ![](docs/screenshots/en-credits.png) |
+| ![](docs/screenshots/vi-ps5-done.png) | ![](docs/screenshots/en-ps4-extract.png) |
+
+| PS4 — param.sfo editor (Vietnamese) | PS5 FTP (Vietnamese) |
+|---|---|
+| ![](docs/screenshots/vi-ps4-patch-sfo.png) | ![](docs/screenshots/vi-ftp.png) |
+
+| Resign Save queue (Vietnamese) | Light theme |
+|---|---|
+| ![](docs/screenshots/vi-save.png) | ![](docs/screenshots/en-light.png) |
+
+| Help — credits |
+|---|
+| ![](docs/screenshots/en-help-credits.png) |
 
 ## Credits & license
 
-- **PSVIETHOA — Nguyễn Thanh Sơn & Ngô Phi Phương** — cross‑platform application, bilingual UI, exFAT image support, `fpkg-cli`.
-- **Main project: [Drakmor](https://github.com/)** — author of **LibProsperoPkg**, the FPKG core (PFS v2/v3, NAPS, Kraken, shuffle analysis, PlayGo, package verification).
+- **PSVIETHOA — Nguyễn Thanh Sơn & Ngô Phi Phương** — the cross-platform app, UI, Sony SDK pipeline, CLI. The PS4 PKG, FTP and save-resign mechanisms come from **PSVIETHOA STUDIO** by **Ngô Phi Phương**.
+- **Main project: Drakmor** — **LibProsperoPkg**, the PS5 FPKG engine (PFS, NAPS, Kraken, PlayGo, verification).
+- **Maxton** — [LibOrbisPkg](https://github.com/maxton/LibOrbisPkg) (LGPL-3.0; the DLL is linked as a separate assembly and its source ships in `libs/LibOrbisPkg`).
+- **CyB1K** — PS4 Fake PKG Tools 3.87 (`orbis-pub-cmd`).
+- **earthonion** — garlic-savemgr (PS5 save payload).
+- [Wine](https://www.winehq.org/) (LGPL-2.1) runs the Windows toolkits on macOS / Linux; [Dokan](https://github.com/dokan-dev/dokany) mounts images on Windows.
 - Fonts: JetBrains Mono & Inter (SIL OFL). Icons: Material Design Icons (Apache 2.0).
-- Thanks to the PS5 homebrew community and everyone who contributed to LibProsperoPkg.
 
-> This tool builds **debug** packages for homebrew and development on debug‑enabled consoles. It ships the third‑party `LibProsperoPkg.dll` / `libScePubTools.dll` unmodified. Use responsibly.
+> The third-party binaries under `libs/` ship unmodified (the PS4 fast engine is the Studio's documented patch, `FAST_ENGINE_PATCH.json`). These tools are for homebrew and development on your own consoles — use them responsibly.
 
 <div align="center">
 
-Made with care by **PSVIETHOA** · 🇻🇳
+Made with care by **PSVIETHOA** · 🇻🇳 · [psviethoa.com](https://psviethoa.com)
 
 </div>

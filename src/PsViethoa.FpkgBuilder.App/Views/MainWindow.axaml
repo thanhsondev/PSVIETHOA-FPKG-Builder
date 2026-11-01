@@ -5,11 +5,12 @@
         xmlns:conv="using:PsViethoa.FpkgBuilder.App.Converters"
         xmlns:l="using:PsViethoa.FpkgBuilder.App.Localization"
         xmlns:views="using:PsViethoa.FpkgBuilder.App.Views"
+        xmlns:c="using:PsViethoa.FpkgBuilder.App.Controls"
         x:Class="PsViethoa.FpkgBuilder.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="{Binding WindowTitle}"
         Icon="avares://PsViethoa.FpkgBuilder.App/Assets/icon-256.png"
-        Width="1320" Height="880" MinWidth="960" MinHeight="620"
+        Width="1380" Height="900" MinWidth="980" MinHeight="640"
         WindowStartupLocation="CenterScreen"
         DragDrop.AllowDrop="True">
 
@@ -61,130 +62,61 @@
         <Style Selector="PathIcon.diskicon.warning">
             <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
         </Style>
-        <!-- Công tắc ngôn ngữ nhỏ gọn ở header -->
-        <Style Selector="RadioButton.lang">
-            <Setter Property="MinHeight" Value="30" />
-            <Setter Property="Padding" Value="10,4" />
-            <Setter Property="HorizontalAlignment" Value="Left" />
-            <Setter Property="Foreground" Value="#CBD5E1" />
-        </Style>
-        <Style Selector="RadioButton.lang:checked">
-            <Setter Property="Foreground" Value="#F8FAFC" />
-        </Style>
     </Window.Styles>
 
     <Panel>
-        <Grid RowDefinitions="Auto,Auto,*,Auto">
+        <Grid ColumnDefinitions="Auto,*">
 
-            <!-- ============ HEADER ============ -->
-            <Border Grid.Row="0" Background="{DynamicResource HeaderBrush}" Padding="22,12">
-                <!-- Cột trái co lại (mô tả/credits cắt "…") để nhóm nút bên phải không bao giờ bị đẩy ra ngoài cửa sổ hẹp. -->
+            <!-- ============ THANH BÊN (3.0.0): PS5 FPKG · PS4 PKG · Kết nối PS5 · Save game ============ -->
+            <views:SidebarView Name="Sidebar" Width="{Binding SidebarWidth}">
+                <views:SidebarView.Transitions>
+                    <Transitions>
+                        <DoubleTransition Property="Width" Duration="0:0:0.22" Easing="CubicEaseOut" />
+                    </Transitions>
+                </views:SidebarView.Transitions>
+            </views:SidebarView>
+
+        <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto">
+
+            <!-- ============ ĐẦU TRANG: huy hiệu hệ máy · nhóm · số thứ tự, tiêu đề, mô tả ============ -->
+            <Border Grid.Row="0" Padding="26,18,26,4">
                 <Grid ColumnDefinitions="*,16,Auto">
-                    <Grid ColumnDefinitions="Auto,14,*" VerticalAlignment="Center">
-                        <Image Source="avares://PsViethoa.FpkgBuilder.App/Assets/icon-128.png" Width="40" Height="40" />
-                        <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
-                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <TextBlock Text="PSVIETHOA FPKG Builder" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC" LineHeight="24" />
-                                <Border Name="HeaderVersionBadge" Background="#1AFFFFFF" BorderBrush="#2EFFFFFF" BorderThickness="1" CornerRadius="6" Padding="6,1" VerticalAlignment="Center" ToolTip.Tip="{Binding AppVersionText}">
-                                    <TextBlock Text="{Binding HeaderVersion}" FontSize="11.5" FontWeight="SemiBold" Foreground="#CBD5E1" />
-                                </Border>
-                                <Button Classes="link" IsVisible="{Binding UpdateAvailable}" Command="{Binding OpenUpdateCommand}" ToolTip.Tip="{l:T Update.BannerTip}" Padding="0" VerticalAlignment="Center">
-                                    <Border Background="#2A22C55E" BorderBrush="#6622C55E" BorderThickness="1" CornerRadius="6" Padding="7,1">
-                                        <StackPanel Orientation="Horizontal" Spacing="5">
-                                            <PathIcon Classes="sm" Data="{StaticResource IconUpdate}" Foreground="#4ADE80" Width="12" Height="12" VerticalAlignment="Center" />
-                                            <TextBlock Text="{Binding UpdateBannerText}" FontSize="11.5" FontWeight="SemiBold" Foreground="#4ADE80" />
-                                        </StackPanel>
-                                    </Border>
-                                </Button>
-                            </StackPanel>
-                            <TextBlock Text="{l:T App.Tagline}" FontSize="12.5" Foreground="#94A3B8" LineHeight="18" TextTrimming="CharacterEllipsis" />
-                            <Grid ColumnDefinitions="Auto,6,*" Margin="0,2,0,0">
-                                <PathIcon Classes="sm" Data="{StaticResource IconSparkle}" Foreground="#4ADE80" Width="12" Height="12" VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="2" Text="{l:T App.HeaderCredits}" FontSize="12" FontWeight="Medium" Foreground="#CBD5E1" LineHeight="16" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                            </Grid>
+                    <StackPanel Name="PageHeaderText" Spacing="3">
+                        <StackPanel Orientation="Horizontal" Spacing="9">
+                            <c:PlatformBadge Name="PageBadge" Platform="{Binding PagePlatform}" Size="20" Interactive="False" VerticalAlignment="Center" />
+                            <TextBlock Classes="pageeyebrow" Text="{Binding PageEyebrow}" Foreground="{Binding PageAccentBrush}" VerticalAlignment="Center" />
                         </StackPanel>
-                    </Grid>
+                        <TextBlock Classes="pagetitle" Text="{Binding PageTitle}" />
+                        <TextBlock Classes="small muted" Text="{Binding PageDescription}" TextWrapping="Wrap" MaxWidth="900" HorizontalAlignment="Left" />
+                    </StackPanel>
 
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                        <Border Classes="chip success" IsVisible="{Binding KeysAvailable}" ToolTip.Tip="{l:T Header.KeysReadyTip}">
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Top">
+                        <Button Classes="link" IsVisible="{Binding UpdateAvailable}" Command="{Binding OpenUpdateCommand}" ToolTip.Tip="{l:T Update.BannerTip}" Padding="0" VerticalAlignment="Center">
+                            <Border Background="#2A22C55E" BorderBrush="#6622C55E" BorderThickness="1" CornerRadius="8" Padding="9,4">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <PathIcon Classes="sm" Data="{StaticResource IconUpdate}" Foreground="{DynamicResource SuccessBrush}" Width="13" Height="13" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding UpdateBannerText}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource SuccessBrush}" />
+                                </StackPanel>
+                            </Border>
+                        </Button>
+                        <Border Classes="chip success" IsVisible="{Binding KeysAvailable}" ToolTip.Tip="{l:T Header.KeysReadyTip}" VerticalAlignment="Center">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <PathIcon Classes="sm success" Data="{StaticResource IconKey}" />
                                 <TextBlock Name="KeysReadyText" Text="{l:T Header.KeysReady}" />
                             </StackPanel>
                         </Border>
-                        <Border Classes="chip danger" IsVisible="{Binding !KeysAvailable}">
+                        <Border Classes="chip danger" IsVisible="{Binding !KeysAvailable}" VerticalAlignment="Center">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <PathIcon Classes="sm danger" Data="{StaticResource IconAlert}" />
                                 <TextBlock Name="KeysMissingText" Text="{l:T Header.KeysMissing}" />
                             </StackPanel>
                         </Border>
-                        <Border Background="#1AFFFFFF" BorderBrush="#2EFFFFFF" BorderThickness="1" CornerRadius="8" Padding="3" ToolTip.Tip="{l:T Header.LanguageTip}">
-                            <StackPanel Orientation="Horizontal" Spacing="2">
-                                <RadioButton Classes="lang" Theme="{StaticResource SegmentRadio}" GroupName="lang" Content="VI" IsChecked="{Binding LanguageVi, Mode=TwoWay}" />
-                                <RadioButton Classes="lang" Theme="{StaticResource SegmentRadio}" GroupName="lang" Content="EN" IsChecked="{Binding LanguageEn, Mode=TwoWay}" />
-                            </StackPanel>
-                        </Border>
-                        <Button Classes="header icon" Command="{Binding CheckUpdateCommand}" IsEnabled="{Binding !IsCheckingUpdate}" ToolTip.Tip="{l:T Update.Tip}" AutomationProperties.Name="{l:T Update.Tip}">
-                            <Panel>
-                                <PathIcon Data="{StaticResource IconUpdate}" />
-                                <!-- Chấm báo có bản mới -->
-                                <Ellipse Width="9" Height="9" Fill="#4ADE80" Stroke="#0F172A" StrokeThickness="1.5" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-4,-4,0" IsVisible="{Binding UpdateAvailable}" />
-                            </Panel>
-                        </Button>
-                        <Button Classes="header icon" Command="{Binding ToggleThemeCommand}" ToolTip.Tip="{Binding ThemeTooltip}">
-                            <Panel>
-                                <PathIcon Data="{StaticResource IconSun}" IsVisible="{Binding IsDarkTheme}" />
-                                <PathIcon Data="{StaticResource IconMoon}" IsVisible="{Binding !IsDarkTheme}" />
-                            </Panel>
-                        </Button>
-                        <Button Classes="header" Name="HelpButton" Click="Help_Click" ToolTip.Tip="{l:T Header.HelpTip}">
-                            <StackPanel Classes="btn">
-                                <PathIcon Data="{StaticResource IconHelp}" />
-                                <TextBlock Name="HelpText" Text="{l:T Header.Help}" />
-                            </StackPanel>
-                        </Button>
                     </StackPanel>
                 </Grid>
             </Border>
 
-            <!-- ============ BODY ============ -->
-            <!-- ============ THANH CHẾ ĐỘ: Tạo gói | Giải nén gói ============ -->
-            <Border Grid.Row="1" Background="{DynamicResource BgElevatedBrush}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1" Padding="22,8">
-                <Border HorizontalAlignment="Left" Background="{DynamicResource MutedBrush}" CornerRadius="10" Padding="4" ToolTip.Tip="{l:T Mode.Tip}">
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                        <RadioButton Theme="{StaticResource SegmentRadio}" GroupName="mode" MinWidth="170" IsChecked="{Binding IsBuildMode, Mode=TwoWay}" AutomationProperties.Name="{l:T Mode.Build}">
-                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                                <PathIcon Classes="sm" Data="{StaticResource IconPackage}" />
-                                <TextBlock Text="{l:T Mode.Build}" FontWeight="SemiBold" />
-                            </StackPanel>
-                        </RadioButton>
-                        <RadioButton Theme="{StaticResource SegmentRadio}" GroupName="mode" MinWidth="200" IsChecked="{Binding IsUpdateMode, Mode=TwoWay}" AutomationProperties.Name="{l:T Mode.Update}">
-                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                                <PathIcon Classes="sm" Data="{StaticResource IconRefresh}" />
-                                <TextBlock Text="{l:T Mode.Update}" FontWeight="SemiBold" />
-                            </StackPanel>
-                        </RadioButton>
-                        <RadioButton Theme="{StaticResource SegmentRadio}" GroupName="mode" MinWidth="170" IsChecked="{Binding IsExtractMode, Mode=TwoWay}" AutomationProperties.Name="{l:T Mode.Extract}">
-                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                                <PathIcon Classes="sm" Data="{StaticResource IconPackageDown}" />
-                                <TextBlock Text="{l:T Mode.Extract}" FontWeight="SemiBold" />
-                            </StackPanel>
-                        </RadioButton>
-                        <RadioButton Theme="{StaticResource SegmentRadio}" GroupName="mode" MinWidth="170" IsChecked="{Binding IsQueueMode, Mode=TwoWay}" AutomationProperties.Name="{l:T Mode.Queue}">
-                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                                <PathIcon Classes="sm" Data="{StaticResource IconFileTree}" />
-                                <TextBlock Text="{l:T Mode.Queue}" FontWeight="SemiBold" />
-                                <Border Classes="chip accent" IsVisible="{Binding Queue.IsBusy}" Padding="6,1">
-                                    <TextBlock Text="{Binding Queue.RunningCount}" />
-                                </Border>
-                            </StackPanel>
-                        </RadioButton>
-                    </StackPanel>
-                </Border>
-            </Border>
-
             <!-- Chia theo tỉ lệ có chặn: cửa sổ hẹp thì cột cấu hình co tới 420, cột tiến trình/nhật ký luôn còn ≥ 360. -->
-            <Grid Grid.Row="2" Margin="22,18,22,12" IsVisible="{Binding ShowBuildView}">
+            <Grid Grid.Row="1" Name="Ps5BuildPage" Margin="26,14,26,12" IsVisible="{Binding ShowPs5Build}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="5*" MinWidth="420" MaxWidth="600" />
                     <ColumnDefinition Width="18" />
@@ -216,7 +148,7 @@
                                             <Button HorizontalContentAlignment="Center" Command="{Binding BrowseSourceCommand}" ToolTip.Tip="{l:T Pick.Source}">
                                                 <StackPanel Classes="btn">
                                                     <PathIcon Data="{StaticResource IconFolderOpen}" />
-                                                    <TextBlock Text="{l:T Common.Browse}" />
+                                                    <TextBlock Text="{l:T Common.PickAppFolder}" />
                                                 </StackPanel>
                                             </Button>
                                             <Button HorizontalContentAlignment="Center" Command="{Binding BrowseExFatCommand}" ToolTip.Tip="{l:T Step1.PickExFatTip}">
@@ -348,7 +280,7 @@
                                         <Button Grid.Column="2" Command="{Binding BrowseOutputCommand}" IsEnabled="{Binding CanEditOutput}">
                                             <StackPanel Classes="btn">
                                                 <PathIcon Data="{StaticResource IconFolder}" />
-                                                <TextBlock Text="{l:T Common.Browse}" />
+                                                <TextBlock Text="{l:T Common.PickFolder}" />
                                             </StackPanel>
                                         </Button>
                                     </Grid>
@@ -512,7 +444,8 @@
                                     </Border>
                                 </StackPanel>
 
-                                <Grid ColumnDefinitions="*,6,*,6,*,6,*" IsEnabled="{Binding CanEdit}">
+                                <!-- 4 ô một hàng; cột hẹp thì thành lưới 2×2 để tên preset không bị cắt (LayoutPresets trong code-behind). -->
+                                <Grid Name="PresetGrid" ColumnDefinitions="*,6,*,6,*,6,*" IsEnabled="{Binding CanEdit}">
                                     <RadioButton Grid.Column="0" Theme="{StaticResource SegmentRadio}" GroupName="preset" IsChecked="{Binding PresetFast, Mode=TwoWay}">
                                         <StackPanel Spacing="2">
                                             <StackPanel Orientation="Horizontal" Spacing="6">
@@ -642,24 +575,25 @@
 
                                     <!-- Thành phần & plugin: kiểm tra thật từng thành phần có hoạt động không -->
                                     <StackPanel Classes="field" Spacing="6">
-                                        <Grid ColumnDefinitions="*,Auto,Auto">
-                                            <StackPanel Spacing="1">
-                                                <TextBlock Classes="label" Text="{l:T Comp.Title}" />
-                                                <TextBlock Classes="xs muted" Text="{Binding ComponentsSummary}" TextWrapping="Wrap" />
-                                            </StackPanel>
-                                            <Button Grid.Column="1" Classes="link" Command="{Binding CopyComponentReportCommand}" VerticalAlignment="Center" Margin="0,0,14,0" ToolTip.Tip="{l:T Comp.CopyTip}">
+                                        <!-- Tiêu đề + tóm tắt một hàng, hai nút link ở hàng dưới: cột hẹp không còn bóp tiêu đề thành "Thành phần & pl…". -->
+                                        <StackPanel Spacing="1">
+                                            <TextBlock Classes="label" Text="{l:T Comp.Title}" />
+                                            <TextBlock Classes="xs muted" Text="{Binding ComponentsSummary}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <WrapPanel Orientation="Horizontal" ItemSpacing="14" LineSpacing="4">
+                                            <Button Classes="link" Command="{Binding CopyComponentReportCommand}" VerticalAlignment="Center" ToolTip.Tip="{l:T Comp.CopyTip}">
                                                 <StackPanel Classes="btn">
                                                     <PathIcon Data="{StaticResource IconCopy}" />
                                                     <TextBlock Text="{l:T Comp.Copy}" />
                                                 </StackPanel>
                                             </Button>
-                                            <Button Grid.Column="2" Classes="link" Command="{Binding RefreshComponentsCommand}" IsEnabled="{Binding !IsProbingComponents}" VerticalAlignment="Center">
+                                            <Button Classes="link" Command="{Binding RefreshComponentsCommand}" IsEnabled="{Binding !IsProbingComponents}" VerticalAlignment="Center">
                                                 <StackPanel Classes="btn">
                                                     <PathIcon Data="{StaticResource IconRefresh}" />
                                                     <TextBlock Text="{l:T Comp.Recheck}" />
                                                 </StackPanel>
                                             </Button>
-                                        </Grid>
+                                        </WrapPanel>
                                         <ItemsControl ItemsSource="{Binding Components}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate x:DataType="vm:ComponentRow">
@@ -735,7 +669,7 @@
                                         <Grid ColumnDefinitions="*,8,Auto">
                                             <TextBox Name="DllBox" Classes="mono" Text="{Binding PublishingToolsPath, Mode=TwoWay}" Classes.error="{Binding PublishingToolsError, Converter={x:Static conv:AppConverters.NotEmpty}}"
                                                      Watermark="{l:T Advanced.DllWatermark}" IsEnabled="{Binding IsWindows}" />
-                                            <Button Grid.Column="2" Content="{l:T Common.Browse}" Command="{Binding BrowsePublishingToolsCommand}" IsEnabled="{Binding IsWindows}" />
+                                            <Button Grid.Column="2" Content="{l:T Common.PickDll}" Command="{Binding BrowsePublishingToolsCommand}" IsEnabled="{Binding IsWindows}" />
                                         </Grid>
                                         <TextBlock Classes="error" Text="{Binding PublishingToolsError}" IsVisible="{Binding PublishingToolsError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
                                     </StackPanel>
@@ -1006,7 +940,7 @@
                                         </Grid>
                                         <Grid ColumnDefinitions="*,8,Auto">
                                             <TextBox Name="TempBox" Text="{Binding TemporaryFolder, Mode=TwoWay}" Classes.error="{Binding TemporaryError, Converter={x:Static conv:AppConverters.NotEmpty}}" Watermark="{l:T Advanced.TempWatermark}" />
-                                            <Button Grid.Column="2" Content="{l:T Common.Browse}" Command="{Binding BrowseTemporaryCommand}" />
+                                            <Button Grid.Column="2" Content="{l:T Common.PickFolder}" Command="{Binding BrowseTemporaryCommand}" />
                                         </Grid>
                                         <TextBlock Classes="hint" Text="{l:T Advanced.TempHint}" />
                                         <TextBlock Classes="error" Text="{Binding TemporaryError}" IsVisible="{Binding TemporaryError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
@@ -1019,10 +953,13 @@
                 </ScrollViewer>
 
                 <!-- ~~~ CỘT PHẢI: TẠO GÓI ~~~ -->
-                <Grid Grid.Column="2" RowDefinitions="Auto,Auto,*">
+                <!-- Cột phải cuộn được: khi khung kết quả hiện ra trên cửa sổ thấp, nhật ký vẫn giữ chiều cao tối thiểu (RightColumn.Height
+                     do code-behind đặt = max(chiều cao khung nhìn, phần trên + nhật ký tối thiểu)), cuộn xuống là xem được. -->
+                <ScrollViewer Grid.Column="2" Name="RightScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <Grid Name="RightColumn" RowDefinitions="Auto,Auto,*" Margin="0,0,10,0">
 
                     <!-- Bảng điều khiển -->
-                    <Border Grid.Row="0" Classes="card" Padding="20,18">
+                    <Border Grid.Row="0" Name="ControlCard" Classes="card" Padding="20,18">
                         <StackPanel Spacing="12">
                             <Grid ColumnDefinitions="Auto,*,Auto">
                                 <Ellipse Classes="dot" Classes.working="{Binding IsStatusWorking}" Classes.success="{Binding IsStatusSuccess}" Classes.error="{Binding IsStatusError}" Classes.canceled="{Binding IsStatusCanceled}" Margin="0,0,10,0" VerticalAlignment="Center" />
@@ -1131,7 +1068,8 @@
                                 <Button Grid.Column="2" MinHeight="46" Command="{Binding OpenOutputCommand}" ToolTip.Tip="{l:T Build.OpenOutputTip}">
                                     <StackPanel Classes="btn">
                                         <PathIcon Data="{StaticResource IconOpenExternal}" />
-                                        <TextBlock Text="{l:T Build.OpenOutput}" />
+                                        <!-- Cột hẹp: chỉ còn biểu tượng (chữ vẫn ở tooltip) để nút tạo gói đủ chỗ cho chữ. -->
+                                        <TextBlock Name="OpenOutputText" Text="{l:T Build.OpenOutput}" />
                                     </StackPanel>
                                 </Button>
                             </Grid>
@@ -1139,7 +1077,7 @@
                     </Border>
 
                     <!-- Kết quả -->
-                    <Border Grid.Row="1" Classes="card" Margin="0,14,0,0" Padding="20,16" IsVisible="{Binding HasResult}" BorderBrush="{DynamicResource SuccessBrush}">
+                    <Border Grid.Row="1" Name="ResultCard" Classes="card" Margin="0,14,0,0" Padding="20,16" IsVisible="{Binding HasResult}" BorderBrush="{DynamicResource SuccessBrush}">
                         <StackPanel Spacing="10">
                             <Grid ColumnDefinitions="Auto,*,Auto">
                                 <PathIcon Classes="lg success" Data="{StaticResource IconCheckCircle}" Margin="0,0,10,0" VerticalAlignment="Center" />
@@ -1172,7 +1110,7 @@
                     </Border>
 
                     <!-- Nhật ký -->
-                    <Border Grid.Row="2" Classes="card" Margin="0,14,0,0" Padding="0" ClipToBounds="True">
+                    <Border Grid.Row="2" Name="LogCard" Classes="card" Margin="0,14,0,0" Padding="0" ClipToBounds="True">
                         <Grid RowDefinitions="Auto,*">
                             <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto" Margin="18,12,12,10">
                                 <PathIcon Data="{StaticResource IconTerminal}" Margin="0,0,10,0" VerticalAlignment="Center" />
@@ -1206,20 +1144,32 @@
                         </Grid>
                     </Border>
                 </Grid>
+                </ScrollViewer>
             </Grid>
 
             <!-- ============ CHẾ ĐỘ GIẢI NÉN GÓI ============ -->
-            <Panel Grid.Row="2" IsVisible="{Binding IsExtractMode}">
+            <Panel Grid.Row="1" Name="Ps5ExtractPage" IsVisible="{Binding ShowPs5Extract}">
                 <views:ExtractionView DataContext="{Binding Extraction}" />
             </Panel>
 
             <!-- ============ CHẾ ĐỘ HÀNG CHỜ ============ -->
-            <Panel Grid.Row="2" IsVisible="{Binding IsQueueMode}">
+            <Panel Grid.Row="1" Name="Ps5QueuePage" IsVisible="{Binding ShowPs5Queue}">
                 <views:QueueView DataContext="{Binding Queue}" />
             </Panel>
 
+            <!-- ============ PS4 PKG · FTP PS5 · SAVE GAME (3.0.0) ============ -->
+            <Panel Grid.Row="1" Name="Ps4Page" IsVisible="{Binding IsPs4Page}">
+                <views:Ps4View DataContext="{Binding Ps4}" />
+            </Panel>
+            <Panel Grid.Row="1" Name="FtpPage" IsVisible="{Binding IsFtpPage}">
+                <views:FtpView DataContext="{Binding Ftp}" />
+            </Panel>
+            <Panel Grid.Row="1" Name="SavePage" IsVisible="{Binding IsSavePage}">
+                <views:SaveView DataContext="{Binding Save}" />
+            </Panel>
+
             <!-- ============ FOOTER ============ -->
-            <Border Grid.Row="3" Background="{DynamicResource BgElevatedBrush}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Padding="22,8">
+            <Border Grid.Row="2" Background="{DynamicResource BgElevatedBrush}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Padding="22,8">
                 <!-- Trạng thái và credits cùng co lại (cắt "…") để phiên bản bên phải luôn hiện đủ trên cửa sổ hẹp. -->
                 <Grid ColumnDefinitions="2*,3*,Auto">
                     <TextBlock Classes="small muted" Text="{Binding FooterStatusText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,18,0" />
@@ -1227,6 +1177,7 @@
                     <TextBlock Grid.Column="2" Classes="small faint" Text="{Binding AppVersionText}" VerticalAlignment="Center" />
                 </Grid>
             </Border>
+        </Grid>
         </Grid>
 
         <!-- Lớp phủ khi kéo–thả -->

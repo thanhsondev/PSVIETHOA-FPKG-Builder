@@ -16,6 +16,7 @@
     <Application.Styles>
         <FluentTheme />
         <StyleInclude Source="avares://PsViethoa.FpkgBuilder.App/Styles/Controls.axaml" />
+        <StyleInclude Source="avares://PsViethoa.FpkgBuilder.App/Styles/Shell.axaml" />
     </Application.Styles>
 
 </Application>

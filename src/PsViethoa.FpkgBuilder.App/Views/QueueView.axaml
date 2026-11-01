@@ -3,6 +3,7 @@
              xmlns:vm="using:PsViethoa.FpkgBuilder.App.ViewModels"
              xmlns:models="using:PsViethoa.FpkgBuilder.Core.Models"
              xmlns:l="using:PsViethoa.FpkgBuilder.App.Localization"
+             xmlns:c="using:PsViethoa.FpkgBuilder.App.Controls"
              x:Class="PsViethoa.FpkgBuilder.App.Views.QueueView"
              x:DataType="vm:QueueViewModel"
              DragDrop.AllowDrop="True">
@@ -82,11 +83,24 @@
         </Style>
     </UserControl.Styles>
 
-    <Grid ColumnDefinitions="*,18,440" Margin="22,18,22,12">
+    <!-- Cửa sổ thấp: trang cuộn được, danh sách hàng chờ giữ tối thiểu 180 px (ViewportFill); cửa sổ hẹp: cột nhật ký co lại. -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" c:ViewportFill.MinContentHeight="600">
+    <Grid Margin="22,18,22,12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="3*" MinWidth="380" />
+            <ColumnDefinition Width="18" />
+            <ColumnDefinition Width="2*" MinWidth="300" MaxWidth="440" />
+        </Grid.ColumnDefinitions>
 
         <!-- ~~~ CỘT TRÁI: HÀNG CHỜ ~~~ -->
         <Border Grid.Column="0" Classes="card" Padding="0" ClipToBounds="True">
-            <Grid RowDefinitions="Auto,Auto,Auto,*">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" MinHeight="180" />
+                </Grid.RowDefinitions>
 
                 <!-- Tiêu đề + tóm tắt -->
                 <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="18,16,18,0">
@@ -275,4 +289,5 @@
             </Grid>
         </Border>
     </Grid>
+    </ScrollViewer>
 </UserControl>

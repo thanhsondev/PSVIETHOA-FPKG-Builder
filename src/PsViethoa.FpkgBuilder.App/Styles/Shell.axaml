@@ -1,0 +1,217 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Khung ứng dụng 3.0.0: thanh bên theo hệ máy (PS5 FPKG · PS4 PKG · Kết nối PS5 · Save game) và đầu trang.
+        Thanh bên luôn tối (như header cũ) ở cả hai theme; nội dung trang theo theme đang chọn.
+    -->
+
+    <!-- ===== Mục điều hướng: RadioButton cùng nhóm "nav", nội dung vẽ trong DataTemplate (màu nhấn theo hệ máy) ===== -->
+    <Style Selector="RadioButton.nav">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Margin" Value="0,0,0,2" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <ContentPresenter Name="PART_ContentPresenter"
+                                  Content="{TemplateBinding Content}"
+                                  ContentTemplate="{TemplateBinding ContentTemplate}"
+                                  HorizontalContentAlignment="Stretch"
+                                  VerticalContentAlignment="Stretch"
+                                  Background="Transparent" />
+            </ControlTemplate>
+        </Setter>
+    </Style>
+
+    <!-- Lớp nền khi rê chuột / khi được chọn, thanh sáng bên trái, ô biểu tượng -->
+    <Style Selector="RadioButton.nav Border.navhover">
+        <Setter Property="Opacity" Value="0" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.16" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="RadioButton.nav:pointerover Border.navhover">
+        <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="RadioButton.nav Border.navsel">
+        <Setter Property="Opacity" Value="0" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.22" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="RadioButton.nav:checked Border.navsel">
+        <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="RadioButton.nav Border.navrail">
+        <Setter Property="Opacity" Value="0" />
+        <Setter Property="RenderTransform" Value="scaleY(0.2)" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
+                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.28" Easing="BackEaseOut" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="RadioButton.nav:checked Border.navrail">
+        <Setter Property="Opacity" Value="1" />
+        <Setter Property="RenderTransform" Value="scaleY(1)" />
+    </Style>
+
+    <Style Selector="RadioButton.nav Panel.navbody">
+        <Setter Property="RenderTransform" Value="translateX(0px)" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.18" Easing="CubicEaseOut" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="RadioButton.nav:pointerover Panel.navbody">
+        <Setter Property="RenderTransform" Value="translateX(3px)" />
+    </Style>
+
+    <Style Selector="RadioButton.nav Border.navtile">
+        <Setter Property="Background" Value="#141C30" />
+        <Setter Property="BorderBrush" Value="#24324D" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.16" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="RadioButton.nav:pointerover Border.navtile">
+        <Setter Property="BorderBrush" Value="#3B4D72" />
+    </Style>
+    <Style Selector="RadioButton.nav Border.navtilefill">
+        <Setter Property="Opacity" Value="0" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.22" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="RadioButton.nav:checked Border.navtilefill">
+        <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="RadioButton.nav PathIcon.navglyph">
+        <Setter Property="Foreground" Value="#8EA2C3" />
+        <Setter Property="Width" Value="16" />
+        <Setter Property="Height" Value="16" />
+    </Style>
+    <Style Selector="RadioButton.nav:pointerover PathIcon.navglyph">
+        <Setter Property="Foreground" Value="#E2E8F0" />
+    </Style>
+
+    <Style Selector="RadioButton.nav TextBlock.navtitle">
+        <Setter Property="Foreground" Value="#B9C6DA" />
+        <Setter Property="FontSize" Value="13.5" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="RadioButton.nav:pointerover TextBlock.navtitle, RadioButton.nav:checked TextBlock.navtitle">
+        <Setter Property="Foreground" Value="#F8FAFC" />
+    </Style>
+    <Style Selector="RadioButton.nav TextBlock.navsub">
+        <Setter Property="Foreground" Value="#5F6F8A" />
+        <Setter Property="FontSize" Value="11" />
+    </Style>
+
+    <Style Selector="RadioButton.nav Border.navindex">
+        <Setter Property="Background" Value="#111A2C" />
+        <Setter Property="BorderBrush" Value="#22304A" />
+    </Style>
+    <Style Selector="RadioButton.nav TextBlock.navindex">
+        <Setter Property="Foreground" Value="#5F6F8A" />
+    </Style>
+
+    <Style Selector="RadioButton.nav:focus-visible Border.navhover">
+        <Setter Property="Opacity" Value="1" />
+    </Style>
+
+    <!-- Chấm "đang chạy" cạnh tiêu đề -->
+    <Style Selector="Ellipse.busydot">
+        <Style.Animations>
+            <Animation Duration="0:0:0.9" IterationCount="Infinite" PlaybackDirection="Alternate" Easing="SineEaseInOut">
+                <KeyFrame Cue="0%">
+                    <Setter Property="Opacity" Value="0.25" />
+                </KeyFrame>
+                <KeyFrame Cue="100%">
+                    <Setter Property="Opacity" Value="1" />
+                </KeyFrame>
+            </Animation>
+        </Style.Animations>
+    </Style>
+
+    <!-- ===== Nút nhỏ ở chân thanh bên ===== -->
+    <Style Selector="Button.side">
+        <Setter Property="Background" Value="#121A2D" />
+        <Setter Property="BorderBrush" Value="#22304A" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="#B9C6DA" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.side:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#1A2540" />
+        <Setter Property="BorderBrush" Value="#3B4D72" />
+        <Setter Property="Foreground" Value="#F8FAFC" />
+    </Style>
+    <Style Selector="Button.side PathIcon">
+        <Setter Property="Width" Value="15" />
+        <Setter Property="Height" Value="15" />
+        <!-- Thanh bên luôn tối: màu biểu tượng cố định, nếu không giao diện sáng biến biểu tượng thành gần đen trên nền tối. -->
+        <Setter Property="Foreground" Value="#B9C6DA" />
+    </Style>
+    <Style Selector="Button.side:pointerover PathIcon">
+        <Setter Property="Foreground" Value="#F8FAFC" />
+    </Style>
+    <Style Selector="Button.side:disabled PathIcon">
+        <Setter Property="Foreground" Value="#5B6B85" />
+    </Style>
+
+    <Style Selector="RadioButton.sidelang">
+        <Setter Property="MinHeight" Value="30" />
+        <Setter Property="Padding" Value="0,4" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="#94A3B8" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="RadioButton.sidelang:checked">
+        <Setter Property="Foreground" Value="#F8FAFC" />
+    </Style>
+    <!-- Thanh bên luôn tối: màu cố định, không theo theme sáng của trang -->
+    <Style Selector="RadioButton.sidelang:pointerover /template/ Border#PART_Root">
+        <Setter Property="Background" Value="#1A2540" />
+    </Style>
+    <Style Selector="RadioButton.sidelang:checked /template/ Border#PART_Root">
+        <Setter Property="Background" Value="#163A2B" />
+        <Setter Property="BorderBrush" Value="#22C55E" />
+    </Style>
+
+    <!-- ===== Đầu trang ===== -->
+    <Style Selector="TextBlock.pagetitle">
+        <Setter Property="FontSize" Value="24" />
+        <Setter Property="LineHeight" Value="32" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="LetterSpacing" Value="-0.3" />
+        <Setter Property="Foreground" Value="{DynamicResource FgBrush}" />
+    </Style>
+    <Style Selector="TextBlock.pageeyebrow">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="LetterSpacing" Value="1.2" />
+    </Style>
+
+</Styles>

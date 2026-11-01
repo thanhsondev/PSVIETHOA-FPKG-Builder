@@ -1,0 +1,52 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="using:PsViethoa.FpkgBuilder.App.Views"
+        xmlns:l="using:PsViethoa.FpkgBuilder.App.Localization"
+        x:Class="PsViethoa.FpkgBuilder.App.Views.Ps4FilePickerWindow"
+        x:DataType="v:Ps4FilePickerWindow"
+        Width="820" Height="600" MinWidth="560" MinHeight="380"
+        ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        Title="{l:T Ps4.Picker.Title}">
+
+    <DockPanel Margin="20,18">
+        <StackPanel DockPanel.Dock="Top" Spacing="4" Margin="0,0,0,12">
+            <TextBlock Classes="h2" Text="{l:T Ps4.Picker.Heading}" />
+            <TextBlock Classes="hint" Text="{l:T Ps4.Picker.Hint}" Margin="0" />
+        </StackPanel>
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,8,Auto,8,Auto" Margin="0,0,0,10">
+            <TextBox Name="SearchBox" Watermark="{l:T Ps4.Picker.Search}" />
+            <Button Grid.Column="2" Name="SelectVisibleButton" Click="SelectVisible_Click">
+                <StackPanel Classes="btn">
+                    <PathIcon Data="{StaticResource IconSelectAll}" />
+                    <TextBlock Text="{l:T Ps4.Picker.SelectVisible}" />
+                </StackPanel>
+            </Button>
+            <Button Grid.Column="4" Classes="ghost" Click="Clear_Click">
+                <StackPanel Classes="btn">
+                    <PathIcon Data="{StaticResource IconClose}" />
+                    <TextBlock Text="{l:T Ps4.Picker.Clear}" />
+                </StackPanel>
+            </Button>
+        </Grid>
+        <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,8,Auto,8,Auto" Margin="0,12,0,0">
+            <TextBlock Name="CountText" Classes="small muted" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="ghost" Click="All_Click" Content="{l:T Ps4.Picker.ExtractAll}" />
+            <Button Grid.Column="3" Click="Cancel_Click" IsCancel="True" Content="{l:T Common.Cancel}" />
+            <Button Grid.Column="5" Classes="primary" Click="Accept_Click" IsDefault="True" MinWidth="160" Content="{l:T Ps4.Picker.ExtractSelected}" />
+        </Grid>
+        <Border Classes="surface" Padding="4">
+            <ListBox Name="FileList" Background="Transparent">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="v:Ps4PickerRow">
+                        <Grid ColumnDefinitions="Auto,*,Auto,Auto" Background="Transparent">
+                            <CheckBox IsChecked="{Binding Selected, Mode=TwoWay}" MinWidth="0" Margin="0,0,6,0" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Classes="mono small" Text="{Binding Path}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Path}" VerticalAlignment="Center" />
+                            <Border Grid.Column="2" Classes="chip" Classes.info="{Binding IsMetadata}" Margin="10,0"><TextBlock Text="{Binding Area}" /></Border>
+                            <TextBlock Grid.Column="3" Classes="mono xs muted" Text="{Binding SizeText}" MinWidth="76" TextAlignment="Right" VerticalAlignment="Center" />
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Border>
+    </DockPanel>
+</Window>

@@ -1,0 +1,536 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PsViethoa.FpkgBuilder.App.ViewModels"
+             xmlns:conv="using:PsViethoa.FpkgBuilder.App.Converters"
+             xmlns:l="using:PsViethoa.FpkgBuilder.App.Localization"
+             xmlns:c="using:PsViethoa.FpkgBuilder.App.Controls"
+             x:Class="PsViethoa.FpkgBuilder.App.Views.FtpView"
+             x:DataType="vm:FtpViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock.caps">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="LetterSpacing" Value="0.6" />
+            <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}" />
+        </Style>
+        <Style Selector="TextBlock.metric">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
+        </Style>
+        <Style Selector="ListBox.files">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="2" />
+        </Style>
+        <Style Selector="ListBox.files ListBoxItem">
+            <Setter Property="Padding" Value="8,3" />
+            <Setter Property="MinHeight" Value="28" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="ListBox.files ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource FtpSoftBrush}" />
+        </Style>
+        <Style Selector="ListBox.files ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource MutedBrush}" />
+        </Style>
+        <Style Selector="PathIcon.rowicon">
+            <Setter Property="Width" Value="15" />
+            <Setter Property="Height" Value="15" />
+            <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}" />
+        </Style>
+        <Style Selector="PathIcon.rowicon.folder">
+            <Setter Property="Foreground" Value="#F5B83D" />
+        </Style>
+        <Style Selector="Button.pane">
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="MinWidth" Value="34" />
+        </Style>
+        <Style Selector="Button.pane PathIcon">
+            <Setter Property="Width" Value="15" />
+            <Setter Property="Height" Value="15" />
+        </Style>
+        <Style Selector="Border.pane">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="BorderBrush" Duration="0:0:0.15" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.pane.droptarget">
+            <Setter Property="BorderBrush" Value="{DynamicResource FtpInkBrush}" />
+            <Setter Property="BorderThickness" Value="2" />
+        </Style>
+        <Style Selector="ToggleButton.logtoggle">
+            <Setter Property="MinHeight" Value="36" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="CornerRadius" Value="{DynamicResource RadiusMd}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Background" Value="{DynamicResource MutedBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource FgBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="ToggleButton.logtoggle:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource MutedHoverBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource FgBrush}" />
+        </Style>
+        <Style Selector="ToggleButton.logtoggle:checked /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource FtpSoftBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource FtpInkBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource FtpInkBrush}" />
+        </Style>
+        <Style Selector="ToggleButton.logtoggle:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource FtpSoftBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource FtpInkBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource FtpInkBrush}" />
+        </Style>
+        <Style Selector="ToggleButton.logtoggle StackPanel.btn">
+            <Setter Property="Orientation" Value="Horizontal" />
+            <Setter Property="Spacing" Value="8" />
+        </Style>
+        <Style Selector="ToggleButton.qtab">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}" />
+        </Style>
+        <Style Selector="ToggleButton.qtab:checked /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource FtpSoftBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource FtpInkBrush}" />
+        </Style>
+        <Style Selector="ToggleButton.qtab:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource FtpSoftBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource FtpInkBrush}" />
+        </Style>
+        <Style Selector="ToggleButton.qtab:checked">
+            <Setter Property="Foreground" Value="{DynamicResource FtpInkBrush}" />
+        </Style>
+        <Style Selector="TextBlock.qstate">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}" />
+        </Style>
+        <Style Selector="TextBlock.qstate.running">
+            <Setter Property="Foreground" Value="{DynamicResource FtpInkBrush}" />
+        </Style>
+        <Style Selector="TextBlock.qstate.failed">
+            <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+        </Style>
+        <Style Selector="TextBlock.qstate.done">
+            <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+        </Style>
+        <Style Selector="ProgressBar.ftp /template/ Border#PART_Indicator">
+            <Setter Property="Background" Value="{DynamicResource FtpInkBrush}" />
+        </Style>
+        <Style Selector="ListBox.queue ListBoxItem">
+            <Setter Property="Padding" Value="8,2" />
+            <Setter Property="MinHeight" Value="26" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+    </UserControl.Styles>
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="FtpSoftBrush" Color="#163B38" />
+                    <SolidColorBrush x:Key="FtpInkBrush" Color="#5EEAD4" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="FtpSoftBrush" Color="#CCFBF1" />
+                    <SolidColorBrush x:Key="FtpInkBrush" Color="#0F766E" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+            <DataTemplate x:Key="QueueRowTemplate" x:DataType="vm:FtpQueueRow">
+                <Grid ColumnDefinitions="72,*,120,150,104,64,130" Background="Transparent" ToolTip.Tip="{Binding Target}">
+                    <TextBlock Classes="mono xs muted" Text="{Binding DirectionText}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" FontSize="12.5" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <ProgressBar Grid.Column="2" Classes="thin ftp" MinWidth="0" Minimum="0" Maximum="100" Value="{Binding Percent}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <TextBlock Grid.Column="3" Classes="mono xs muted" Text="{Binding TransferredText}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="4" Classes="mono xs" Text="{Binding SpeedText}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="5" Classes="mono xs muted" Text="{Binding EtaText}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="6" Classes="qstate" Classes.running="{Binding IsRunning}" Classes.failed="{Binding IsFailed}" Classes.done="{Binding IsDone}"
+                               Text="{Binding StateText}" ToolTip.Tip="{Binding Error}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                </Grid>
+            </DataTemplate>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <!-- Cửa sổ thấp: trang cuộn được, hai khung duyệt giữ tối thiểu 280 px, khung hàng đợi không đè lên (ViewportFill; cao hơn khi
+         mở nhật ký lệnh — FtpView.axaml.cs). -->
+    <ScrollViewer Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" c:ViewportFill.MinContentHeight="680">
+    <Grid Margin="26,14,26,12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="*" MinHeight="280" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ============ KẾT NỐI ============ -->
+        <Border Classes="card" Padding="14,10">
+            <Grid ColumnDefinitions="*,8,84,8,*,8,*,12,Auto,8,Auto">
+                <StackPanel>
+                    <TextBlock Classes="caps" Text="{l:T Ftp.Host}" Margin="0,0,0,4" />
+                    <TextBox Classes="mono" Text="{Binding Host, Mode=TwoWay}" Watermark="192.168.1.2" IsEnabled="{Binding !IsConnected}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2">
+                    <TextBlock Classes="caps" Text="{l:T Ftp.Port}" Margin="0,0,0,4" />
+                    <TextBox Classes="mono" Text="{Binding Port, Mode=TwoWay}" MaxLength="5" IsEnabled="{Binding !IsConnected}" />
+                </StackPanel>
+                <StackPanel Grid.Column="4">
+                    <TextBlock Classes="caps" Text="{l:T Ftp.User}" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding User, Mode=TwoWay}" Watermark="{l:T Ftp.User.Watermark}" ToolTip.Tip="{l:T Ftp.User.Tip}" IsEnabled="{Binding !IsConnected}" />
+                </StackPanel>
+                <StackPanel Grid.Column="6">
+                    <TextBlock Classes="caps" Text="{l:T Ftp.Password}" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding Password, Mode=TwoWay}" PasswordChar="•" Watermark="{l:T Ftp.Password.Watermark}" ToolTip.Tip="{l:T Ftp.Password.Tip}" IsEnabled="{Binding !IsConnected}" />
+                </StackPanel>
+                <Panel Grid.Column="8" VerticalAlignment="Bottom">
+                    <Button Classes="primary" MinWidth="120" MinHeight="36" HorizontalContentAlignment="Center" Command="{Binding ConnectCommand}" IsVisible="{Binding !IsConnected}">
+                        <StackPanel Classes="btn">
+                            <PathIcon Data="{StaticResource IconConnect}" />
+                            <TextBlock Text="{l:T Ftp.Connect}" FontWeight="SemiBold" />
+                        </StackPanel>
+                    </Button>
+                    <Button MinWidth="120" MinHeight="36" HorizontalContentAlignment="Center" Command="{Binding DisconnectCommand}" IsVisible="{Binding IsConnected}">
+                        <StackPanel Classes="btn">
+                            <PathIcon Data="{StaticResource IconClose}" />
+                            <TextBlock Text="{l:T Ftp.Disconnect}" />
+                        </StackPanel>
+                    </Button>
+                </Panel>
+                <ToggleButton Grid.Column="10" Classes="logtoggle" VerticalAlignment="Bottom" IsChecked="{Binding ShowLog, Mode=TwoWay}" ToolTip.Tip="{l:T Ftp.Log.Tip}">
+                    <StackPanel Classes="btn">
+                        <PathIcon Data="{StaticResource IconTerminal}" />
+                        <TextBlock Text="{l:T Ftp.Log}" />
+                    </StackPanel>
+                </ToggleButton>
+            </Grid>
+        </Border>
+
+        <!-- ============ HAI KHUNG DUYỆT ============ -->
+        <Grid Grid.Row="2" ColumnDefinitions="*,12,*">
+
+            <!-- Máy tính -->
+            <Border Name="LocalPane" Classes="card pane" Padding="12,10" DragDrop.AllowDrop="True">
+                <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
+                    <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,0,0,8">
+                        <PathIcon Data="{StaticResource IconDevices}" Width="16" Height="16" Foreground="{DynamicResource FgMutedBrush}" Margin="0,0,8,0" />
+                        <TextBlock Grid.Column="1" Classes="caps" Text="{l:T Ftp.Local}" VerticalAlignment="Center" />
+                        <Button Grid.Column="3" Classes="ghost pane" ToolTip.Tip="{l:T Ftp.Quick}">
+                            <StackPanel Classes="btn">
+                                <PathIcon Data="{StaticResource IconBookmark}" />
+                                <TextBlock Text="{l:T Ftp.Quick}" FontSize="12" />
+                            </StackPanel>
+                            <Button.Flyout>
+                                <MenuFlyout ItemsSource="{Binding LocalQuickPaths}">
+                                    <MenuFlyout.ItemContainerTheme>
+                                        <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}" x:DataType="x:String">
+                                            <Setter Property="Header" Value="{Binding}" />
+                                            <Setter Property="Command" Value="{Binding $parent[UserControl].((vm:FtpViewModel)DataContext).LocalQuickCommand}" />
+                                            <Setter Property="CommandParameter" Value="{Binding}" />
+                                        </ControlTheme>
+                                    </MenuFlyout.ItemContainerTheme>
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
+                    </Grid>
+                    <Grid Grid.Row="1" ColumnDefinitions="*,6,Auto,4,Auto,4,Auto,4,Auto" Margin="0,0,0,6">
+                        <TextBox Name="LocalPathBox" Classes="mono" FontSize="12" Text="{Binding LocalPath, Mode=TwoWay}" />
+                        <Button Grid.Column="2" Classes="pane" Command="{Binding LocalUpCommand}" ToolTip.Tip="{l:T Ftp.Up}"><PathIcon Data="{StaticResource IconArrowUp}" /></Button>
+                        <Button Grid.Column="4" Classes="pane" Command="{Binding LocalRefreshCommand}" ToolTip.Tip="{l:T Ftp.Refresh}"><PathIcon Data="{StaticResource IconRefresh}" /></Button>
+                        <Button Grid.Column="6" Classes="pane" Command="{Binding LocalNewFolderCommand}" ToolTip.Tip="{l:T Ftp.NewFolder}"><PathIcon Data="{StaticResource IconFolderPlus}" /></Button>
+                        <Button Grid.Column="8" Classes="pane" Command="{Binding LocalBrowseCommand}" ToolTip.Tip="{l:T Ftp.Local.Pick}"><PathIcon Data="{StaticResource IconFolderOpen}" /></Button>
+                    </Grid>
+                    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                        <TextBox Text="{Binding LocalFilter, Mode=TwoWay}" Watermark="{l:T Ftp.Filter}" FontSize="12" />
+                        <Button Grid.Column="1" Classes="primary pane" Margin="6,0,0,0" Command="{Binding UploadSelectedCommand}" ToolTip.Tip="{l:T Ftp.Upload.Tip}">
+                            <StackPanel Classes="btn">
+                                <PathIcon Data="{StaticResource IconUpload}" />
+                                <TextBlock Text="{l:T Ftp.Upload}" FontSize="12" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                    <Border Grid.Row="3" Classes="surface" Padding="0">
+                        <Grid RowDefinitions="Auto,*">
+                            <Grid ColumnDefinitions="*,84,118" Margin="34,6,12,4">
+                                <TextBlock Classes="caps" Text="{l:T Ftp.Col.Name}" />
+                                <TextBlock Grid.Column="1" Classes="caps" Text="{l:T Ftp.Col.Size}" TextAlignment="Right" />
+                                <TextBlock Grid.Column="2" Classes="caps" Text="{l:T Ftp.Col.Modified}" TextAlignment="Right" />
+                            </Grid>
+                            <ListBox Grid.Row="1" Name="LocalList" Classes="files" ItemsSource="{Binding LocalRows}" SelectionMode="Multiple">
+                                <ListBox.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="{l:T Ftp.Upload}" Command="{Binding UploadSelectedCommand}" InputGesture="Enter" />
+                                        <Separator />
+                                        <MenuItem Header="{l:T Ftp.Rename}" Command="{Binding LocalRenameCommand}" InputGesture="F2" />
+                                        <MenuItem Header="{l:T Ftp.Delete}" Command="{Binding LocalDeleteCommand}" InputGesture="Delete" />
+                                        <MenuItem Header="{l:T Ftp.NewFolder}" Command="{Binding LocalNewFolderCommand}" />
+                                        <MenuItem Header="{l:T Ftp.CopyPath}" Command="{Binding LocalCopyPathCommand}" />
+                                        <MenuItem Header="{l:T Ftp.Reveal}" Command="{Binding LocalRevealCommand}" />
+                                        <MenuItem Header="{l:T Ftp.Refresh}" Command="{Binding LocalRefreshCommand}" InputGesture="F5" />
+                                    </ContextMenu>
+                                </ListBox.ContextMenu>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:FtpFileRow">
+                                        <Grid ColumnDefinitions="Auto,*,84,118" Background="Transparent" ToolTip.Tip="{Binding FullPath}">
+                                            <PathIcon Classes="rowicon" Classes.folder="{Binding IsDirectory}" Data="{Binding Icon}" Margin="0,0,10,0" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="13" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="2" Classes="mono xs muted" Text="{Binding SizeText}" TextAlignment="Right" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="3" Classes="mono xs muted" Text="{Binding ModifiedText}" TextAlignment="Right" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Border>
+                    <TextBlock Grid.Row="4" Classes="xs muted" Text="{Binding LocalStatus}" TextTrimming="CharacterEllipsis" Margin="2,6,0,0" />
+                </Grid>
+            </Border>
+
+            <!-- PS5 -->
+            <Border Grid.Column="2" Name="RemotePane" Classes="card pane" Padding="12,10" DragDrop.AllowDrop="True">
+                <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
+                    <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" Margin="0,0,0,8">
+                        <Border Width="20" Height="20" CornerRadius="6" Margin="0,0,8,0" Background="{DynamicResource FtpSoftBrush}">
+                            <TextBlock Text="PS5" FontSize="8" FontWeight="Black" FontStyle="Italic" Foreground="{DynamicResource FtpInkBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock Grid.Column="1" Classes="caps" Text="PS5" VerticalAlignment="Center" />
+                        <Border Grid.Column="2" Classes="chip" Classes.success="{Binding IsConnected}" Margin="10,0,0,0">
+                            <TextBlock Classes="mono" FontSize="11" Text="{Binding ConnectionTitle}" />
+                        </Border>
+                        <Button Grid.Column="4" Classes="ghost pane" IsEnabled="{Binding IsConnected}" ToolTip.Tip="{l:T Ftp.Quick}">
+                            <StackPanel Classes="btn">
+                                <PathIcon Data="{StaticResource IconBookmark}" />
+                                <TextBlock Text="{l:T Ftp.Quick}" FontSize="12" />
+                            </StackPanel>
+                            <Button.Flyout>
+                                <MenuFlyout ItemsSource="{Binding RemoteQuick}">
+                                    <MenuFlyout.ItemContainerTheme>
+                                        <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}" x:DataType="x:String">
+                                            <Setter Property="Header" Value="{Binding}" />
+                                            <Setter Property="Command" Value="{Binding $parent[UserControl].((vm:FtpViewModel)DataContext).RemoteQuickCommand}" />
+                                            <Setter Property="CommandParameter" Value="{Binding}" />
+                                        </ControlTheme>
+                                    </MenuFlyout.ItemContainerTheme>
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
+                    </Grid>
+                    <Grid Grid.Row="1" ColumnDefinitions="*,6,Auto,4,Auto,4,Auto" Margin="0,0,0,6" IsEnabled="{Binding IsConnected}">
+                        <TextBox Name="RemotePathBox" Classes="mono" FontSize="12" Text="{Binding RemotePath, Mode=TwoWay}" />
+                        <Button Grid.Column="2" Classes="pane" Command="{Binding RemoteUpCommand}" ToolTip.Tip="{l:T Ftp.Up}"><PathIcon Data="{StaticResource IconArrowUp}" /></Button>
+                        <Button Grid.Column="4" Classes="pane" Command="{Binding RemoteRefreshCommand}" ToolTip.Tip="{l:T Ftp.Refresh}"><PathIcon Data="{StaticResource IconRefresh}" /></Button>
+                        <Button Grid.Column="6" Classes="pane" Command="{Binding RemoteNewFolderCommand}" ToolTip.Tip="{l:T Ftp.NewFolder}"><PathIcon Data="{StaticResource IconFolderPlus}" /></Button>
+                    </Grid>
+                    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,0,0,6" IsEnabled="{Binding IsConnected}">
+                        <TextBox Text="{Binding RemoteFilter, Mode=TwoWay}" Watermark="{l:T Ftp.Filter}" FontSize="12" />
+                        <Button Grid.Column="1" Classes="primary pane" Margin="6,0,0,0" Command="{Binding DownloadSelectedCommand}" ToolTip.Tip="{l:T Ftp.Download.Tip}">
+                            <StackPanel Classes="btn">
+                                <PathIcon Data="{StaticResource IconDownload}" />
+                                <TextBlock Text="{l:T Ftp.Download}" FontSize="12" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                    <Border Grid.Row="3" Classes="surface" Padding="0">
+                        <Panel>
+                            <Grid RowDefinitions="Auto,*" IsVisible="{Binding IsConnected}">
+                                <Grid ColumnDefinitions="*,84,92,118" Margin="34,6,12,4">
+                                    <TextBlock Classes="caps" Text="{l:T Ftp.Col.Name}" />
+                                    <TextBlock Grid.Column="1" Classes="caps" Text="{l:T Ftp.Col.Size}" TextAlignment="Right" />
+                                    <TextBlock Grid.Column="2" Classes="caps" Text="{l:T Ftp.Col.Mode}" TextAlignment="Right" />
+                                    <TextBlock Grid.Column="3" Classes="caps" Text="{l:T Ftp.Col.Modified}" TextAlignment="Right" />
+                                </Grid>
+                                <ListBox Grid.Row="1" Name="RemoteList" Classes="files" ItemsSource="{Binding RemoteRows}" SelectionMode="Multiple">
+                                    <ListBox.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="{l:T Ftp.Download}" Command="{Binding DownloadSelectedCommand}" InputGesture="Enter" />
+                                            <Separator />
+                                            <MenuItem Header="{l:T Ftp.Rename}" Command="{Binding RemoteRenameCommand}" InputGesture="F2" />
+                                            <MenuItem Header="{l:T Ftp.Delete}" Command="{Binding RemoteDeleteCommand}" InputGesture="Delete" />
+                                            <MenuItem Header="{l:T Ftp.NewFolder}" Command="{Binding RemoteNewFolderCommand}" />
+                                            <MenuItem Header="{l:T Ftp.CopyPath}" Command="{Binding RemoteCopyPathCommand}" />
+                                            <MenuItem Header="{l:T Ftp.Refresh}" Command="{Binding RemoteRefreshCommand}" InputGesture="F5" />
+                                        </ContextMenu>
+                                    </ListBox.ContextMenu>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:FtpFileRow">
+                                            <Grid ColumnDefinitions="Auto,*,84,92,118" Background="Transparent" ToolTip.Tip="{Binding FullPath}">
+                                                <PathIcon Classes="rowicon" Classes.folder="{Binding IsDirectory}" Data="{Binding Icon}" Margin="0,0,10,0" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="13" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="2" Classes="mono xs muted" Text="{Binding SizeText}" TextAlignment="Right" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="3" Classes="mono xs muted" Text="{Binding Kind}" TextAlignment="Right" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="4" Classes="mono xs muted" Text="{Binding ModifiedText}" TextAlignment="Right" VerticalAlignment="Center" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Grid>
+                            <ProgressBar Classes="thin ftp" IsIndeterminate="True" VerticalAlignment="Top" IsVisible="{Binding RemoteLoading}" />
+
+                            <!-- Kết nối gần đây (chưa kết nối) -->
+                            <ScrollViewer IsVisible="{Binding ShowRecent}" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                                <StackPanel Spacing="10" Margin="14,12">
+                                    <TextBlock Classes="caps" Text="{l:T Ftp.Recent}" />
+                                    <TextBlock Classes="xs muted" Text="{l:T Ftp.Recent.Hint}" TextWrapping="Wrap" />
+                                    <TextBlock Classes="small muted" Text="{l:T Ftp.Recent.Empty}" TextWrapping="Wrap" IsVisible="{Binding !HasRecent}" Margin="0,8,0,0" />
+                                    <ItemsControl ItemsSource="{Binding RecentHosts}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:FtpRecentHost">
+                                                <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                                                    <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="12,8"
+                                                            Command="{Binding $parent[UserControl].((vm:FtpViewModel)DataContext).ConnectRecentCommand}" CommandParameter="{Binding}">
+                                                        <Grid ColumnDefinitions="Auto,*">
+                                                            <PathIcon Data="{StaticResource IconServer}" Width="16" Height="16" Foreground="{DynamicResource FtpInkBrush}" Margin="0,0,10,0" />
+                                                            <StackPanel Grid.Column="1" Spacing="1">
+                                                                <TextBlock Classes="mono" FontWeight="SemiBold" Text="{Binding Title}" />
+                                                                <TextBlock Classes="xs muted" Text="{Binding Subtitle}" />
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </Button>
+                                                    <Button Grid.Column="1" Classes="icon" Margin="6,0,0,0" ToolTip.Tip="{l:T Ftp.Recent.Forget}"
+                                                            Command="{Binding $parent[UserControl].((vm:FtpViewModel)DataContext).ForgetHostCommand}" CommandParameter="{Binding}">
+                                                        <PathIcon Data="{StaticResource IconClose}" />
+                                                    </Button>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Panel>
+                    </Border>
+                    <TextBlock Grid.Row="4" Classes="xs muted" Text="{Binding RemoteStatus}" TextTrimming="CharacterEllipsis" Margin="2,6,0,0" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ============ HÀNG ĐỢI ============ -->
+        <Border Grid.Row="4" Classes="card" Padding="14,10">
+            <Grid RowDefinitions="Auto,8,Auto,8,Auto,6,Auto">
+                <Grid ColumnDefinitions="*,*,*,*">
+                    <StackPanel>
+                        <TextBlock Classes="caps" Text="{l:T Ftp.Stat.Speed}" />
+                        <TextBlock Classes="metric" Foreground="{DynamicResource FtpInkBrush}" Text="{Binding SpeedText}" />
+                        <TextBlock Classes="xs muted" Text="{Binding PeakText}" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Classes="caps" Text="{l:T Ftp.Stat.Remaining}" />
+                        <TextBlock Classes="metric" Text="{Binding RemainingText}" />
+                        <TextBlock Classes="xs muted" Text="{Binding FinishText}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Classes="caps" Text="{l:T Ftp.Stat.Files}" />
+                        <TextBlock Classes="metric" Text="{Binding FilesText}" />
+                        <TextBlock Classes="xs muted" Text="{Binding BytesText}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="3">
+                        <TextBlock Classes="caps" Text="{l:T Ftp.Stat.Threads}" />
+                        <TextBlock Classes="metric" Text="{Binding ThreadsText}" />
+                        <TextBlock Classes="xs muted" Text="{Binding ThreadsReason}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding ThreadsReason}" />
+                    </StackPanel>
+                </Grid>
+                <ProgressBar Grid.Row="2" Classes="ftp" Height="5" Minimum="0" Maximum="100" Value="{Binding TotalPercent}" />
+                <Grid Grid.Row="4" ColumnDefinitions="Auto,*,Auto">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <ToggleButton Classes="qtab" IsChecked="{Binding ShowPending, Mode=OneWay}" Command="{Binding SetQueueTabCommand}" CommandParameter="0" Content="{Binding PendingTabText}" />
+                        <ToggleButton Classes="qtab" IsChecked="{Binding ShowFailed, Mode=OneWay}" Command="{Binding SetQueueTabCommand}" CommandParameter="1" Content="{Binding FailedTabText}" />
+                        <ToggleButton Classes="qtab" IsChecked="{Binding ShowDone, Mode=OneWay}" Command="{Binding SetQueueTabCommand}" CommandParameter="2" Content="{Binding DoneTabText}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                        <Button Classes="primary pane" Command="{Binding StartTransfersCommand}">
+                            <StackPanel Classes="btn">
+                                <PathIcon Data="{StaticResource IconPlay}" />
+                                <TextBlock Text="{l:T Ftp.Run}" FontSize="12" />
+                            </StackPanel>
+                        </Button>
+                        <Button Classes="pane" Command="{Binding StopTransfersCommand}">
+                            <StackPanel Classes="btn">
+                                <PathIcon Data="{StaticResource IconStop}" />
+                                <TextBlock Text="{l:T Common.Stop}" FontSize="12" />
+                            </StackPanel>
+                        </Button>
+                        <Button Classes="ghost pane" Command="{Binding RetryFailedCommand}" Content="{l:T Ftp.RetryFailed}" FontSize="12" />
+                        <Button Classes="ghost pane" Command="{Binding ClearDoneCommand}" Content="{l:T Ftp.ClearDone}" FontSize="12" />
+                        <Button Classes="pane" ToolTip.Tip="{l:T Ftp.Options.Tip}">
+                            <StackPanel Classes="btn">
+                                <PathIcon Data="{StaticResource IconSettings}" />
+                                <TextBlock Text="{l:T Ftp.Options}" FontSize="12" />
+                            </StackPanel>
+                            <Button.Flyout>
+                                <Flyout Placement="TopEdgeAlignedRight">
+                                    <StackPanel Spacing="12" Width="330" Margin="4">
+                                        <TextBlock Classes="caps" Text="{l:T Ftp.Options.Title}" />
+                                        <Grid ColumnDefinitions="*,Auto" ToolTip.Tip="{l:T Ftp.Opt.Files.Tip}">
+                                            <TextBlock Classes="small" Text="{l:T Ftp.Opt.Files}" VerticalAlignment="Center" />
+                                            <NumericUpDown Grid.Column="1" Value="{Binding ParallelFiles, Mode=TwoWay}" Minimum="1" Maximum="8" Increment="1" FormatString="0" Width="110" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="*,Auto" ToolTip.Tip="{l:T Ftp.Opt.Segments.Tip}">
+                                            <TextBlock Classes="small" Text="{l:T Ftp.Opt.Segments}" VerticalAlignment="Center" />
+                                            <NumericUpDown Grid.Column="1" Value="{Binding ThreadsPerFile, Mode=TwoWay}" Minimum="1" Maximum="8" Increment="1" FormatString="0" Width="110" />
+                                        </Grid>
+                                        <CheckBox IsChecked="{Binding AutoThreads, Mode=TwoWay}" Content="{l:T Ftp.Opt.Auto.Long}" ToolTip.Tip="{l:T Ftp.Opt.Auto.Tip}" />
+                                        <TextBlock Classes="xs muted" Text="{l:T Ftp.Opt.Auto.Tip}" TextWrapping="Wrap" />
+                                        <StackPanel Spacing="4">
+                                            <TextBlock Classes="small" Text="{l:T Ftp.Opt.Exists.Tip}" />
+                                            <ComboBox ItemsSource="{Binding ExistsOptions}" SelectedItem="{Binding SelectedExistsOption, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:FtpExistsOption">
+                                                        <TextBlock Text="{Binding Label}" />
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Flyout>
+                            </Button.Flyout>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+                <Border Grid.Row="6" Classes="surface" Padding="2" Height="112">
+                    <Panel>
+                        <ListBox Classes="queue" ItemsSource="{Binding PendingRows}" Background="Transparent" IsVisible="{Binding ShowPending}" ItemTemplate="{StaticResource QueueRowTemplate}" />
+                        <ListBox Classes="queue" ItemsSource="{Binding FailedRows}" Background="Transparent" IsVisible="{Binding ShowFailed}" ItemTemplate="{StaticResource QueueRowTemplate}" />
+                        <ListBox Classes="queue" ItemsSource="{Binding DoneRows}" Background="Transparent" IsVisible="{Binding ShowDone}" ItemTemplate="{StaticResource QueueRowTemplate}" />
+                        <TextBlock Classes="small muted" Text="{l:T Ftp.Queue.Empty}" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Margin="20"
+                                   IsVisible="{Binding PendingRows.Count, Converter={x:Static conv:AppConverters.IsZero}}" />
+                        <TextBlock Classes="xs muted" Text="{Binding OverflowText}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="8,4" />
+                    </Panel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- ============ NHẬT KÝ FTP ============ -->
+        <Border Grid.Row="5" Classes="card" Padding="12,8" Margin="0,12,0,0" Height="150" IsVisible="{Binding ShowLog}">
+            <Grid RowDefinitions="Auto,*">
+                <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                    <TextBlock Classes="caps" Text="{l:T Ftp.Log.Title}" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Classes="ghost pane" Command="{Binding ClearLogCommand}" Content="{l:T Save.Log.Clear}" FontSize="12" />
+                </Grid>
+                <Border Grid.Row="1" Background="{DynamicResource LogBgBrush}" CornerRadius="8" Padding="6,4">
+                    <ListBox Name="FtpLogList" Classes="log" ItemsSource="{Binding LogLines}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <TextBlock Classes="logmsg" Text="{Binding}" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+    </ScrollViewer>
+
+</UserControl>

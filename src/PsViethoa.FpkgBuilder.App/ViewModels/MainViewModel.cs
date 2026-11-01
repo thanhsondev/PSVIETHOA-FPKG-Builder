@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PsViethoa.FpkgBuilder.App.Services;
+using PsViethoa.FpkgBuilder.App.ViewModels.Shell;
 using PsViethoa.FpkgBuilder.Core.ExFat;
 using PsViethoa.FpkgBuilder.Core.Localization;
 using PsViethoa.FpkgBuilder.Core.Models;
@@ -91,8 +92,10 @@ public sealed partial class MainViewModel : ObservableObject
         _tickTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(500), DispatcherPriority.Background, (_, _) => Tick());
         _sourceDebounce = new DispatcherTimer(TimeSpan.FromMilliseconds(450), DispatcherPriority.Background, OnSourceDebounceTick);
 
+        InitShell();
         BuildOptionLists();
         LoadSettings();
+        RestorePage();
         Loc.Current.LanguageChanged += (_, _) => OnLanguageChanged();
         _drainTimer.Start();
         RefreshValidation();
@@ -476,6 +479,8 @@ public sealed partial class MainViewModel : ObservableObject
         {
             Extraction.EnsureLoaded();
         }
+
+        SyncPageFromPs5Mode();
     }
 
     // ===================== Ngôn ngữ =====================
@@ -520,6 +525,7 @@ public sealed partial class MainViewModel : ObservableObject
             LanguageEn = Loc.Current.Language == Loc.English;
             OnPropertyChanged(nameof(PlayGoLanguagesSummary));
             OnPropertyChanged(nameof(CpuCoresHint));
+            RefreshShellTexts();
         }
         finally
         {
@@ -1455,7 +1461,10 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>Dòng trạng thái ở chân cửa sổ: theo chế độ đang dùng (tạo gói hoặc giải nén gói).</summary>
     public string FooterStatusText =>
-        IsQueueMode && !string.IsNullOrWhiteSpace(Queue.HeadlineText) ? Queue.HeadlineText
+        IsPs4Page ? Ps4.StatusText
+        : IsFtpPage ? Ftp.StatusText
+        : IsSavePage ? Save.StatusText
+        : IsQueueMode && !string.IsNullOrWhiteSpace(Queue.HeadlineText) ? Queue.HeadlineText
         : IsExtractMode && !string.IsNullOrWhiteSpace(Extraction.HeadlineText) ? Extraction.HeadlineText
         : StatusText;
 
@@ -1590,6 +1599,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnIsBuildingChanged(bool value)
     {
+        TrackBuildPage(value);
         OnPropertyChanged(nameof(CanEdit));
         OnPropertyChanged(nameof(CanCleanJunk));
         OnPropertyChanged(nameof(SdkCheckBoxEnabled));
@@ -1881,6 +1891,13 @@ public sealed partial class MainViewModel : ObservableObject
             SourcePath = s.SourcePath;
             OutputFolder = s.OutputFolder;
             AutoOutputFolder = s.OutputFolderAuto;
+            if (s.OutputAutoRevision < AppSettings.CurrentOutputAutoRevision)
+            {
+                // 3.0.0: thư mục xuất mặc định đi theo nguồn để gói của mỗi game nằm cạnh game đó, không lẫn sang thư mục cũ.
+                s.OutputFolderAuto = true;
+                AutoOutputFolder = true;
+                s.OutputAutoRevision = AppSettings.CurrentOutputAutoRevision;
+            }
             CheckUpdatesOnStartup = s.CheckUpdatesOnStartup;
             // Thư mục tạm người dùng tự chọn được giữ nguyên kể cả khi khác ổ với thư mục xuất (trước đây bị đặt lại mỗi lần mở
             // ứng dụng, nên chọn tạm ở ổ này, xuất ở ổ kia không bao giờ "ăn"). Chỉ giá trị gợi ý tự động mới đi theo thư mục xuất.
@@ -2087,6 +2104,7 @@ public sealed partial class MainViewModel : ObservableObject
         s.SourcePath = SourcePath.Trim();
         s.OutputFolder = OutputFolder.Trim();
         s.OutputFolderAuto = AutoOutputFolder;
+        s.OutputAutoRevision = AppSettings.CurrentOutputAutoRevision;
         s.CheckUpdatesOnStartup = CheckUpdatesOnStartup;
         s.TemporaryFolder = TemporaryFolder.Trim();
         s.ContentId = ContentId.Trim();
@@ -2259,10 +2277,32 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void SetSource(string path)
     {
+        // Chọn / thả một game khác: thư mục xuất quay về "theo nguồn" để gói của game mới không rơi vào thư mục đã chọn tay cho
+        // game trước. Chọn lại đúng nguồn đang mở thì giữ nguyên lựa chọn của người dùng.
+        var changed = !SamePath(path, SourcePath);
         SourcePath = path;
+        if (changed && !AutoOutputFolder)
+        {
+            AutoOutputFolder = true;
+        }
+
         ApplyOutputSuggestion(path);
         _sourceDebounce.Stop();
         ReloadMetadata();
+    }
+
+    private static bool SamePath(string a, string b)
+    {
+        try
+        {
+            var left = Path.TrimEndingDirectorySeparator(Path.GetFullPath(a.Trim()));
+            var right = Path.TrimEndingDirectorySeparator(Path.GetFullPath(b.Trim()));
+            return string.Equals(left, right, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return string.Equals(a.Trim(), b.Trim(), StringComparison.Ordinal);
+        }
     }
 
     /// <summary>
@@ -2886,7 +2926,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ===================== Tạo gói =====================
 
-    private bool CanBuild => !IsBuilding && !IsExtractMode;
+    // Chỉ ở trang Tạo gói / Tạo gói Update: F5 / Ctrl+B ở trang PS4, FTP, Save không được khởi động lượt tạo gói PS5.
+    private bool CanBuild => !IsBuilding && !IsExtractMode && (CurrentPage is AppPage.Ps5Build or AppPage.Ps5Update or AppPage.Ps5Queue);
 
     [RelayCommand(CanExecute = nameof(CanBuild))]
     private async Task BuildAsync()

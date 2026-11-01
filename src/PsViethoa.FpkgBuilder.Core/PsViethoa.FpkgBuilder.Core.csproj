@@ -13,12 +13,19 @@
       <HintPath>$(MSBuildThisFileDirectory)../../libs/LibProsperoPkg.dll</HintPath>
       <Private>true</Private>
     </Reference>
+    <!-- PS4 PKG: đọc/xả gói, PFS, param.sfo (LibOrbisPkg của Maxton, LGPL-3.0; mã nguồn kèm trong libs/LibOrbisPkg) -->
+    <Reference Include="LibOrbisPkg">
+      <HintPath>$(MSBuildThisFileDirectory)../../libs/LibOrbisPkg/LibOrbisPkg.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>
     <!-- Bảng chuỗi đa ngôn ngữ (vi/en) -->
     <EmbeddedResource Include="Localization/*.json" LogicalName="PsViethoa.FpkgBuilder.Core.Localization.%(Filename)%(Extension)" />
     <EmbeddedResource Include="Services/PythonCaseFold.txt" LogicalName="PsViethoa.FpkgBuilder.Core.Services.PythonCaseFold.txt" />
+    <!-- Payload PS5 cho trang Resign Save (Garlic SaveMgr của earthonion), chỉ gửi tới máy khi người dùng bấm "Nạp ELF" -->
+    <EmbeddedResource Include="$(MSBuildThisFileDirectory)../../libs/garlic-savemgr/garlic-savemgr.elf" LogicalName="PsViethoa.FpkgBuilder.Core.GarlicSaveMgr.elf" />
   </ItemGroup>
 
   <ItemGroup>

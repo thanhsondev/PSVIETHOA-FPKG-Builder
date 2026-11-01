@@ -4,223 +4,199 @@
 
 🇬🇧 English: [README.md](../README.md)
 
-**Tạo gói FPKG (FIH debug) cho PS5 từ thư mục ứng dụng, ảnh đĩa `.exfat` hoặc dự án GP5 — và giải nén các gói có sẵn — trên macOS và Windows.**
+**Một ứng dụng cho cả quy trình homebrew PlayStation: tạo gói FPKG cho PS5, đóng gói PKG cho PS4, truyền tệp tới PS5 qua FTP và resign save PS4 / PS5 — trên macOS, Windows và Linux.**
 
-Giao diện song ngữ (Tiếng Việt / English) · Preset tốc độ · PFS v2 / v3 · Ảnh `.exfat` / `.ffpfsc` · Dự án GP5 · Giải nén gói · Kiểm tra cập nhật · Kiểm tra dung lượng trống & tệp rác · Thời gian còn lại & thông lượng · Tự động kiểm tra gói · CLI
+<a href="https://github.com/thanhsondev/PSVIETHOA-FPKG-Builder/releases/latest"><img alt="Tải về" src="https://img.shields.io/badge/T%E1%BA%A3i%20v%E1%BB%81-Releases-22C55E?style=for-the-badge&logo=github" /></a>
 
-<a href="https://github.com/thanhsondev/PSVIETHOA-FPKG-Builder/releases/latest"><img alt="Download" src="https://img.shields.io/badge/Download-Releases-22C55E?style=for-the-badge&logo=github" /></a>
-
-![Platform](https://img.shields.io/badge/macOS-Apple%20Silicon%20%2B%20Intel-0F172A?logo=apple)
-![Platform](https://img.shields.io/badge/Windows-x64-0F172A?logo=windows)
+![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon%20%2B%20Intel-0F172A?logo=apple)
+![Windows](https://img.shields.io/badge/Windows-x64-0F172A?logo=windows)
+![Linux](https://img.shields.io/badge/Linux-x64%20%2B%20arm64-0F172A?logo=linux&logoColor=white)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
 ![UI](https://img.shields.io/badge/UI-Avalonia%2011-8B5CF6)
-![Languages](https://img.shields.io/badge/UI-VI%20%2F%20EN-22C55E)
-![Version](https://img.shields.io/github/v/release/thanhsondev/PSVIETHOA-FPKG-Builder?label=version&color=F59E0B)
-![Tests](https://img.shields.io/badge/tests-170%20passing-22C55E)
+![Ngôn ngữ](https://img.shields.io/badge/UI-VI%20%2F%20EN-22C55E)
+![Phiên bản](https://img.shields.io/github/v/release/thanhsondev/PSVIETHOA-FPKG-Builder?label=phi%C3%AAn%20b%E1%BA%A3n&color=F59E0B)
+![Kiểm thử](https://img.shields.io/badge/ki%E1%BB%83m%20th%E1%BB%AD-550%2B%20%C4%91%E1%BA%A1t-22C55E)
 
 </div>
 
 <p align="center">
-  <img src="screenshots/vi-source.png" width="32%" />
-  <img src="screenshots/vi-extract.png" width="32%" />
-  <img src="screenshots/vi-advanced.png" width="32%" />
+  <img src="screenshots/vi-ps5-done.png" width="49%" alt="Gói PS5 đã tạo và kiểm tra thành công" />
+  <img src="screenshots/vi-ps4-patch-done.png" width="49%" alt="Đóng update PS4 thành công" />
+</p>
+<p align="center">
+  <img src="screenshots/vi-ftp.png" width="49%" alt="Truyền tệp FTP PS5" />
+  <img src="screenshots/vi-save.png" width="49%" alt="Hàng đợi Resign Save" />
 </p>
 
 <div align="center">
 
-**Ghi công:** PSVIETHOA — Nguyễn Thanh Sơn & Ngô Phi Phương · **Main project:** [Drakmor](https://github.com/) (LibProsperoPkg)
+**Ghi công:** PSVIETHOA — Nguyễn Thanh Sơn & Ngô Phi Phương · **Main project:** Drakmor (LibProsperoPkg) · Công cụ PS4, FTP và resign save chuyển từ **PSVIETHOA STUDIO** (Ngô Phi Phương)
 
 </div>
 
 ---
 
-## Vì sao?
+## Ứng dụng có gì
 
-Công cụ tạo FPKG cho PS5 hiện có (`LibProsperoPkg.Gui`) là ứng dụng **WPF chỉ chạy trên Windows**. PSVIETHOA FPKG Builder được viết lại hoàn toàn bằng **C# / .NET 10 + Avalonia UI**, chạy native trên **macOS (Apple Silicon & Intel) và Windows**, bổ sung **giao diện song ngữ**, nhận **ảnh đĩa `.exfat`** làm nguồn, và chú trọng vào việc **chạy mượt, nhanh khi tạo gói từ những thư mục game rất lớn** (vài chục GB). Lõi tạo gói là **LibProsperoPkg** của **Drakmor** (bản dựng tháng 10/2026 phát hành cùng fpkg‑gui 0.6.12), nên gói tạo ra chính xác đến từng byte.
+| | Trang | Chức năng |
+|---|---|---|
+| <img src="https://img.shields.io/badge/PS5-FPKG-3B82F6" /> | **Tạo gói · Tạo gói Update · Giải nén gói · Hàng chờ** | FPKG PS5 (FIH debug) từ thư mục ứng dụng, ảnh `.exfat` / `.ffpfsc` / `.ffpkg` hoặc dự án `.gp5` — bằng **Publishing Tools 2.79 của Sony** (mặc định) hoặc engine **LibProsperoPkg** của Drakmor. Gói update delta so với base đã cài, xem / giải nén gói, hàng chờ đóng gói song song. *Giữ nguyên như 2.2.7.* |
+| <img src="https://img.shields.io/badge/PS4-PKG-6366F1" /> | **Xả PKG · Đóng Base · Đóng Update · Đóng DLC · Gộp Base + Update** | Gói fake PKG cho PS4 bằng **orbis-pub-cmd 3.87** (bản vá CyB1K) và **LibOrbisPkg**, theo đúng quy trình của PSVIETHOA STUDIO. Xem trước game ngay (icon, tên, Content ID, phiên bản), sửa `param.sfo`, xả từng tệp. |
+| <img src="https://img.shields.io/badge/PS5-FTP-14B8A6" /> | **FTP PS5** | Trình quản lý tệp hai khung cho máy chủ FTP trên PS5 (ftpsrv, etaHEN…): kéo tệp qua lại giữa hai khung hoặc từ Finder / Explorer, truyền nhiều luồng có tiếp tục khi bị ngắt, đổi tên / xoá / tạo thư mục, nhớ máy đã kết nối. |
+| <img src="https://img.shields.io/badge/SAVE-Resign-F59E0B" /> | **Resign Save** | Đổi chủ save PS4 / PS5 sang Account ID của bạn. Save đã giải mã được sửa ngay trên máy tính; save mã hoá đi qua **garlic-savemgr** trên PS5 (ứng dụng tự nạp). |
 
-> Kết quả là một **FPKG debug** (ảnh FIH, signed byte `0x00`) — chỉ cài được trên **PS5 đã bật chế độ debug**.
+> Gói PS5 là **FPKG debug** (ảnh FIH, byte chữ ký `0x00`), gói PS4 là **fake PKG** — chỉ cài được trên máy chạy homebrew tương ứng. Thư mục, ảnh đĩa và gói nguồn bạn chọn chỉ luôn được **đọc**.
 
-## Có gì mới trong 2.3
+## Có gì mới ở 3.0
 
-- **2.2.7 — engine fpkg-gui 0.6.12 (Drakmor), gói SDK Sony giống gói của engine ở những chỗ game chỉ dùng tới giữa chừng**:
-  - Tuỳ chọn mới **Khôi phục metadata online**: chỉ tải đúng `*_sc.pkg` từ máy chủ Sony rồi đưa vào gói các tệp `sce_sys` bản dump làm mất hay hỏng — `param.json` (giữ SDK, firmware, DRM của bản dump), icon, bảng PlayGo, trophy/UDS. Thư mục game chỉ được đọc.
-  - Giữ bố cục PlayGo nguồn khi chỉ có 1 chunk (cảm ơn @MangoScango).
-  - Sửa lỗi gói chơi một đoạn rồi lỗi và gói DLC không được nhận:
-    - mọi kịch bản PlayGo chứa đủ mọi chunk;
-    - giữ thư mục rỗng trong gói (tuỳ chọn mới, mặc định bật);
-    - tính lại digest của UCP `trophy2`/`uds` bị lệch ở cả hai đường. Trước đây ở chế độ SDK Sony, bản dump như vậy làm dừng cả lượt tạo gói ("ucp_digest is invalid"), còn engine 0.6.12 đóng nguyên tệp lệch;
-    - gói DLC tạo từ `dlc_emu.ini` dùng PLAINTEXT_NOAUTH như gói game thay vì Native;
-    - chunk PlayGo không có tệp nào nhận một tệp giữ chỗ 1 MiB (tuỳ chọn mới, mặc định bật). PS5 coi chunk rỗng là chưa cài, nên Control (PPSA34547) đứng ở thang máy với *Đang cài đặt trò chơi… 0GB/0*.
-- **2.2.7 — bộ giả lập DLC chạy được trong gói SDK Sony** (cảm ơn Thomas H đã báo lỗi [#9](https://github.com/thanhsondev/PSVIETHOA-FPKG-Builder/issues/9)): giữ các thư mục gắn DLC rỗng mà `dlc_emu.ini` trỏ tới (`/app0/addcontN`) — trước đây GP5 của bộ công cụ chỉ liệt kê tệp nên chúng mất và DLC không gắn được. Gói Update cũng giữ đủ; nhật ký xác nhận những gì của bộ giả lập DLC đã có trong gói; tệp phụ macOS `._dlc_emu.ini` không còn hiện như thể `dlc_emu.ini` bị xoá.
-- **2.2.6 — engine fpkg-gui 0.6.11 (Drakmor)**: giữ bố cục PlayGo của bản dump (cảm ơn @MangoScango) — tệp nằm đúng khối gốc, ngôn ngữ thoại gỡ được trong menu nội dung bổ sung; mặc định giữ `sce_sys/playgo*`. Tuỳ chọn mới *Bố cục PlayGo* để tạo khối theo ngôn ngữ tự chọn. Chọn số nhân CPU cho SDK Sony — mặc định tốc độ tối đa, hạ xuống được ngay cả khi đang build để làm việc khác. Engine sửa lỗi NAPS, build DLC, tệp bị bỏ nhầm vì bị coi là "passcode", tự tạo `about/right.sprx`.
-- **2.2.5 — bộ công cụ SDK Sony `sdk-fpkg279-fix12`**: tối đa 500 000 tệp mỗi gói, số chunk PlayGo 1–255, tự chọn `attributePub` theo kích thước gói, ảnh `sce_sys` chuyển từ DDS khi thiếu PNG hoặc PNG sai chế độ màu, sửa header SELF — tất cả giống từng byte script của bộ công cụ. Tuỳ chọn mới **Dọn tàn dư bản dump** (`_DUBLEX_`, `Engine/Saved` của Unreal, `<dự án>/Saved`) sửa lỗi treo cứng ở màn hình splash của Stellar Blade (PPSA13197 EUR + DLC) — cách dọn do cộng đồng chia sẻ.
-- **2.2.4 — gói base không dùng làm bản vá được thì báo sau 0,3 giây, không phải sau cả lượt build**: `img_create --ref_pkg_path` đọc `prev_suppl/common/etc/naps_meta_18.dat` trong gói base rồi giải mã bằng khoá riêng của Publishing Tools. Gói base tạo bằng **engine tích hợp** vẫn có đủ tệp đó nhưng mã hoá bằng khoá của engine tích hợp, nên Publishing Tools giải ra rác và báo `NAPS metadata missing` — chỉ sau khi đã nén xong toàn bộ gói (đo thực tế: 4 phút 1 giây với gói base 33 GB, hàng giờ với gói 100 GB). Nay gói base được nhận dạng qua vùng supplement ngay lúc chọn, kèm thông báo nói rõ engine nào đã tạo ra nó và cách xử lý. Phần này thay cho chẩn đoán của 2.2.3 — bản đó đổ lỗi cho công cụ đóng gói lại làm mất metadata, và đó là chẩn đoán sai.
-- **2.2.3 — game dùng `sce::Ampr` được cảnh báo trước khi bắt đầu nén.** Thông báo nói rõ `libSceAmpr` là thư viện PS5 thật, **không** phải dấu vết eboot bị vá (đã đối chiếu với bản sao lưu `eboot.bin.esbak` trong các bản dump thật: bản sao lưu luôn có trạng thái AMPR y hệt). Gói của các game này có thể treo ở màn hình splash, nên cảnh báo đến trước khi chờ chứ không phải sau.
-- **2.2.2 — tab Tạo gói Update**: chọn tệp `.pkg` base đang cài trên máy; nguồn là cả game bản mới hoặc chỉ là thư mục update gồm các tệp bạn sửa / thêm (Việt hoá, `eboot.bin`, `sce_sys`…). SDK Sony (`img_create --ref_pkg_path`, bộ fix8) ghi ra `UPDATE_….pkg` — gói delta nhỏ cài đè lên base — và/hoặc gói đầy đủ `….remastered.pkg`; tệp nguồn không có được lấy từ gói base hoặc từ thư mục game gốc. Phiên bản / tên ứng dụng lấy từ ô nhập; chọn nhầm game hay quên tăng phiên bản được báo ngay trước khi build.
-- **2.2.2 — hàng chờ tạo gói**: chế độ bên cạnh *Tạo gói* / *Giải nén gói*. Thả nhiều thư mục game, ảnh đĩa hoặc cả ổ dump vào hàng chờ, chọn số lượt chạy cùng lúc (1–4), bấm Bắt đầu; mỗi mục có tiến trình, ETA, kết quả và nhật ký riêng, có thể huỷ, chạy lại, sắp xếp hay bỏ; cả hàng chờ tạm dừng hoặc huỷ được. Các lượt song song không dẫm lên nhau: một WINEPREFIX / một lần cài Visual C++, thư mục tạm, gương và bí danh riêng, huỷ lượt này không làm dừng lượt kia.
+- **Giao diện mới.** Thanh bên thiết kế lại, gom theo máy: **PS5 FPKG**, **PS4 PKG**, **Kết nối PS5** và **Save Game**; mỗi trang có số thứ tự (01–11) và màu nhấn riêng, chế độ thu gọn chỉ còn biểu tượng. **Logo PSVH** và icon ứng dụng mới trên mọi nền tảng. Tiếng Việt là ngôn ngữ mặc định, tiếng Anh chỉ cách một cú bấm; mọi chuỗi — giao diện, nhật ký, trợ giúp CLI — đều có đủ hai thứ tiếng.
+- **PS4 PKG theo đúng cách của PSVIETHOA STUDIO.** Năm trang chuyển từ PSVIETHOA STUDIO 1.7.0 của Ngô Phi Phương — cùng một cơ chế, không phải bản sao kiểu PS5:
+  - **Xả PKG** mở PFS bằng passcode, hoặc khôi phục khoá FPKG khi không biết passcode (`GetEkpfs` của LibOrbisPkg, kể cả cờ tương thích KDF). Xả toàn bộ hoặc chỉ những tệp bạn tích vào thư mục `CUSAxxxxx-base / -update / -dlc` (`image0` + `Sc0`).
+  - **Đóng Base / Đóng Update / Đóng DLC** tạo dự án GP4 giống hệt Studio: cùng danh sách loại trừ (`playgo-*`, `license.*`, `origin-deltainfo`, `pubtoolinfo`…), `pfs_compression` cho mọi tệp, giữ bố cục PlayGo của nguồn, `param.sfo` dàn dựng riêng với CATEGORY / APP_VER / VERSION được sửa tại chỗ. Update được trỏ về Content ID của base và mượn `nptitle` / `npbind` của base; base khoá bằng passcode khác vẫn đóng được nhờ gói tham chiếu giả. Khoá entitlement của DLC được đọc từ license debug, `dlc_rebuild.json`, GP4 hoặc `license.dat`.
+  - **Gộp Base + Update** tạo một PKG base đã chứa sẵn update (tệp update được ưu tiên, keystone lấy từ base, APP_VER 01.00, VERSION lấy từ update).
+  - `orbis-pub-cmd` chạy trực tiếp trên Windows và qua Wine trên macOS / Linux. **Engine nhanh** (bản vá của Studio: bỏ kiểm tra toàn vẹn gói tham chiếu và quét delta base) là mặc định; **Chế độ đầy đủ** dùng bản gốc với digest đầy đủ.
+  - Khung bên phải xem trước game ngay khi chọn: icon, tên, Content ID, Title ID, phiên bản, loại và passcode có khớp không. Tab **param.sfo** sửa tên game (mọi ngôn ngữ cùng lúc), phiên bản và các trường khác trước khi đóng — bản sửa được lưu riêng, không đụng vào nguồn.
+- **FTP PS5.** Kết nối tới máy chủ FTP của PS5 (tài khoản và mật khẩu mặc định để trống; mật khẩu không bao giờ được lưu). Kéo tệp / thư mục từ khung này sang khung kia, từ Finder / Explorer vào khung PS5, hoặc thả lên một thư mục để truyền thẳng vào đó; kéo tệp PS5 thả lên thư mục PS5 khác để di chuyển. Hàng đợi tự chọn số tệp song song, chia tệp lớn thành nhiều kết nối (tải về theo đoạn bằng `REST`), ước tính thời gian còn lại bằng mô hình tốc độ bình phương tối thiểu, tự thử lại / tiếp tục khi rớt mạng. Có tab Đang chờ / Lỗi / Xong, nhật ký lệnh FTP, phím tắt (Enter, Delete, F2, F5, Backspace).
+- **Resign Save.** Thả thư mục, `.zip`, `param.sfo` hoặc ảnh save mã hoá; loại save được nhận theo nội dung. Save đã giải mã được resign ngay trên máy (`ACCOUNT_ID`, `TITLE_ID` tuỳ chọn, giữ bản `.bak` của `param.sfo` gốc; `.zip` được ghi ra bản `_resigned.zip` mới). Save PS4 / PS5 mã hoá được giải mã, resign và chép vào máy qua **garlic-savemgr** (earthonion): **Nạp ELF** gửi bản kèm theo tới ELF loader (cổng 9021), **Quét user** liệt kê tài khoản trên máy, **Bốc save từ user khác** chép save giữa các user trên máy, và save sắp bị ghi đè luôn được tải bản sao lưu về trước.
+- **CLI:** thêm `ps4-info`, `ps4-list`, `ps4-extract`, `ps4-base`, `ps4-patch`, `ps4-dlc`, `ps4-merge`. `fpkg-cli info` báo bộ công cụ PS4 có chạy được không (Wine 32-bit / VC++ x86).
+- **PS5 FPKG giữ đúng cơ chế 2.2.7 từng byte** (bộ công cụ SDK Sony `sdk279-plaintext-direct-v3`, LibProsperoPkg của fpkg-gui 0.6.12) — cùng một game vẫn ra đúng gói 1.706.966.020 byte như 2.2.7. Riêng trang thì dễ dùng hơn: *Tự đặt theo nguồn* luôn bật, chọn game khác là thư mục xuất tự quay về theo game đó nên gói không bao giờ rơi vào thư mục của game trước; cột phải cuộn được nên nhật ký luôn đọc được (cao tối thiểu 280 px) khi khung kết quả đang hiện; các nút ghi rõ chọn gì (*Thư mục game…*, *Chọn PKG…*, *Chọn thư mục…*).
 
-## Có gì mới trong 2.2
-
-- **2.2.0 — gói do Publishing Tools của Sony tạo, chạy trên cả macOS và Windows**: cách tạo gói mặc định mới dùng bộ công cụ `sdk-fpkg279-fixdss3` kèm sẵn, qua ba bước (bộ công cụ luôn đặt DRM `standard`, bỏ license giả và module giả lập AMPR/PlayGo, khôi phục ảnh màn hình chờ `pic*.png` thiếu từ bản `.dds` bằng `prospero-dds2png.exe` kèm theo). Đầu tiên tạo dự án GP5 phẳng, sau đó chạy `prospero-pub-cmd img_create --oformat nwonly`, cuối cùng chuyển kết quả sang gói `PLAINTEXT_NOAUTH`; bước chuyển là bản C# của script Python trong bộ công cụ, ra kết quả giống từng byte. Trên Windows SDK chạy trực tiếp (Visual C++ x64 được cài tự động). Trên macOS SDK chạy qua Wine đã cắt gọn kèm theo (Apple Silicon cần Rosetta 2). Ô tích **SDK Sony** dưới thanh tiến trình (mặc định bật, CLI `--no-sony-sdk`) cho phép quay về engine tích hợp; khi bật, các tuỳ chọn chỉ của engine (preset, Kraken, PFS, PlayGo, SDK…) mờ đi và loại gói cố định là Ứng dụng + PLAINTEXT_NOAUTH, đúng như bộ gốc. GP5 do app tạo giống từng byte với script của bộ gốc (cùng thứ tự tệp — thứ tự này quyết định bố cục gói), tệp `.gp5`, scenario và thư mục `-build-logs` được giữ cạnh gói như bộ gốc, và không cần thư mục gương. Nguồn cần có `sce_sys/keystone` đúng 96 byte. Bước SDK có thanh tiến trình riêng, cập nhật trực tiếp.
-
-## Có gì mới trong 2.1.x
-
-- **2.1.9 — engine từ fpkg‑gui 0.6.8, kiểm tra gói, mẫu DLC, sửa lỗi khác ổ**: engine tự tạo lại mọi bảng PlayGo (1–255 khối, mặc định 100; giữ `playgo-chunk.dat` thì chỉ lấy số khối, tệp PlayGo hỏng bị bỏ thay vì làm dừng lượt tạo gói), ép DRM `"standard"` trong bộ nhớ, và công cụ hạ `requiredSystemSoftwareVersion` về SDK của game (`--keep-required-fw`). Mỗi gói tạo xong được engine kiểm tra: chữ ký CNT, toàn bộ bố cục PlayGo, NAPS, inode. Tuỳ chọn **kiểm tra đầy đủ** giải nén thử mọi tệp (`--full-verify`). Chế độ Giải nén gói có thêm nút **Kiểm tra nhanh / Kiểm tra đầy đủ** (`fpkg-cli verify --full`) và **Xuất mẫu DLC** cho gói DLC có dữ liệu (`sce_sys` + dự án `.gp5`, `fpkg-cli pkg-dlc-template`). Thư mục tạm khác ổ với nguồn hoặc thư mục xuất nay chạy được: gương chuyển sang thư mục tạm của hệ thống khi ổ không tạo được liên kết (exFAT/FAT32 trên Windows), ảnh giải nén được sửa tại chỗ, thư mục tạm đã chọn không còn bị đặt lại khi mở app, và ổ FAT32 được cảnh báo giới hạn 4 GB. Trên macOS, gói tạo qua ổ exFAT/FAT không còn lẫn tệp `._*`, và thư mục tạm có tên tiếng Việt lại xoá được.
-- **2.1.8 — nguồn `.ffpkg` và macOS hết phải giải nén**: tệp `.ffpkg` là ảnh hệ tệp **UFS2** của FreeBSD mà thư mục gốc chính là thư mục ứng dụng; cả macOS lẫn Windows đều không gắn được UFS nên công cụ tự phân giải (siêu khối, nhóm trụ, inode, khối gián tiếp) và hỗ trợ ở mọi chỗ như `.exfat` — nút **Tệp .ffpkg** mới, kéo thả, `fpkg-cli --source x.ffpkg`. Trên macOS, ảnh `.exfat` nay được **gắn và đọc tại chỗ** ngay cả khi phải bỏ tệp hay sửa `param.json`, vì thư mục gương dựng thẳng trên ổ chỉ đọc thay vì giải nén cả ảnh. Hàng nút chọn nguồn tự xuống dòng khi cửa sổ hẹp.
-- **2.1.7 — sửa lỗi "application error" khi mở game ngay từ khâu đóng gói**: gói FPKG là một ảnh liền khối còn PlayGo được thiết kế cho kiểu cài theo khối, nên dữ liệu PlayGo của bản dump làm PS5 đi tìm những khối không tồn tại (còn game đứng ở splash mà không báo lỗi là bệnh khác, nằm ở kernel). Nay mặc định áp dụng đủ cách sửa cho **thư mục, ảnh `.exfat`, `.ffpfsc` và dự án GP5**: bỏ các tệp `sce_sys/playgo*` (thư viện tự tạo bộ mới khớp với ảnh), xoá `versionFileUri` và đặt `attribute3` về 0 — ba công tắc trong tuỳ chọn nâng cao, CLI `--keep-playgo` / `--keep-version-uri` / `--keep-attribute3`. Công cụ không bao giờ đụng vào `fakelib/libScePlayGo.sprx` (chính engine tự loại module này, như `libSceAmpr.sprx`). Tệp `ampr_emu.index` còn sót cũng được bỏ (`--keep-ampr`). Bản thân engine luôn xoá `fakelib/libScePlayGo.sprx` và `fakelib/libSceAmpr.sprx` và không có tuỳ chọn nào giữ lại; công cụ này không bao giờ đụng vào hai tệp đó. Bộ `dlc_emu` của Drakmor vẫn nằm trong gói, và khi bản dump có nó thì thẻ thông tin nguồn mời **tạo một gói DLC riêng cho từng mục trong `dlc_emu.ini`** (`fpkg-cli dlc-from-ini`), mỗi gói mang giấy phép RIF riêng. Hai ô tích "DRM standard" và "Bỏ playgo* cũ" nằm cạnh nút Tạo gói, kèm nút **Khôi phục mặc định**. Khi thư mục xuất đã có gói cùng tên, ứng dụng hỏi ghi đè, giữ bản cũ (`… (1).pkg`) hay huỷ. Thư mục nguồn, ảnh và tệp `.gp5` chỉ được ĐỌC: lúc tạo gói, công cụ dựng một thư mục gương của bản dump trong thư mục tạm bằng các liên kết, bỏ tệp cần bỏ và ghi `param.json` đã sửa ngay trong gương, nên không có gì trong thư mục của bạn bị mở ra để ghi.
-- **2.1.6 — Windows cũng gắn được ảnh**: ổ ảo chỉ đọc (Dokan) do chính bộ đọc exFAT của ứng dụng phục vụ, phơi thư mục ứng dụng trong ảnh `.exfat` **hoặc `.ffpfsc`** để engine đọc thẳng từ ảnh như `hdiutil` trên macOS — không còn giải nén 149 GB, không cần thêm dung lượng; tệp rác tự ẩn và DRM được ép ngay trên ổ ảo. **Bộ cài Windows** (`Setup.exe`) cài ứng dụng và driver Dokan kèm theo trong một lần; bản zip portable tự bật driver ngay lần mở đầu (chỉ thấy hộp UAC) — cách nào cũng không phải tải gì thêm. Ô **Thành phần & plugin** mới trong tuỳ chọn nâng cao kiểm tra thật engine, khoá, Kraken, Oodle gốc, gắn ảnh và chống ngủ máy có hoạt động không. Không có driver thì vẫn giải nén như cũ.
-- **2.1.5 — engine từ fpkg‑gui 0.6.5 + sửa DRM**: `applicationDrmType` được ép thành `"standard"` trong lúc tạo gói (gói tạo với DRM `"free"` hiện biểu tượng khoá trên PS5 và không chạy được); `param.json` nguồn được khôi phục nguyên vẹn sau đó, ảnh chỉ đọc sẽ được giải nén thay vì gắn khi cần (công tắc trong tuỳ chọn nâng cao, CLI `--keep-drm`). **Chống đầy đĩa**: khi ổ tạm hoặc ổ xuất hết chỗ, quá trình tạo gói tạm dừng để bạn giải phóng dung lượng rồi thử lại.
-- **2.1.4 — nguồn `.ffpfsc`**: container PFS PS5 chứa bản dump exFAT nén PFSC mở như ảnh `.exfat` (giải nén trực tiếp, không tạo tệp trung gian; nút **Tệp .ffpfsc** riêng, kéo thả, `fpkg-cli inspect / build --source x.ffpfsc`). **Kiểm tra cập nhật**: huy hiệu xanh ở header khi GitHub có bản mới (kiểm tra mỗi lần mở, nút ↻, `fpkg-cli check-update`).
-- **2.1.1 – 2.1.3**: trích xuất theo bố cục Sony (`sce_sys` tạo gói lại được), thư mục xuất tự đặt, preset "Tiêu chuẩn", huy hiệu phiên bản, xoá lịch sử, lưới an toàn giao diện.
-
-- **Engine LibProsperoPkg được cập nhật** — đọc / nén / ghi gối đầu nhau với ít bản sao trung gian hơn, khử trùng lặp khối và bộ đệm nén dùng trong lượt tạo gói, Kraken tích hợp được cải thiện (nhất là mức 8–9), tự chuyển sang Kraken tích hợp khi không có Oodle, sửa lỗi xử lý tệp và hủy giữa chừng, và gói đã có được giữ nguyên nếu lần tạo lại thất bại.
-- **Chọn PFS v2 / v3**, **kích thước khối nén Kraken** tuỳ chỉnh (128–256 KiB), **mẫu shuffle trước nén** và **tự phân tích chọn shuffle tốt nhất** (tối ưu texture của PFS v3 bằng cách chọn hoán vị — rất chậm, chỉ phát huy đầy đủ ở Kraken mức 9), **tối ưu bố cục vật lý** tuỳ chọn. Gói PFS v3 cần **firmware PS5 7.00 trở lên**; ứng dụng sẽ cảnh báo về điều này.
-- **Preset được ánh xạ lại theo bộ nén mới**: mặc định giờ là **Tiêu chuẩn** = Kraken 4, chính là bộ nén mà engine 2.0.0 dùng cho "Kraken 7" (cùng kích thước, cùng tốc độ, cộng thêm lợi ích từ khử trùng lặp khối / tối ưu bố cục); **Nhỏ nhất** = Kraken 7 *Optimal* là chế độ nén sâu mới (nhỏ hơn ~3 %, chậm gấp 5–6 lần); preset **Tối đa** mới (Kraken 9 + PFS v3 + phân tích shuffle).
-- Hiển thị **thông lượng** thực tế trong bảng tạo gói, tiến trình mượt hơn với các tệp nhiều GB, ước tính thời gian còn lại được tinh chỉnh lại.
-- CLI: `--pfs`, `--block-size`, `--shuffle`, `--shuffle-analysis`, `--shuffle-prediction-level`, `--skip-pfs-input-check`, `--no-layout-optimization`, `--source-mode`, `--project`, `--preset sony|standard`; lệnh mới `pkg-info`, `pkg-list`, `pkg-extract`.
-- **Giải nén gói có sẵn** — chế độ **Giải nén gói** mới (thanh Tạo gói | Giải nén gói ngay dưới header): mở một tệp `.pkg` (hoặc kéo–thả vào cửa sổ) để xem header FIH / CNT, mọi trường `param.json`, icon và toàn bộ danh sách tệp của ảnh trong PPR‑PFS; tích chọn tệp hoặc thư mục rồi giải nén chúng (hoặc cả gói), hay xuất các entry `sce_sys`. Gói PLAINTEXT_NOAUTH được đọc thẳng từ `.pkg` theo từng khối 4 MiB mà không dựng lại ảnh; gói Native (AES‑XTS) được giải mã ra thư mục tạm trước. CLI: `pkg-info`, `pkg-list`, `pkg-extract`.
-- **Nguồn là dự án GP5** (`.gp5`, giống bộ chọn Folder | GP5 của fpkg‑gui): chọn dự án Publishing Tools / fpkg‑gui ở bước 1 hoặc kéo–thả vào cửa sổ — bố cục Normal và Flat, mặt nạ loại trừ và đường dẫn tương đối đều được tôn trọng, passcode lấy từ dự án; `fpkg-cli inspect` / `build --source x.gp5`; tuỳ chọn nâng cao **Cách đọc nguồn** cho phép chọn giữa *Tự động* (dùng tệp `.gp5` ở cấp trên cùng) và *Chỉ thư mục*.
-
-Xem [CHANGELOG.md](../CHANGELOG.md) để biết chi tiết.
-
-## Tính năng
-
-| Nhóm | Chi tiết |
-|---|---|
-| **Nguồn** | Thư mục ứng dụng (chứa `sce_sys`) **hoặc ảnh đĩa exFAT (`.exfat`)** — volume thuần, MBR hay GPT — **hoặc container `.ffpfsc`** (ảnh PFS PS5 chứa bản dump exFAT nén PFSC; giải nén trực tiếp qua thư viện, không tạo tệp trung gian). Bộ đọc exFAT thuần .NET đọc `param.json` / icon / dung lượng trực tiếp từ ảnh. Trên macOS, ảnh được **gắn ở chế độ chỉ đọc bằng `hdiutil` (không sao chép)**; trên Windows, ảnh được **gắn thành ổ ảo chỉ đọc (Dokan, kèm sẵn — cài một cú bấm)** do bộ đọc exFAT của ứng dụng phục vụ, dùng được cả `.ffpfsc`, tự ẩn tệp rác và ép DRM ngay trên ổ. Không có driver, hoặc trên macOS khi ảnh có tệp rác, ảnh được **giải nén ra thư mục tạm** (bỏ qua `.DS_Store`, `._*`, `Thumbs.db`…) rồi tự dọn sau khi xong. **Hoặc dự án GP5 (`.gp5`)** của Publishing Tools / fpkg‑gui — bố cục Normal (`rootdir` + mặt nạ loại trừ) hoặc Flat (liệt kê từng tệp); đường dẫn tương đối tính từ thư mục chứa dự án, thẻ thông tin hiển thị bố cục và thư mục gốc của dự án, và chỉ những tệp dự án liệt kê mới được đếm. |
-| **Ngôn ngữ** | Tiếng Việt / English, chuyển ngay trên header, lựa chọn được ghi nhớ. CLI nhận `--lang vi\|en` hoặc biến môi trường `FPKG_LANG`. |
-| **Tạo gói** | Ảnh FIH debug, PLAINTEXT_NOAUTH hoặc Native AES‑XTS, APP / Homebrew / DLC, PlayGo tự động (1–64 khối), ghi đè SDK (1–11), passcode, bản dựng xác định (deterministic). |
-| **Nén** | **Bộ nén Kraken tích hợp** (thuần .NET, chạy trên mọi hệ điều hành, đa luồng) hoặc **Oodle gốc** qua `libScePubTools.dll` (Windows, tự chuyển về Kraken tích hợp khi không có). **PFS v2** (mặc định, tương thích rộng nhất) hoặc **PFS v3** (mẫu shuffle trước nén, tự phân tích shuffle cho từng khối), kích thước khối Kraken 128–256 KiB, tối ưu bố cục vật lý. |
-| **Tốc độ** | Preset **Nhanh · Tiêu chuẩn · Nhỏ nhất · Tối đa**. **Tiêu chuẩn** (mặc định) = Kraken mức 4, chính là bộ nén mà engine 2.0.0 dùng cho "Kraken 7": cùng kích thước, cùng tốc độ. **Nhỏ nhất** = Kraken 7 *Optimal* — chế độ nén sâu mới, nhỏ hơn khoảng 3 % nhưng chậm gấp 5–6 lần. **Tối đa** = Kraken 9 + PFS v3 + phân tích shuffle. Tuỳ chỉnh mức nén `-4…9`, số luồng, và chế độ không nén để test nhanh. |
-| **Trước khi tạo gói** | Đọc metadata + icon, quét dung lượng song song, **kiểm tra dung lượng trống** trên ổ tạm / ổ xuất, và **phát hiện & dọn tệp rác hệ điều hành**. |
-| **Trong khi tạo gói** | Thanh tiến trình tổng thể theo trọng số giai đoạn kèm **thời gian còn lại (ETA)** và **thông lượng** thực tế, tiến trình tính theo byte ngay bên trong các tệp nhiều GB, nhật ký ảo hoá 20.000 dòng, hủy an toàn, và **chống máy ngủ** (`caffeinate` / `SetThreadExecutionState`). |
-| **Sau khi tạo gói** | Kiểm tra cấu trúc FIH / PFS ngoài, SHA‑256 tuỳ chọn, bảng kết quả, sao chép / lưu nhật ký, mở thư mục kết quả. |
-| **Giải nén gói** | Chế độ **Giải nén gói**: header FIH / CNT, bản đồ vùng, mọi trường `param.json`, icon và danh sách tệp của một FPKG debug; lọc và tích chọn tệp / thư mục, giải nén phần đã chọn hoặc cả gói với tiến trình và nút hủy, xuất `sce_sys` (param.json, icon0.png, playgo…) và các mục SI, SHA‑256 tuỳ chọn. Gói plaintext được đọc tại chỗ (bộ đệm khối 4 MiB, không tạo ảnh tạm); gói Native được giải mã ra thư mục tạm trước; gói retail chỉ xem được thông tin. |
-| **CLI** | `fpkg-cli build / inspect / verify / clean-junk / info / pkg-info / pkg-list / pkg-extract` cho tạo gói hàng loạt, script và CI. |
+Các bản trước: xem [CHANGELOG.md](../CHANGELOG.md) — dòng 2.2 mang đến đóng gói bằng Publishing Tools của Sony, gói update, hàng chờ, khôi phục metadata online và các bản sửa PlayGo / bộ giả lập DLC.
 
 ## Tải về & chạy
 
-Tải gói nén cho nền tảng của bạn từ trang [**Releases**](https://github.com/thanhsondev/PSVIETHOA-FPKG-Builder/releases/latest). Mỗi bản dựng đều **self‑contained** — không cần cài .NET.
+Tải bản cho máy của bạn ở trang [**Releases**](https://github.com/thanhsondev/PSVIETHOA-FPKG-Builder/releases/latest). Mọi bản đều **tự chứa** (không cần cài .NET) và có kèm công cụ dòng lệnh `fpkg-cli`.
 
-- **macOS** — giải nén, lần đầu chạy hãy chuột phải `PSVIETHOA FPKG Builder.app` → chọn **Open** (Mở) (ứng dụng được ký ad‑hoc).
-- **Windows** — giải nén và chạy `PSVIETHOA FPKG Builder.exe`. SmartScreen có thể cảnh báo → chọn **Run anyway**.
-- **Linux** (x64 / arm64) — giải nén `.tar.gz`, chạy `app/PsViethoa.FpkgBuilder.App` (`./install-desktop-entry.sh` để thêm vào menu). Chế độ Sony SDK cần Wine của distro (`sudo apt install wine64` / `sudo dnf install wine` / `sudo pacman -S wine`); không có Wine thì dùng engine tích hợp. Ảnh đĩa được giải nén bằng bộ đọc .NET.
+| Nền tảng | Tệp | Ghi chú |
+|---|---|---|
+| **macOS** Apple Silicon / Intel | `…-macOS-AppleSilicon.zip` / `…-macOS-Intel.zip` | Lần đầu chuột phải vào ứng dụng → **Open** (ký ad-hoc). Đã kèm Wine (có hỗ trợ 32-bit cho PS4). Apple Silicon cần Rosetta 2 — ứng dụng đề nghị cài giúp. |
+| **Windows** x64 | `…-Windows-x64-Setup.exe` hoặc `.zip` | Bộ cài kèm Dokan (gắn ảnh không sao chép) và runtime Visual C++: x64 cho SDK Sony, **x86 2008 SP1 + 2015–2022 cho PS4**. Bản zip portable tự cài phần còn thiếu ở lần dùng đầu (hỏi UAC). |
+| **Linux** x64 / arm64 | `…-Linux-x64.tar.gz` / `…-Linux-arm64.tar.gz` | Chạy `app/PsViethoa.FpkgBuilder.App` (`./install-desktop-entry.sh` thêm vào menu). SDK Sony và PS4 dùng Wine của distro — riêng PS4 cần Wine có hỗ trợ 32-bit (`wine32` / `wine:i386`). |
 
-Mỗi gói nén đều kèm sẵn công cụ dòng lệnh `fpkg-cli`.
+## Dùng nhanh
 
-## Bắt đầu nhanh
+**PS5 FPKG** — *Tạo gói*: chọn thư mục ứng dụng (hoặc `.exfat` / `.ffpfsc` / `.ffpkg` / `.gp5`), kiểm tra Content ID và phiên bản đọc được, bấm **Tạo gói PKG** (`Ctrl/⌘+B`). Gói được kiểm tra xong mới báo hoàn tất. *Tạo gói Update* làm tương tự so với gói base đã cài trên máy.
 
-1. Chuẩn bị thư mục ứng dụng PS5 đã giải nén (có thư mục `sce_sys` và `eboot.bin`), **hoặc** trỏ tới một ảnh đĩa `.exfat`.
-2. Ở **bước 1**, nhấn **Chọn…** / **Ảnh .exfat**, hoặc kéo–thả thư mục / ảnh vào cửa sổ. Content ID, tên, phiên bản, dung lượng và tệp rác được nhận diện tự động.
-3. Chọn preset tốc độ ở **bước 3** (Tiêu chuẩn là mặc định và tương đương "Kraken 7" của engine cũ; Nhỏ nhất = mức 7 Optimal, chậm) hoặc mở phần tuỳ chọn nâng cao.
-4. Nhấn **Tạo gói PKG** (`Ctrl/⌘+B` hoặc `F5`). Theo dõi tiến trình, thời gian còn lại và nhật ký; khi xong, cấu trúc gói được kiểm tra tự động.
+**PS4 PKG** — chọn trang (Xả / Base / Update / DLC / Gộp), thả `.pkg` hoặc thư mục game nguồn (cùng base với Update / Gộp). Khung xem trước tự điền, thư mục xuất được đặt cạnh nguồn, bấm nút xanh (*Bắt đầu xả PKG*, *Đóng PKG base*…). Cần đổi phiên bản hay tên game thì sửa ở tab *param.sfo* trước.
+
+**FTP PS5** — bật máy chủ FTP trên PS5 (ftpsrv dùng cổng 2121; máy chủ khác thì nhập đúng cổng của nó), nhập IP, **Kết nối**, rồi kéo thả tệp.
+
+**Resign Save** — nhập Account ID 16 ký tự (thêm IP PS5 + User ID nếu cần chép save mã hoá vào máy), thả save vào, **Resign tất cả**.
 
 ## Dòng lệnh
 
 ```bash
-fpkg-cli info --lang en
-fpkg-cli inspect "/path/PPSA12345"                 # folder
-fpkg-cli inspect "/path/PPSA12345.exfat"           # exFAT image — read directly, no mount
-fpkg-cli inspect "/path/PPSA12345.ffpfsc"          # .ffpfsc container — inner exFAT decompressed on the fly
-fpkg-cli check-update                              # newer release on GitHub?
-fpkg-cli build --source "/path/PPSA12345.exfat" --output "/path/out"           # default: Sony standard (level 4), exfat auto
-fpkg-cli build --source "/path/PPSA12345.exfat" --output "/path/out" --exfat extract
-fpkg-cli build --source "/path/PPSA12345" --output "/path/out" --preset fast --clean-junk
-fpkg-cli build --source "/path/PPSA12345" --output "/path/out" --preset maximum       # Kraken 9 + PFS v3 + shuffle analysis
-fpkg-cli build --source "/path/PPSA12345" --output "/path/out" --pfs v3 --shuffle PredictForBc3 --block-size 128
-fpkg-cli verify "/path/out/UP9000-PPSA12345_00-XXXX-A0100-V0100.pkg" --sha256
-fpkg-cli pkg-info "/path/out/UP9000-PPSA12345_00-XXXX-A0100-V0100.pkg"                # General + param.json
-fpkg-cli pkg-list "/path/out/UP9000-PPSA12345_00-XXXX-A0100-V0100.pkg" --include "*.sprx"
-fpkg-cli pkg-extract "/path/out/UP9000-PPSA12345_00-XXXX-A0100-V0100.pkg" --output "/path/unpacked" --include "sce_sys/**" --include "eboot.bin" --cnt
+fpkg-cli info                                        # thành phần nào chạy được trên máy này (SDK, Wine, công cụ PS4, khoá…)
+
+# PS5 FPKG
+fpkg-cli build --source "/games/PPSA12345-app" --output "/out"
+fpkg-cli build --source "/games/PPSA12345-update" --sdk-reference "/out/PPSA12345-base.pkg" --output "/out"
+fpkg-cli pkg-extract "/out/UP9000-PPSA12345_00-XXXX-A0100-V0100.pkg" --output "/unpacked" --include "sce_sys/**"
+
+# PS4 PKG
+fpkg-cli ps4-info  "/games/CUSA12345.pkg"
+fpkg-cli ps4-extract "/games/CUSA12345.pkg" --output "/unpacked"
+fpkg-cli ps4-base  "/unpacked/CUSA12345-base" --output "/out"
+fpkg-cli ps4-patch "/unpacked/CUSA12345-update" --base "/games/CUSA12345.pkg" --output "/out" --version 01.51
+fpkg-cli ps4-merge "/games/CUSA12345-patch.pkg" --base "/games/CUSA12345.pkg" --output "/out"
+fpkg-cli ps4-dlc   "/unpacked/CUSA12345-dlc" --output "/out"
 ```
 
-Mã thoát: `0` thành công · `1` tham số sai · `2` tạo gói thất bại · `3` bị hủy.
+`fpkg-cli --help` liệt kê mọi tuỳ chọn (`--verify` dùng engine PS4 đầy đủ, `--gp4-only`, `--only <đường dẫn>`, `--sfo <tệp>`, `--passcode`, `--base-passcode`, `--entitlement-key`, …). Mã thoát: `0` thành công · `1` tham số sai · `2` thất bại · `3` bị hủy. Đặt `FPKG_LANG=vi|en` để chọn ngôn ngữ.
 
-## Ảnh đĩa (.exfat / .ffpfsc)
+## Đã test với game thật
 
-- Nhận diện tự động theo chữ ký `EXFAT   ` ở đầu volume, hoặc bên trong phân vùng MBR/GPT; các offset thông dụng (sector 63, 2048…) cũng được dò.
-- Thư mục ứng dụng được tìm tới độ sâu 3 cấp bên trong ảnh (ưu tiên gốc, ví dụ các bản dump có `sce_sys` ngay tại gốc).
-- **macOS:** `hdiutil attach -readonly -imagekey diskimage-class=CRawDiskImage` → tạo gói thẳng từ điểm gắn, tháo ảnh khi xong. Chế độ *Tự động* chỉ gắn ảnh khi ảnh không có tệp rác; nếu có tệp rác thì giải nén để có thể bỏ qua chúng.
-- **Windows:** bộ đọc exFAT của ứng dụng được phơi thành ổ ảo chỉ đọc qua driver [Dokan](https://github.com/dokan-dev/dokany) (`Z:\<tên ảnh>\…`), engine đọc thẳng từ ảnh — `.exfat` lẫn `.ffpfsc`, tệp rác được ẩn, DRM trong `param.json` được ép ngay trên ổ, không ghi gì vào ảnh. Bộ cài `Dokan_x64.msi` nguyên bản (2.3.1.1000, LGPL/MIT) nằm trong `app/redist/`: **Setup.exe** cài nó cùng ứng dụng, bản zip portable tự cài ngay lần mở đầu (chỉ thấy hộp UAC của Windows; từ chối thì còn nút **Bật gắn ảnh trực tiếp** trong tuỳ chọn nâng cao và `fpkg-cli install-dokan`). Không có driver thì ảnh được giải nén ra thư mục tạm như trước.
-- **Windows / Linux:** giải nén bằng bộ đọc thuần .NET (3 luồng, bộ đệm 4 MB) ra `<temp>/exfat-<name>-<hash>/`, cần thêm dung lượng trống ≈ lượng dữ liệu trong ảnh; xoá sau khi tạo gói (kể cả khi hủy).
-- **Đã đối chứng:** cùng một ảnh tạo gói theo hai cách — gắn bằng hdiutil và giải nén bằng bộ đọc thuần .NET — cho ra gói **giống hệt nhau từng byte** (cùng SHA‑256), tức bộ đọc khớp chính xác với driver của macOS.
+Mọi ảnh dưới đây là lần chạy thật của bản này trên Mac Apple Silicon (macOS 27, Wine kèm theo), với chính bản dump của chủ dự án.
 
-- **Container `.ffpfsc`:** ảnh PFS PS5 (superblock v2, khối 64 KiB) chứa đúng một tệp nén PFSC là bản dump exFAT của game. Ứng dụng nhận diện qua header (bất kỳ đuôi nào) hoặc đuôi `.ffpfsc`, đặt bộ đọc exFAT lên lớp giải nén PFSC của thư viện (~900 MB/s, không tạo ảnh tạm) ; trên Windows có Dokan thì **gắn** như ảnh `.exfat`, còn trên macOS (hdiutil không mở được container) thì **trích** thư mục ứng dụng ra thư mục tạm trước khi tạo gói. Đo thực tế: container 1,2 GB (exFAT 4,29 GB, 2,9 GB dữ liệu game) → đọc thông tin 0,15 giây, tạo gói trọn vẹn 31 giây.
+**PS5 — Plants vs. Zombies Replanted (`PPSA29802`, 1,9 GB, 160 tệp), đóng gói bằng SDK Sony**
 
-## Hiệu năng
+| Đã tạo và kiểm tra thành công | Nhật ký (cuộn xuống) |
+|---|---|
+| ![](screenshots/vi-ps5-done.png) | ![](screenshots/vi-ps5-done-log.png) |
 
-Đo trên Mac Apple Silicon (15 nhân logic), Kraken tích hợp, bản LibProsperoPkg đi kèm 2.1.0:
+Gói 1,6 GB (1.706.966.020 byte), qua đủ 6 bước kiểm tra gói. CLI, giao diện và bản 2.2.7 cho ra cùng kích thước.
 
-| Bài đo | Cấu hình | Thời gian | Gói |
-|---|---|---|---|
-| 400 MB dữ liệu tổng hợp | Nhanh (Kraken 2) / **Tiêu chuẩn (4, mặc định)** | 6.8 giây / 7.5 giây | 254.3 MB / 254.2 MB |
-| 400 MB dữ liệu tổng hợp | Nhỏ nhất (Kraken 7) | 16.4 giây | 250.3 MB |
-| 400 MB dữ liệu tổng hợp | Tối đa (Kraken 9 + PFS v3 + phân tích shuffle) | 47.6 giây | 249.8 MB |
-| Game thật 813 MB (`PPSA06438`, ảnh .exfat được gắn) | Nhỏ nhất / Nhanh | 23.4 giây / 4.9 giây | 257.2 MB / 262.8 MB |
-| **Game thật 21.3 GB** (`PPSA27625`, ảnh .exfat được gắn) | Nhanh (Kraken 2) | 1 phút 59 giây | 8.86 GiB |
-| **Game thật 21.3 GB** | **Tiêu chuẩn (Kraken 4, mặc định)** | **2 phút 13 giây** | **8.86 GiB** |
-| **Game thật 21.3 GB** | Nhỏ nhất (Kraken 7 Optimal) | 12 phút 49 giây | 8.54 GiB |
-| Container `.ffpfsc` 1.2 GB (exFAT 4.29 GB bên trong, 2.9 GB dữ liệu game) | Tiêu chuẩn (Kraken 4) | 31 giây (đọc thông tin 0.15 giây) | 1.14 GiB |
-| Gói 36 GB (`PPSA21567`, 166,707 tệp) — **Giải nén gói** | liệt kê / trích | 3.8 giây / ~200 MB/s | — |
+**PS4 — Plants vs. Zombies Replanted (`CUSA55613`, base 1.00 + update 1.51), orbis-pub-cmd qua Wine**
 
-Để so sánh, bản LibProsperoPkg đi kèm 2.0.0 tạo gói cùng game 21.3 GB này trong 3 phút 40 giây, ra gói 9.03 GiB. Đo song song trên cùng bộ dữ liệu 400 MB, engine 2.0.0 cho ra gói **giống hệt nhau** ở mức 4 và mức 7 (254,212,194 byte) — "mức 7" của nó thực chất là bộ nén Normal — còn engine 2.1.0 ở mức 4 tái tạo đúng kết quả đó (254,211,794 byte) với cùng tốc độ. Vì vậy **Tiêu chuẩn** (mặc định) cho bạn kích thước "Kraken 7" cũ với tốc độ cũ, và với game 21 GB còn nhanh hơn và nhỏ hơn trước (2 phút 13 giây, 8.86 GiB). **Nhỏ nhất** là chế độ *Optimal* thực sự mới: giảm thêm 3.5 % (8.54 GiB) đổi lấy thời gian tạo gói lâu gấp 5–6 lần trên dữ liệu game vốn đã được nén sẵn. Mức 4–6 cho ra kết quả giống hệt nhau; từ mức 7 trở lên chuyển sang bộ phân tích (parser) optimal.
+| Đóng Update (từ update 1.51 đã xả + PKG base) | Gộp Base + Update |
+|---|---|
+| ![](screenshots/vi-ps4-patch-done.png) | ![](screenshots/en-ps4-merge-done.png) |
+
+| Tác vụ | Kết quả | Thời gian |
+|---|---|---|
+| FPKG PS5, SDK Sony | `PPSA29802` → gói 1,6 GB, đã kiểm tra | 47–52 giây |
+| Xả PKG PS4 | base 1,75 GB → 351 tệp (update 156 MB → 34 tệp) | 7 giây |
+| Đóng Update PS4 | PKG update 161.873.920 byte, nội dung giống update 1.51 gốc | 12 giây |
+| Đóng Base PS4 | PKG base 1.748.697.088 byte | 15 giây |
+| Gộp Base + Update PS4 | một PKG base 1.748.697.088 byte đã chứa 1.51 (APP_VER 01.00, VERSION 01.51) | 27 giây |
+| FPKG PS5, engine tích hợp, Tiêu chuẩn | game 21,3 GB → 8,86 GiB (số đo từ bản 2.1) | 2 phút 13 giây |
+
+Các tệp xả ra giống bản gốc, trừ những tệp công cụ đóng gói tự tạo lại; các PKG nguồn giữ nguyên SHA-256. FTP và resign save được thử với máy chủ FTP chạy trên máy và save mẫu (khi chụp các ảnh này không nối PS5).
 
 ## Build từ mã nguồn
 
-Cần [.NET SDK 10](https://dotnet.microsoft.com/download) (`brew install dotnet` trên macOS).
+Cần [.NET SDK 10](https://dotnet.microsoft.com/download).
 
 ```bash
-dotnet build PsViethoa.FpkgBuilder.slnx -c Release   # build everything
-scripts/run-dev.sh                                   # run the GUI (macOS/Linux)
-dotnet test                                          # run the test suite
+dotnet build PsViethoa.FpkgBuilder.slnx -c Release
+dotnet test                                          # hơn 550 test (đóng gói thật bằng SDK Sony / PS4 chạy khi có Wine và bộ công cụ)
+scripts/run-dev.sh                                   # giao diện bản Debug (macOS / Linux)
+scripts/fetch-wine.sh                                # Wine cho SDK Sony và công cụ PS4 trên macOS (giữ thư viện 32-bit)
 
-scripts/publish-macos.sh osx-arm64 osx-x64           # dist/: .app + fpkg-cli + zip
-scripts/publish-windows.sh                           # dist/win-x64: .exe + fpkg-cli + zip
-scripts/publish-linux.sh linux-x64 linux-arm64       # dist/: app + fpkg-cli + sony-sdk tar.gz
+scripts/publish-macos.sh osx-arm64 osx-x64           # .app + fpkg-cli + Wine + sony-sdk + orbis-pub, nén zip
+scripts/publish-windows.sh                           # exe, fpkg-cli, sony-sdk, orbis-pub, Dokan + VC++ x64/x86, Setup.exe nếu có makensis
+scripts/publish-linux.sh linux-x64 linux-arm64       # tar.gz gồm app/, fpkg-cli/, sony-sdk/, orbis-pub/
 ```
 
 <details>
 <summary>Cấu trúc dự án</summary>
 
 ```
-PsViethoa.FpkgBuilder.slnx
-Directory.Build.props                 # net10.0, version (2.1.0), GC/PGO
-CHANGELOG.md
-libs/                                 # LibProsperoPkg.dll, libScePubTools.dll (Windows)
-src/
-  PsViethoa.FpkgBuilder.Core/         # engine, validation, exFAT reader, progress, localization
-  PsViethoa.FpkgBuilder.App/          # Avalonia UI (MVVM), tokens/styles, views, assets
-  PsViethoa.FpkgBuilder.Cli/          # fpkg-cli
-tests/PsViethoa.FpkgBuilder.Tests/    # xUnit (170 tests)
-scripts/                              # publish + dev scripts
+src/PsViethoa.FpkgBuilder.Core/     engine PS5 & quy trình SDK Sony, Ps4/ (LibOrbisPkg + orbis-pub-cmd), Ftp/, Saves/, bản dịch
+src/PsViethoa.FpkgBuilder.App/      giao diện Avalonia (MVVM): khung thanh bên, các trang PS5 / PS4 / FTP / Save
+src/PsViethoa.FpkgBuilder.Cli/      fpkg-cli
+tests/PsViethoa.FpkgBuilder.Tests/  xUnit, chỉ dùng dữ liệu tổng hợp
+libs/                               thành phần bên thứ ba, chỉ thay nguyên khối:
+  LibProsperoPkg.dll                  engine PS5 (Drakmor)
+  sony-sdk/                           bộ công cụ Publishing Tools 2.79
+  LibOrbisPkg/                        PKG / PFS / SFO PS4 (Maxton, LGPL-3.0, kèm mã nguồn)
+  orbis-pub/                          PS4 Fake PKG Tools 3.87 (CyB1K), bản gốc + engine nhanh
+  garlic-savemgr/                     payload save PS5 (earthonion), kèm mã nguồn
 ```
 </details>
 
-## Ảnh chụp giao diện
+## Ảnh chụp
 
-| Giao diện sáng | Tuỳ chọn PFS v3 | Giao diện tiếng Việt |
-|---|---|---|
-| ![](screenshots/en-light.png) | ![](screenshots/en-advanced-pfs.png) | ![](screenshots/vi-advanced.png) |
-
-| Đang tạo gói | Chế độ Giải nén gói (tiếng Việt) | Giải nén xong |
-|---|---|---|
-| ![](screenshots/en-building.png) | ![](screenshots/vi-extract.png) | ![](screenshots/vi-extract-done.png) |
-
-| Chế độ Giải nén gói, giao diện sáng | Hướng dẫn — Ghi công |
+| PS5 — Tạo gói xong (tiếng Anh) | PS4 — xem trước game (tiếng Anh) |
 |---|---|
-| ![](screenshots/en-extract-light.png) | ![](screenshots/en-credits.png) |
+| ![](screenshots/en-ps5-done.png) | ![](screenshots/en-ps4-extract.png) |
+
+| PS4 — sửa param.sfo | FTP PS5 (tiếng Anh) |
+|---|---|
+| ![](screenshots/vi-ps4-patch-sfo.png) | ![](screenshots/en-ftp.png) |
+
+| Resign save xong (tiếng Anh) | Giao diện sáng |
+|---|---|
+| ![](screenshots/en-save-done.png) | ![](screenshots/en-light.png) |
+
+| Hướng dẫn — ghi công |
+|---|
+| ![](screenshots/en-help-credits.png) |
 
 ## Ghi công & giấy phép
 
-- **PSVIETHOA — Nguyễn Thanh Sơn & Ngô Phi Phương** — ứng dụng đa nền tảng, giao diện song ngữ, hỗ trợ ảnh exFAT, `fpkg-cli`.
-- **Main project: [Drakmor](https://github.com/)** — tác giả **LibProsperoPkg**, lõi tạo gói FPKG (PFS v2/v3, NAPS, Kraken, phân tích shuffle, PlayGo, kiểm tra gói).
-- Font: JetBrains Mono & Inter (SIL OFL). Icon: Material Design Icons (Apache 2.0).
-- Cảm ơn cộng đồng PS5 homebrew và tất cả những ai đã đóng góp cho LibProsperoPkg.
+- **PSVIETHOA — Nguyễn Thanh Sơn & Ngô Phi Phương** — ứng dụng đa nền tảng, giao diện, quy trình SDK Sony, CLI. Cơ chế PS4 PKG, FTP và resign save lấy từ **PSVIETHOA STUDIO** của **Ngô Phi Phương**.
+- **Main project: Drakmor** — **LibProsperoPkg**, engine FPKG PS5 (PFS, NAPS, Kraken, PlayGo, kiểm tra gói).
+- **Maxton** — [LibOrbisPkg](https://github.com/maxton/LibOrbisPkg) (LGPL-3.0; DLL được liên kết như một assembly riêng, mã nguồn kèm trong `libs/LibOrbisPkg`).
+- **CyB1K** — PS4 Fake PKG Tools 3.87 (`orbis-pub-cmd`).
+- **earthonion** — garlic-savemgr (payload save PS5).
+- [Wine](https://www.winehq.org/) (LGPL-2.1) chạy bộ công cụ Windows trên macOS / Linux; [Dokan](https://github.com/dokan-dev/dokany) gắn ảnh đĩa trên Windows.
+- Phông chữ: JetBrains Mono & Inter (SIL OFL). Biểu tượng: Material Design Icons (Apache 2.0).
 
-> Công cụ này tạo gói **debug** phục vụ homebrew và phát triển trên các máy đã bật chế độ debug. Các tệp bên thứ ba `LibProsperoPkg.dll` / `libScePubTools.dll` được đi kèm nguyên vẹn, không chỉnh sửa. Hãy sử dụng có trách nhiệm.
+> Các tệp bên thứ ba trong `libs/` được giữ nguyên (engine nhanh PS4 là bản vá có ghi rõ của Studio, `FAST_ENGINE_PATCH.json`). Công cụ dành cho homebrew và phát triển trên máy của chính bạn — hãy dùng có trách nhiệm.
 
 <div align="center">
 
-Thực hiện bởi **PSVIETHOA** với tất cả tâm huyết · 🇻🇳
+Làm bằng cả tấm lòng bởi **PSVIETHOA** · 🇻🇳 · [psviethoa.com](https://psviethoa.com)
 
 </div>

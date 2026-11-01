@@ -87,6 +87,14 @@ public sealed class AppSettings
     /// <summary>Phiên bản mặc định PlayGo hiện tại: 1 = 100 khối (0.6.8), 2 = attribute3 tắt (2.2.1), 3 = giữ playgo* của nguồn (2.2.6).</summary>
     public const int CurrentPlayGoDefaultsRevision = 3;
 
+    /// <summary>
+    /// Đánh dấu đã bật lại "Tự đặt thư mục xuất theo nguồn" (3.0.0). Cấu hình cũ tắt ô này thì gói của game mới dễ rơi vào thư mục
+    /// của game trước; bản 3.0.0 bật lại một lần, người dùng vẫn tắt được.
+    /// </summary>
+    public int OutputAutoRevision { get; set; }
+
+    public const int CurrentOutputAutoRevision = 1;
+
     /// <summary>Hạ requiredSystemSoftwareVersion về SDK của game khi tạo gói (mặc định bật, theo fpkg-gui 0.6.8).</summary>
     public bool LowerRequiredFirmware { get; set; } = true;
 
@@ -117,6 +125,53 @@ public sealed class AppSettings
 
     /// <summary>Chế độ cuối cùng: true = giải nén gói, false = tạo gói.</summary>
     public bool ExtractMode { get; set; }
+
+    /// <summary>Trang mở lần trước (tên <c>AppPage</c>, từ 3.0.0).</summary>
+    public string? LastPage { get; set; }
+
+    /// <summary>Thanh bên thu gọn chỉ còn biểu tượng.</summary>
+    public bool SidebarCollapsed { get; set; }
+
+    /// <summary>PS4 PKG: thư mục xuất dùng chung cho năm chức năng.</summary>
+    public string? Ps4OutputFolder { get; set; }
+
+    /// <summary>PS4 PKG: chế độ đầy đủ (digest + kiểm tra toàn vẹn khi đóng gói, đọc lại kiểm tra khi xả).</summary>
+    public bool Ps4FullVerify { get; set; }
+
+    /// <summary>FTP PS5: các máy đã kết nối (IP, cổng, tài khoản; không lưu mật khẩu).</summary>
+    public List<FtpHostSetting> FtpHosts { get; set; } = new();
+
+    /// <summary>FTP PS5: số tệp truyền song song.</summary>
+    public int FtpParallelFiles { get; set; } = 4;
+
+    /// <summary>FTP PS5: số luồng cho mỗi tệp lớn.</summary>
+    public int FtpThreadsPerFile { get; set; } = 4;
+
+    /// <summary>FTP PS5: thư mục máy tính mở lần trước.</summary>
+    public string? FtpLocalFolder { get; set; }
+
+    /// <summary>FTP PS5: tự tăng luồng cho nhiều tệp nhỏ, giảm khi có tệp nặng (như bản Studio).</summary>
+    public bool FtpAutoThreads { get; set; } = true;
+
+    /// <summary>FTP PS5: khi tệp đích đã có — Resume (tiếp tục phần còn thiếu), Overwrite, Skip, OverwriteIfNewer, OverwriteIfSizeDiffers.</summary>
+    public string FtpExistsPolicy { get; set; } = "Resume";
+
+    /// <summary>Save PS5: IP máy PS5 và Account ID (hex 16 ký tự) dùng lần trước.</summary>
+    public string? SaveHost { get; set; }
+
+    public string? SaveAccountId { get; set; }
+
+    /// <summary>Save PS5: cổng dịch vụ (8082 = garlic-savemgr), User ID (hex 8 ký tự), Title ID mới và có tự chép vào máy không.</summary>
+    public string? SavePort { get; set; }
+
+    public string? SaveUserId { get; set; }
+
+    public string? SaveTitleId { get; set; }
+
+    public bool SaveInstall { get; set; } = true;
+
+    /// <summary>Hiệu ứng chuyển động (đổi trang, huy hiệu, nút) — tắt cho máy yếu hoặc người không thích.</summary>
+    public bool Animations { get; set; } = true;
 
     /// <summary>Hàng chờ: số lượt tạo gói chạy cùng lúc (1..4).</summary>
     public int QueueConcurrency { get; set; } = 2;
@@ -179,4 +234,17 @@ public static class SettingsService
     public static AppSettings Load() => JsonFileStore.Load<AppSettings>(Path);
 
     public static bool Save(AppSettings settings) => JsonFileStore.Save(Path, settings);
+}
+
+/// <summary>Một máy PS5 đã kết nối qua FTP (không lưu mật khẩu).</summary>
+public sealed class FtpHostSetting
+{
+    public string Host { get; set; } = string.Empty;
+
+    public int Port { get; set; } = 2121;
+
+    public string User { get; set; } = string.Empty;
+
+    /// <summary>Lần kết nối thành công gần nhất (sắp xếp danh sách "Kết nối gần đây").</summary>
+    public DateTime LastUsed { get; set; }
 }

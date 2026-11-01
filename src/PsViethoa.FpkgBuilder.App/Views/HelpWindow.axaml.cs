@@ -41,6 +41,13 @@ public partial class HelpWindow : Window
         HelpScroll.UpdateLayout();
     }
 
+    /// <summary>Cuộn nội dung hướng dẫn tới một vị trí (dùng khi chụp màn hình kiểm thử).</summary>
+    public void ScrollTo(double offset)
+    {
+        HelpScroll.Offset = new Avalonia.Vector(0, offset);
+        HelpScroll.UpdateLayout();
+    }
+
     private void Close_Click(object? sender, RoutedEventArgs e) => Close();
 
     private async void OpenAuthor_Click(object? sender, RoutedEventArgs e)

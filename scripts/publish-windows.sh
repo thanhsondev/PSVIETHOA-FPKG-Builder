@@ -57,6 +57,8 @@ TXT
 # SDK Sony (Publishing Tools 2.79 đã vá, bộ công cụ sdk-fpkg729-fix): chạy trực tiếp trên Windows. fpkg-cli tìm nó ở ../app hoặc
 # thư mục cha (bộ cài đặt fpkg-cli vào thư mục con của ứng dụng).
 cp -R "$ROOT/libs/sony-sdk" "$OUT/app/sony-sdk"
+# PS4 PKG: PS4 Fake PKG Tools 3.87 (orbis-pub-cmd.exe, 32-bit) chạy trực tiếp.
+cp -R "$ROOT/libs/orbis-pub" "$OUT/app/orbis-pub"
 
 # prospero-pub-cmd.exe cần Visual C++ 2015-2022 x64 (MSVCP140/VCRUNTIME140). Bộ cài chính thức của Microsoft đi kèm: Setup.exe cài im
 # lặng khi máy chưa có, bản zip để ứng dụng tự cài (một hộp UAC) ở lần tạo gói đầu tiên. Tải một lần vào .cache/.
@@ -73,6 +75,27 @@ cat >> "$OUT/app/redist/README.txt" <<TXT
 vc_redist.x64.exe — Microsoft Visual C++ 2015-2022 Redistributable (x64), unmodified, from https://aka.ms/vs/17/release/vc_redist.x64.exe
 (SHA-256: $VCREDIST_SHA256). Needed by the bundled Sony Publishing Tools (sony-sdk\prospero-pub-cmd.exe); installed silently by
 Setup.exe, or by the app on the first "Sony SDK" build when the libraries are missing.
+TXT
+
+# orbis-pub-cmd.exe (PS4) là chương trình 32-bit cần Visual C++ 2008 SP1 x86 (Microsoft.VC90.CRT) và zlib1.dll cần Visual C++
+# 2015-2022 x86. Bộ cài chính thức của Microsoft đi kèm; ứng dụng tự cài (hộp UAC) ở lượt đóng gói PS4 đầu tiên khi máy chưa có.
+if [[ ! -s "$VCREDIST_CACHE/vc_redist.x86.exe" ]]; then
+  echo "==> Tải vc_redist.x86.exe (Microsoft Visual C++ 2015-2022 x86)"
+  curl -fsSL -o "$VCREDIST_CACHE/vc_redist.x86.exe" "https://aka.ms/vs/17/release/vc_redist.x86.exe"
+fi
+if [[ ! -s "$VCREDIST_CACHE/vcredist_x86_2008.exe" ]]; then
+  echo "==> Tải vcredist_x86.exe (Microsoft Visual C++ 2008 SP1 x86, bản cập nhật bảo mật MFC 9.0.30729.6161)"
+  curl -fsSL -o "$VCREDIST_CACHE/vcredist_x86_2008.exe" "https://download.microsoft.com/download/5/D/8/5D8C65CB-C849-4025-8E95-C3966CAFD8AE/vcredist_x86.exe"
+fi
+cp "$VCREDIST_CACHE/vc_redist.x86.exe" "$VCREDIST_CACHE/vcredist_x86_2008.exe" "$OUT/app/redist/"
+cat >> "$OUT/app/redist/README.txt" <<TXT
+
+vc_redist.x86.exe — Microsoft Visual C++ 2015-2022 Redistributable (x86), unmodified, from https://aka.ms/vs/17/release/vc_redist.x86.exe
+(SHA-256: $(shasum -a 256 "$VCREDIST_CACHE/vc_redist.x86.exe" | cut -d' ' -f1)).
+vcredist_x86_2008.exe — Microsoft Visual C++ 2008 SP1 Redistributable (x86, MFC security update 9.0.30729.6161), unmodified
+(SHA-256: $(shasum -a 256 "$VCREDIST_CACHE/vcredist_x86_2008.exe" | cut -d' ' -f1)).
+Both are needed by the bundled PS4 Fake PKG Tools (orbis-pub\orbis-pub-cmd.exe, 32-bit); the app installs them on the first PS4
+build when they are missing.
 TXT
 
 find "$OUT" \( -name "*.pdb" -o -name "LibProsperoPkg.xml" \) -delete

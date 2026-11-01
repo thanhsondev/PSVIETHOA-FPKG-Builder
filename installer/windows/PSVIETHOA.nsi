@@ -179,6 +179,31 @@ Section "-VcRedist"
   ${EnableX64FSRedirection}
 SectionEnd
 
+; Visual C++ x86 cho PS4 Fake PKG Tools (orbis-pub-cmd.exe 32-bit cần VC++ 2008 SP1 x86; zlib1.dll cần VC++ 2015-2022 x86).
+Section "-VcRedistX86"
+  ${DisableX64FSRedirection}
+  FindFirst $1 $2 "$WINDIR\WinSxS\x86_microsoft.vc90.crt_1fc8b3b9a1e18e3b_9.0.*"
+  FindClose $1
+  ${If} $2 == ""
+  ${AndIf} ${FileExists} "$INSTDIR\redist\vcredist_x86_2008.exe"
+    DetailPrint "$(VcInstalling) (2008 x86)"
+    ExecWait '"$INSTDIR\redist\vcredist_x86_2008.exe" /q' $0
+    DetailPrint "vcredist 2008 x86: exit $0"
+  ${EndIf}
+  ${If} ${FileExists} "$WINDIR\SysWOW64\vcruntime140.dll"
+  ${AndIf} ${FileExists} "$WINDIR\SysWOW64\msvcp140.dll"
+    DetailPrint "$(VcPresent) (x86)"
+  ${ElseIf} ${FileExists} "$INSTDIR\redist\vc_redist.x86.exe"
+    DetailPrint "$(VcInstalling) (x86)"
+    ExecWait '"$INSTDIR\redist\vc_redist.x86.exe" /install /quiet /norestart' $0
+    DetailPrint "vc_redist x86: exit $0"
+    ${If} $0 = 3010
+      SetRebootFlag true
+    ${EndIf}
+  ${EndIf}
+  ${EnableX64FSRedirection}
+SectionEnd
+
 ; ---------- Gỡ cài đặt ----------
 Section "Uninstall"
   Delete "$DESKTOP\${APPNAME}.lnk"

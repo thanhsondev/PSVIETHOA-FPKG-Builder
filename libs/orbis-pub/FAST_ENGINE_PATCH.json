@@ -1,0 +1,27 @@
+{
+  "original": "orbis-pub-cmd.exe",
+  "original_sha256": "9d136a27a0739555329e46b61208b7105d4c5aea5644cbf8052bfed4250d0e1b",
+  "fast": "orbis-pub-cmd-fast.exe",
+  "fast_sha256": "9ff56997d84f743dae1c4bcd8769ab9721bf40da471c1e99d6b9fd0f0c3d48fb",
+  "original_retained": true,
+  "patches": [
+    {
+      "file_offset": "0x292a6",
+      "rva": "0x29ea6",
+      "before": "e8850c0200",
+      "after": "31c083c408",
+      "purpose": "Skip the internal reference-package integrity precheck while retaining normal build finalization."
+    },
+    {
+      "file_offset": "0x442f6",
+      "va": "0x444ef6",
+      "before": "385c241b0f85ca000000",
+      "after": "e9cf00000090909090 90",
+      "after_bytes": "e9cf0000009090909090",
+      "purpose": "Patch builds: take the engine's own no-delta branch (jmp 0x444fca) instead of generating origin/target deltainfo, so the reference base package is never block-scanned.",
+      "effect": "Output PKG omits sce_sys/origin-deltainfo.dat, matching retail-style update packages; referable rate reported as N/A.",
+      "measured": "Horizon CUSA10213 update over a 46.5 GB base: 3m38s -> 3.6s, identical 400097280-byte PKG, img_verify --integrity_check on PASS with the unpatched engine."
+    }
+  ],
+  "standalone_img_verify": "unchanged; tested against deliberately corrupted input"
+}
