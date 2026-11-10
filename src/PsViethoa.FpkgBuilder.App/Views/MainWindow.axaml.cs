@@ -163,7 +163,7 @@ public partial class MainWindow : Window
         {
             ViewModel.SidebarNarrow = width < NarrowSidebarWidth;
             // Thanh bên co giãn theo cửa sổ: 1× ở 1400 px, to dần tới 1,4× (cửa sổ ~1960 px trở lên).
-            ViewModel.SidebarScale = Math.Round(Math.Clamp(Math.Min(width / 1400.0, height / 900.0), 1.0, 1.4), 2);
+            ViewModel.SidebarScale = Math.Round(Math.Clamp(Math.Min(width / 1400.0, height / 900.0 * 1.25), 1.0, 1.4), 2);
         }
     }
 
