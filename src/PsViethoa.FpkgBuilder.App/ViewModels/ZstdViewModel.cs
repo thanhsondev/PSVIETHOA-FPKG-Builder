@@ -53,6 +53,7 @@ public sealed partial class ZstdViewModel : ObservableObject
             _mode = savedMode;
         }
         Loc.Current.LanguageChanged += (_, _) => RefreshTexts();
+        RefreshInfoTexts();
         if (_sourcePath.Length > 0)
         {
             _ = InspectAsync();

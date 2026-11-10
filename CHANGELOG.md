@@ -13,6 +13,7 @@ Fixes ported from PSVIETHOA STUDIO 2.1.0 (Ngô Phi Phương) and a new ZSTD PS5 
   - Same rules as ps5-dump-forge 0.5.5: `*.ini` (e.g. `dlc_emu.ini`) is never packed.
   - Layout as in the Studio, larger: drop zone, Fast / Balanced / Small / Smallest presets, game card with the packing plan, speed / elapsed / remaining / processed / ratio, log. Every string in Vietnamese and English.
   - CLI: `zstd-info`, `zstd-list`, `zstd-pack`, `zstd-unpack`, `zstd-reindex`, `zstd-patch`, `zstd-undo`.
+- **Sidebar like PSVIETHOA STUDIO, larger.** *Search tools…* box (Ctrl+K / Cmd+K; Enter opens the first match, Esc clears; accents ignored), groups in the Studio order — PS4 PKG, PS5 FPKG, ZSTD PS5, PS5 Connect · Save — and a two-column grid of tool buttons (the odd last one spans the row). The whole sidebar scales with the window: 1× at 1400 × 900, up to 1.4× on large windows. The compact icon-only mode is unchanged.
 - Test hooks: `PSVIETHOA_PAGE=ZstdPack|ZstdUnpack|ZstdPatch`, `PSVIETHOA_ZSTD_SOURCE / _OUTPUT / _PATCH`, `PSVIETHOA_ZSTD_AUTOSTART=1`.
 
 ## 3.0.0 — 2026-11-02

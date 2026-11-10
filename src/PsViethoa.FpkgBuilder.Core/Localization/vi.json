@@ -2293,5 +2293,7 @@
   "Zstd.Ui.Metric.Remaining": "CÒN LẠI",
   "Zstd.Ui.Metric.Processed": "ĐÃ XỬ LÝ",
   "Zstd.Ui.Metric.Ratio": "TỈ LỆ NÉN",
-  "Zstd.Ui.Metric.Written": "ĐÃ GHI"
+  "Zstd.Ui.Metric.Written": "ĐÃ GHI",
+  "Shell.Search": "Tìm công cụ…",
+  "Nav.Group.Connect": "KẾT NỐI PS5 · SAVE"
 }

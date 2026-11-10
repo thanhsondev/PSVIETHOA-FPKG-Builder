@@ -2293,5 +2293,7 @@
   "Zstd.Ui.Metric.Remaining": "REMAINING",
   "Zstd.Ui.Metric.Processed": "PROCESSED",
   "Zstd.Ui.Metric.Ratio": "RATIO",
-  "Zstd.Ui.Metric.Written": "WRITTEN"
+  "Zstd.Ui.Metric.Written": "WRITTEN",
+  "Shell.Search": "Search tools…",
+  "Nav.Group.Connect": "PS5 CONNECT · SAVE"
 }

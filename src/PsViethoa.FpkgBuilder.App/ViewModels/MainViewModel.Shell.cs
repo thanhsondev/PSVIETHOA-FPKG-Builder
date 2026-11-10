@@ -42,7 +42,56 @@ public partial class MainViewModel
 
     public bool IsSidebarCompact => SidebarCollapsed || SidebarNarrow;
 
-    public double SidebarWidth => IsSidebarCompact ? 76 : 272;
+    /// <summary>Hệ số phóng thanh bên theo bề rộng cửa sổ (1 ở 1400 px, tối đa 1,4): kéo cửa sổ to thì thanh bên và nút to theo.</summary>
+    [ObservableProperty] private double _sidebarScale = 1;
+
+    /// <summary>Bề rộng thanh bên ở hệ số 1 (lưới hai cột, chữ 13,5).</summary>
+    private const double SidebarBaseWidth = 336;
+
+    public double SidebarWidth => IsSidebarCompact ? 76 : Math.Round(SidebarBaseWidth * SidebarScale);
+
+    /// <summary>Hệ số phóng nội dung thanh bên (thu gọn thì giữ 1).</summary>
+    public double SidebarContentScale => IsSidebarCompact ? 1 : SidebarScale;
+
+    partial void OnSidebarScaleChanged(double value)
+    {
+        OnPropertyChanged(nameof(SidebarWidth));
+        OnPropertyChanged(nameof(SidebarContentScale));
+    }
+
+    // ───────── ô Tìm công cụ (Ctrl+K) ─────────
+
+    [ObservableProperty] private string _navFilter = string.Empty;
+
+    partial void OnNavFilterChanged(string value) => ApplyNavFilter();
+
+    /// <summary>Lọc lưới theo ô tìm; mục bị ẩn hẳn (Vá ZSTD khi tiếng Anh) không bao giờ hiện.</summary>
+    private void ApplyNavFilter()
+    {
+        foreach (var group in NavGroups)
+        {
+            foreach (var item in group.Items)
+            {
+                item.IsListed = item.IsShown && item.Matches(NavFilter, group.Title);
+            }
+
+            group.RebuildRows();
+        }
+    }
+
+    /// <summary>Enter trong ô tìm: mở mục đầu tiên còn hiện.</summary>
+    [RelayCommand]
+    private void OpenFirstNavMatch()
+    {
+        if (NavGroups.SelectMany(group => group.Items).FirstOrDefault(item => item.IsListed) is { } item)
+        {
+            CurrentPage = item.Page;
+            NavFilter = string.Empty;
+        }
+    }
+
+    [RelayCommand]
+    private void ClearNavFilter() => NavFilter = string.Empty;
 
     public bool IsPs5Page => CurrentPage is AppPage.Ps5Build or AppPage.Ps5Update or AppPage.Ps5Extract or AppPage.Ps5Queue;
 
@@ -89,37 +138,35 @@ public partial class MainViewModel
         Zstd = new ZstdViewModel(_settings, _dialogs);
         Save = new SaveViewModel(_settings, _dialogs);
 
+        // Thứ tự và lưới hai cột như PSVIETHOA STUDIO: PS4 PKG → PS5 PKG → ZSTD PS5 → Kết nối PS5 · Save.
         NavGroups =
         [
+            new NavGroup(Platform.Ps4, "Nav.Group.Ps4",
+            [
+                new NavItem(AppPage.Ps4Extract, Platform.Ps4, 1, "Nav.Ps4Extract", "Nav.Ps4Extract.Sub", "Nav.Ps4Extract.Tip", "IconPackageDown"),
+                new NavItem(AppPage.Ps4Base, Platform.Ps4, 2, "Nav.Ps4Base", "Nav.Ps4Base.Sub", "Nav.Ps4Base.Tip", "IconPackage"),
+                new NavItem(AppPage.Ps4Patch, Platform.Ps4, 3, "Nav.Ps4Patch", "Nav.Ps4Patch.Sub", "Nav.Ps4Patch.Tip", "IconRefresh"),
+                new NavItem(AppPage.Ps4Dlc, Platform.Ps4, 4, "Nav.Ps4Dlc", "Nav.Ps4Dlc.Sub", "Nav.Ps4Dlc.Tip", "IconPuzzle"),
+                new NavItem(AppPage.Ps4Merge, Platform.Ps4, 5, "Nav.Ps4Merge", "Nav.Ps4Merge.Sub", "Nav.Ps4Merge.Tip", "IconMerge"),
+            ]),
             new NavGroup(Platform.Ps5, "Nav.Group.Ps5",
             [
-                new NavItem(AppPage.Ps5Build, Platform.Ps5, 1, "Nav.Ps5Build", "Nav.Ps5Build.Sub", "Nav.Ps5Build.Tip", "IconPackage"),
-                new NavItem(AppPage.Ps5Update, Platform.Ps5, 2, "Nav.Ps5Update", "Nav.Ps5Update.Sub", "Nav.Ps5Update.Tip", "IconRefresh"),
-                new NavItem(AppPage.Ps5Extract, Platform.Ps5, 3, "Nav.Ps5Extract", "Nav.Ps5Extract.Sub", "Nav.Ps5Extract.Tip", "IconPackageDown"),
-                new NavItem(AppPage.Ps5Queue, Platform.Ps5, 4, "Nav.Ps5Queue", "Nav.Ps5Queue.Sub", "Nav.Ps5Queue.Tip", "IconFileTree"),
+                new NavItem(AppPage.Ps5Build, Platform.Ps5, 6, "Nav.Ps5Build", "Nav.Ps5Build.Sub", "Nav.Ps5Build.Tip", "IconPackage"),
+                new NavItem(AppPage.Ps5Update, Platform.Ps5, 7, "Nav.Ps5Update", "Nav.Ps5Update.Sub", "Nav.Ps5Update.Tip", "IconRefresh"),
+                new NavItem(AppPage.Ps5Extract, Platform.Ps5, 8, "Nav.Ps5Extract", "Nav.Ps5Extract.Sub", "Nav.Ps5Extract.Tip", "IconPackageDown"),
+                new NavItem(AppPage.Ps5Queue, Platform.Ps5, 9, "Nav.Ps5Queue", "Nav.Ps5Queue.Sub", "Nav.Ps5Queue.Tip", "IconFileTree"),
             ]),
             new NavGroup(Platform.Ps5, "Nav.Group.Zstd",
             [
-                new NavItem(AppPage.ZstdPack, Platform.Ps5, 5, "Nav.ZstdPack", "Nav.ZstdPack.Sub", "Nav.ZstdPack.Tip", "IconZip"),
-                new NavItem(AppPage.ZstdUnpack, Platform.Ps5, 6, "Nav.ZstdUnpack", "Nav.ZstdUnpack.Sub", "Nav.ZstdUnpack.Tip", "IconFolderDownload"),
-                new NavItem(AppPage.ZstdPatch, Platform.Ps5, 7, "Nav.ZstdPatch", "Nav.ZstdPatch.Sub", "Nav.ZstdPatch.Tip", "IconPencil"),
+                new NavItem(AppPage.ZstdPack, Platform.Ps5, 10, "Nav.ZstdPack", "Nav.ZstdPack.Sub", "Nav.ZstdPack.Tip", "IconZip"),
+                new NavItem(AppPage.ZstdUnpack, Platform.Ps5, 11, "Nav.ZstdUnpack", "Nav.ZstdUnpack.Sub", "Nav.ZstdUnpack.Tip", "IconFolderDownload"),
+                new NavItem(AppPage.ZstdPatch, Platform.Ps5, 12, "Nav.ZstdPatch", "Nav.ZstdPatch.Sub", "Nav.ZstdPatch.Tip", "IconPencil"),
             ]),
-            new NavGroup(Platform.Ps4, "Nav.Group.Ps4",
-            [
-                new NavItem(AppPage.Ps4Extract, Platform.Ps4, 8, "Nav.Ps4Extract", "Nav.Ps4Extract.Sub", "Nav.Ps4Extract.Tip", "IconPackageDown"),
-                new NavItem(AppPage.Ps4Base, Platform.Ps4, 9, "Nav.Ps4Base", "Nav.Ps4Base.Sub", "Nav.Ps4Base.Tip", "IconPackage"),
-                new NavItem(AppPage.Ps4Patch, Platform.Ps4, 10, "Nav.Ps4Patch", "Nav.Ps4Patch.Sub", "Nav.Ps4Patch.Tip", "IconRefresh"),
-                new NavItem(AppPage.Ps4Dlc, Platform.Ps4, 11, "Nav.Ps4Dlc", "Nav.Ps4Dlc.Sub", "Nav.Ps4Dlc.Tip", "IconPuzzle"),
-                new NavItem(AppPage.Ps4Merge, Platform.Ps4, 12, "Nav.Ps4Merge", "Nav.Ps4Merge.Sub", "Nav.Ps4Merge.Tip", "IconMerge"),
-            ]),
-            new NavGroup(Platform.Ftp, "Nav.Group.Ftp",
+            new NavGroup(Platform.Ftp, "Nav.Group.Connect",
             [
                 new NavItem(AppPage.Ftp, Platform.Ftp, 13, "Nav.Ftp", "Nav.Ftp.Sub", "Nav.Ftp.Tip", "IconLan"),
-            ]),
-            new NavGroup(Platform.Save, "Nav.Group.Save",
-            [
                 new NavItem(AppPage.SaveResign, Platform.Save, 14, "Nav.SaveResign", "Nav.SaveResign.Sub", "Nav.SaveResign.Tip", "IconSave"),
-            ]),
+            ], Platform.Save),
         ];
 
         foreach (var item in NavGroups.SelectMany(group => group.Items))
@@ -147,6 +194,8 @@ public partial class MainViewModel
         {
             item.IsShown = allowed;
         }
+
+        ApplyNavFilter();
 
         if (!allowed && CurrentPage == AppPage.ZstdPatch && !Zstd.IsBusy)
         {
@@ -176,12 +225,14 @@ public partial class MainViewModel
         _settings.SidebarCollapsed = value;
         OnPropertyChanged(nameof(IsSidebarCompact));
         OnPropertyChanged(nameof(SidebarWidth));
+        OnPropertyChanged(nameof(SidebarContentScale));
     }
 
     partial void OnSidebarNarrowChanged(bool value)
     {
         OnPropertyChanged(nameof(IsSidebarCompact));
         OnPropertyChanged(nameof(SidebarWidth));
+        OnPropertyChanged(nameof(SidebarContentScale));
     }
 
     partial void OnCurrentPageChanged(AppPage value)
