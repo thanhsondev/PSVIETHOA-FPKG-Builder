@@ -30,7 +30,7 @@
 
 <div align="center">
 
-**Credits:** PSVIETHOA — Nguyễn Thanh Sơn & Ngô Phi Phương · **Main project:** Drakmor (LibProsperoPkg) · PS4, FTP & save tools ported from **PSVIETHOA STUDIO** (Ngô Phi Phương)
+**Credits:** PSVIETHOA — Nguyễn Thanh Sơn & Ngô Phi Phương · **Main project:** Drakmor (LibProsperoPkg) · PS4, ZSTD, FTP & save tools ported from **PSVIETHOA STUDIO** (Ngô Phi Phương)
 
 </div>
 
@@ -40,13 +40,31 @@
 
 | | Page | What it does |
 |---|---|---|
-| <img src="https://img.shields.io/badge/PS5-FPKG-3B82F6" /> | **Build PKG · Build Update PKG · Extract PKG · Queue** | PS5 FPKG (FIH debug) from an app folder, an `.exfat` / `.ffpfsc` / `.ffpkg` image or a `.gp5` project — through **Sony's Publishing Tools 2.79** (default) or Drakmor's **LibProsperoPkg** engine. Delta updates against an installed base, package inspection / extraction, parallel build queue. *Unchanged from 2.2.7.* |
+| <img src="https://img.shields.io/badge/PS5-FPKG-3B82F6" /> | **Build PKG · Build Update PKG · Extract PKG · Queue** | PS5 FPKG (FIH debug) from an app folder, an `.exfat`, `.ffpfsc` / `.ffpfs` (exFAT or PFS) or `.ffpkg` image or a `.gp5` project — through **Sony's Publishing Tools 2.79** (default) or Drakmor's **LibProsperoPkg** engine. Delta updates against an installed base, package inspection / extraction, parallel build queue. *Sony SDK toolkit `sdk-fpkg279-fix15`, with the 2.2.7 fixes kept.* |
 | <img src="https://img.shields.io/badge/PS4-PKG-6366F1" /> | **Extract PKG · Build Base · Build Update · Build DLC · Merge Base + Update** | PS4 fake PKGs with **orbis-pub-cmd 3.87** (CyB1K patch) and **LibOrbisPkg**, following the PSVIETHOA STUDIO workflow. Live preview of the game (icon, title, Content ID, version), `param.sfo` editor, per-file extraction. |
 | <img src="https://img.shields.io/badge/ZSTD-PS5-22C55E" /> | **Pack ZSTD · Unpack ZSTD · Patch ZSTD** *(beta)* | ps5-dump-forge ZSTD packs with the **ampr-emu-ng 0.3.4** runtime: the game shrinks to about half, unpacks byte-exact, and translations can be patched into a packed game without unpacking it (Vietnamese UI). |
 | <img src="https://img.shields.io/badge/PS5-FTP-14B8A6" /> | **PS5 FTP** | Two-pane file manager for the PS5's FTP server (ftpsrv, etaHEN…): drag files between the panes or from Finder / Explorer, multi-connection transfers with resume, rename / delete / new folder, saved consoles. |
 | <img src="https://img.shields.io/badge/SAVE-Resign-F59E0B" /> | **Resign Save** | Re-own PS4 / PS5 saves to your Account ID. Decrypted saves are fixed right on the computer; encrypted ones go through **garlic-savemgr** on the PS5 (the app loads it for you). |
 
 > PS5 packages are **debug FPKGs** (FIH image, signature byte `0x00`) and PS4 packages are **fake PKGs** — they install only on consoles running the matching homebrew. The source folders, images and packages you pick are only ever **read**.
+
+## What's new in 3.1
+
+- **Sony SDK mode uses Drakmor's `sdk-fpkg279-fix15` toolkit** (profile `sdk279-plaintext-direct-v6`), reproduced byte for byte:
+  - the SDK version is kept in the package (read from `eboot.bin` when `param.json` has 0);
+  - the source PlayGo layout and per-file chunks are kept;
+  - UDS UCP files are repaired or recreated from `npbind.dat`;
+  - Unreal runtime config files are excluded;
+  - *Generate for languages* and the SDK override now work with the SDK;
+  - the retail scenario layout is an option (*Keep retail PlayGo scenarios*, off by default).
+
+  Dumps with misnamed PlayGo tables (Control, PPSA29802), which stop the fix15 script, still build. The 2.2.7 fixes (empty folders, filled empty chunks, every scenario lists every chunk) stay on.
+- **PFS sources for PS5 Build PKG.** `.ffpfsc` files holding a raw PFS image (the ShadowMountPlus layout made by MkPFS `--raw`, ps5-ffpfs-cli…), uncompressed `.ffpfs` images and a bare `pfs_image.dat` now open like exFAT images: inspect, build, extraction and the Dokan drive all work.
+- **Faster PS4 PKG extraction.** Files are decrypted in parallel (4 MiB segments on several threads), with the Studio's LibOrbisPkg fixes; the output is byte-identical.
+- **ZSTD PS5 (beta)** — *Pack ZSTD*, *Unpack ZSTD* and *Patch ZSTD*: ps5-dump-forge ZSTD packs with the **ampr-emu-ng 0.3.4** runtime (about half the size, the source is never modified), `ampr_emu.index` check and repair, and translations patched into a packed game without unpacking it, with undo (Vietnamese UI). CLI: `zstd-info`, `zstd-list`, `zstd-pack`, `zstd-unpack`, `zstd-reindex`, `zstd-patch`, `zstd-undo`.
+- **Sidebar like PSVIETHOA STUDIO.** A *Search tools…* box (Ctrl+K / ⌘K), groups in the Studio order (PS4 PKG, PS5 FPKG, ZSTD PS5, PS5 Connect · Save) and a two-column grid of tool buttons that scales with the window.
+
+The PFS, PS4, ZSTD and sidebar changes are ported from PSVIETHOA STUDIO 2.1.0 by Ngô Phi Phương.
 
 ## What's new in 3.0
 
@@ -60,7 +78,7 @@
 - **PS5 FTP.** Connect to the console's FTP server (user and password empty by default; the password is never saved). Drag files and folders from one pane to the other, from Finder / Explorer into the PS5 pane, or onto a folder to send them straight into it; drag PS5 files onto another PS5 folder to move them. The queue picks how many files run in parallel, splits large files over several connections (segmented `REST` download), keeps an ETA from a least-squares speed model and retries / resumes after a drop. Pending / Failed / Done tabs, a raw FTP command log, keyboard shortcuts (Enter, Delete, F2, F5, Backspace).
 - **Resign Save.** Drop folders, `.zip`, `param.sfo` or encrypted save images; the type is detected from the content. Decrypted saves are resigned offline (`ACCOUNT_ID`, optional `TITLE_ID`, a `.bak` of the original `param.sfo`; a `.zip` gets a new `_resigned.zip`). Encrypted PS4 / PS5 saves are decrypted, resigned and installed through **garlic-savemgr** (earthonion): **Load ELF** sends the bundled build to the ELF loader (port 9021), **Scan users** lists the console's accounts, **Take a save from another user** copies a save between the console's users, and a backup of any save about to be overwritten is downloaded first.
 - **CLI:** new `ps4-info`, `ps4-list`, `ps4-extract`, `ps4-base`, `ps4-patch`, `ps4-dlc`, `ps4-merge`. `fpkg-cli info` reports whether the PS4 tools can run (Wine 32-bit / VC++ x86).
-- **PS5 FPKG keeps the 2.2.7 mechanism byte-for-byte** (Sony SDK toolkit `sdk279-plaintext-direct-v3`, LibProsperoPkg from fpkg-gui 0.6.12) — the same game builds to the same 1,706,966,020-byte package as 2.2.7. The page itself is easier to use: *Auto from source* is on, and picking another game switches the output folder back to it so packages never land in the previous game's folder; the right column scrolls, so the build log stays readable (at least 280 px) while the result card is shown; buttons say what they pick (*Game folder…*, *Choose PKG…*, *Choose folder…*).
+- **PS5 FPKG keeps the 2.2.7 mechanism** (LibProsperoPkg from fpkg-gui 0.6.12). The page itself is easier to use: *Auto from source* is on, and picking another game switches the output folder back to it so packages never land in the previous game's folder; the right column scrolls, so the build log stays readable (at least 280 px) while the result card is shown; buttons say what they pick (*Game folder…*, *Choose PKG…*, *Choose folder…*).
 
 Earlier releases: see [CHANGELOG.md](CHANGELOG.md) — the 2.2 line brought Sony Publishing Tools builds, update packages, the build queue, online metadata restore and the PlayGo / DLC-emulator fixes.
 
@@ -101,6 +119,10 @@ fpkg-cli ps4-base  "/unpacked/CUSA12345-base" --output "/out"
 fpkg-cli ps4-patch "/unpacked/CUSA12345-update" --base "/games/CUSA12345.pkg" --output "/out" --version 01.51
 fpkg-cli ps4-merge "/games/CUSA12345-patch.pkg" --base "/games/CUSA12345.pkg" --output "/out"
 fpkg-cli ps4-dlc   "/unpacked/CUSA12345-dlc" --output "/out"
+
+# ZSTD PS5 (beta)
+fpkg-cli zstd-pack   "/games/PPSA12345-app" --output "/games/PPSA12345-zstd"
+fpkg-cli zstd-unpack "/games/PPSA12345-zstd" --output "/games/PPSA12345-app"
 ```
 
 `fpkg-cli --help` lists every option (`--verify` for the full PS4 engine, `--gp4-only`, `--only <path>`, `--sfo <file>`, `--passcode`, `--base-passcode`, `--entitlement-key`, …). Exit codes: `0` success · `1` invalid arguments · `2` failed · `3` cancelled. Set `FPKG_LANG=vi|en` for the language.

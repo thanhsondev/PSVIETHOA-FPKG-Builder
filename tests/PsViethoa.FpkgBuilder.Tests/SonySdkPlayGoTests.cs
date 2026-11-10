@@ -33,7 +33,7 @@ public sealed class SonySdkPlayGoTests : IDisposable
     }
 
     /// <summary>Thư mục game giống mẫu đã dựng bảng: data0..5.bin, eboot.bin, sce_sys với keystone, param.json và bảng PlayGo gốc.</summary>
-    private string MakeSource(string name, bool withTables = true)
+    private string MakeSource(string name, bool withTables = true, bool twoScenarios = false)
     {
         var folder = Path.Combine(_root, name);
         Directory.CreateDirectory(Path.Combine(folder, "sce_sys"));
@@ -69,6 +69,13 @@ public sealed class SonySdkPlayGoTests : IDisposable
             {
                 File.Copy(Fixture(table), Path.Combine(folder, "sce_sys", table));
             }
+        }
+
+        if (twoScenarios)
+        {
+            // Bản dump giữ playgo-scenario.json của gói gốc (cùng 2 kịch bản với bảng): script fix15 lấy số kịch bản từ tệp này.
+            File.WriteAllText(Path.Combine(folder, "sce_sys", "playgo-scenario.json"),
+                "{\"scenarioCount\":2,\"scenarioDefaultId\":0,\"scenarioDefaultLanguage\":\"en-US\",\"scenarios\":[{\"id\":0,\"type\":\"playmode\",\"en-US\":{\"title\":\"Story\"}},{\"id\":1,\"type\":\"playmode\",\"en-US\":{\"title\":\"Extra\"}}]}");
         }
 
         return folder;
@@ -353,18 +360,21 @@ public sealed class SonySdkPlayGoTests : IDisposable
             return (SonySdkPlayGo.ChunkDataSizes(table), rebuilt, log);
         }
 
+        // Script fix15 dừng hẳn với bảng này ("unrecognized header"); công cụ dùng bố cục dự phòng của script: 3 chunk theo header, ngôn ngữ
+        // duy nhất (en-US) vào chunk 1 — không lấp thì chunk 2 vẫn rỗng.
         var (emptySizes, _, emptyLog) = await BuildAsync("control-off", fill: false);
         Assert.Equal(3, emptySizes.Count);
         Assert.True(emptySizes[0] > 0);
-        Assert.Equal([0UL, 0UL], emptySizes.Skip(1));
-        Assert.Contains(emptyLog, e => e.Level == LogLevel.Warning && e.Message.Contains("playgo-ficm.dat holds the FLT hash table", StringComparison.Ordinal));
+        Assert.True(emptySizes[1] > 0);
+        Assert.Equal(0UL, emptySizes[2]);
+        Assert.Contains(emptyLog, e => e.Level == LogLevel.Warning && e.Message.Contains("unrecognized header", StringComparison.Ordinal));
 
         var (sizes, rebuilt, log) = await BuildAsync("control-on", fill: true);
         Assert.All(sizes, size => Assert.True(size > 0));
-        Assert.Equal(1, rebuilt.ChunkOf("playgo-chunks/001.bin"));
+        Assert.Equal(1, rebuilt.ChunkOf("playgo-languages/01-en-US.bin"));
         Assert.Equal(2, rebuilt.ChunkOf("playgo-chunks/002.bin"));
         Assert.Equal(0, rebuilt.ChunkOf("data0.bin"));
-        Assert.Contains(log, e => e.Message.Contains("playgo-chunks/", StringComparison.Ordinal) && e.Message.Contains("1, 2", StringComparison.Ordinal));
+        Assert.Contains(log, e => e.Message.Contains("playgo-chunks/", StringComparison.Ordinal) && e.Message.Contains("(2)", StringComparison.Ordinal));
     }
 
     /// <summary>Gói tạo qua Publishing Tools từ nguồn có bảng gốc phải có đúng 3 chunk, 2 kịch bản và ánh xạ tệp như gói gốc.</summary>
@@ -376,7 +386,7 @@ public sealed class SonySdkPlayGoTests : IDisposable
             return;
         }
 
-        var source = MakeSource("build");
+        var source = MakeSource("build", twoScenarios: true);
         var log = new List<LogEntry>();
         var request = new BuildRequest
         {
@@ -401,7 +411,8 @@ public sealed class SonySdkPlayGoTests : IDisposable
             File.ReadAllBytes(Path.Combine(cnt, "playgo-hash-table.dat")));
         Assert.Equal(["Chunk #0", "Voice JP EN", "Voice FR"], rebuilt.Chunks.Select(chunk => chunk.Label));
         Assert.Equal(["ja-JP", "en-US"], SonySdkPlayGo.Codes(rebuilt.Chunks[1].LanguageMask));
-        Assert.Equal([0, 2, 1], rebuilt.Scenarios[0].ChunkOrder);
+        // Mặc định: mọi kịch bản gồm mọi chunk (bảng retail ghi "0 2 1").
+        Assert.Equal([0, 1, 2], rebuilt.Scenarios[0].ChunkOrder);
         Assert.Equal(1, rebuilt.ChunkOf("data0.bin"));
         Assert.Equal(2, rebuilt.ChunkOf("data1.bin"));
         Assert.Equal(2, rebuilt.ChunkOf("data2.bin"));
@@ -409,8 +420,9 @@ public sealed class SonySdkPlayGoTests : IDisposable
     }
 
     /// <summary>
-    /// Bảng nguồn cho kịch bản 0 chỉ chunk 0 và 2 (như gói retail tải chunk 1 sau): Publishing Tools nhận GP5 có kịch bản "0 2 1", và gói
-    /// tạo ra cho mọi kịch bản đủ 3 chunk, đều initial — chunk 1 không bị coi là chưa cài khi game chạy tới phần dùng nó.
+    /// Bảng nguồn cho kịch bản 0 chỉ chunk 0 và 2 (như gói retail tải chunk 1 sau). Mặc định gói tạo ra cho mọi kịch bản đủ 3 chunk, đều
+    /// initial — chunk 1 không bị coi là chưa cài khi game chạy tới phần dùng nó. Bật kịch bản retail (fix15): Publishing Tools nhận GP5
+    /// có kịch bản "0 2" và gói giữ đúng thứ tự / số initial của retail.
     /// </summary>
     [Fact]
     public async Task Build_GivesEveryScenarioEveryChunk()
@@ -420,7 +432,7 @@ public sealed class SonySdkPlayGoTests : IDisposable
             return;
         }
 
-        var source = MakeSource("subset");
+        var source = MakeSource("subset", twoScenarios: true);
         var table = File.ReadAllBytes(Path.Combine(source, "sce_sys", "playgo-chunk.dat"));
         var scenarios = (int)System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(table.AsSpan(224));
         System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(table.AsSpan(scenarios + 22), 2);
@@ -428,21 +440,33 @@ public sealed class SonySdkPlayGoTests : IDisposable
         var parsed = SonySdkPlayGo.Parse(table, default, default);
         Assert.Equal([0, 2], parsed.Scenarios[0].ChunkOrder);
 
-        var outcome = await new BuildEngine().BuildAsync(new BuildRequest
+        async Task<PlayGoStructure> BuildAsync(string name, bool retail)
         {
-            SourcePath = source,
-            OutputFolder = Path.Combine(_root, "subset-out"),
-            TemporaryFolder = Path.Combine(_root, "subset-tmp"),
-            ContentId = ContentId,
-            PreventSleep = false,
-        }, _ => { }, null, CancellationToken.None);
+            var outcome = await new BuildEngine().BuildAsync(new BuildRequest
+            {
+                SourcePath = source,
+                OutputFolder = Path.Combine(_root, name + "-out"),
+                TemporaryFolder = Path.Combine(_root, name + "-tmp"),
+                ContentId = ContentId,
+                PreventSleep = false,
+                SdkRetailPlayGoScenarios = retail,
+            }, _ => { }, null, CancellationToken.None);
 
-        var cnt = Path.Combine(_root, "subset-cnt");
-        PackageReader.ExportCntEntries(outcome.OutputPath, cnt, Passcode, CancellationToken.None);
-        var rebuilt = SonySdkPlayGo.Parse(File.ReadAllBytes(Path.Combine(cnt, "playgo-chunk.dat")), default, default);
-        Assert.Equal([0, 2, 1], rebuilt.Scenarios[0].ChunkOrder);
+            var cnt = Path.Combine(_root, name + "-cnt");
+            PackageReader.ExportCntEntries(outcome.OutputPath, cnt, Passcode, CancellationToken.None);
+            return SonySdkPlayGo.Parse(File.ReadAllBytes(Path.Combine(cnt, "playgo-chunk.dat")), default, default);
+        }
+
+        var rebuilt = await BuildAsync("subset", retail: false);
+        Assert.Equal([0, 1, 2], rebuilt.Scenarios[0].ChunkOrder);
         Assert.Equal([0, 1, 2], rebuilt.Scenarios[1].ChunkOrder);
         Assert.All(rebuilt.Scenarios, scenario => Assert.Equal(3, scenario.InitialChunkCount));
+
+        var retail = await BuildAsync("subset-retail", retail: true);
+        Assert.Equal([0, 2], retail.Scenarios[0].ChunkOrder);
+        Assert.Equal(1, retail.Scenarios[0].InitialChunkCount);
+        Assert.Equal([0, 1, 2], retail.Scenarios[1].ChunkOrder);
+        Assert.Equal(2, retail.Scenarios[1].InitialChunkCount);
     }
 
     [Fact]

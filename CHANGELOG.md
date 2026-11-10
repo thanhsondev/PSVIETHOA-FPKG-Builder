@@ -1,8 +1,12 @@
 # Changelog
 
-## 3.0.1 — 2026-11-10
+## 3.1.0 — 2026-11-10
 
-Fixes ported from PSVIETHOA STUDIO 2.1.0 (Ngô Phi Phương) and a new ZSTD PS5 section (beta). The Switch parts of the Studio are not included.
+Two updates in one: the PSVIETHOA STUDIO 2.1.0 fixes and a new ZSTD PS5 section (beta) from Ngô Phi Phương, and Sony SDK mode moving to Drakmor's `sdk-fpkg279-fix15` toolkit.
+
+### From PSVIETHOA STUDIO 2.1.0
+
+Ported by Ngô Phi Phương. The Switch parts of the Studio are not included.
 
 - **PS5 Build PKG: PFS sources.** `.ffpfsc` files that hold a raw PFS image (`pfs_image.dat`) instead of an exFAT image — the layout ShadowMountPlus recommends, made by MkPFS `--raw`, ps5-ffpfs-cli, ps5-exfat-builder… — failed with "not a valid exFAT image". They now open, as do uncompressed `.ffpfs` images and a bare `pfs_image.dat`: the app reads the game files straight from the (nested) PFS through LibProsperoPkg (`ExFat/PfsFileSystem.cs`), so inspect, build, extraction to the temp folder and the Dokan drive work as for exFAT. The pickers and drag & drop accept them; the source chip / `fpkg-cli inspect` say "PFS image". Tested with MkPFS 1.1.0 images (exFAT-in-PFS, raw-in-PFS, `.ffpfs`, `pfs_image.dat`): every package's files match the one built from the folder (only `param.json` `creationDate` differs).
 - **PS4 PKG: faster extraction.** Files are extracted in parallel (large files decrypted in 4 MiB segments on several threads, then written and hashed in order; small files several at a time). LibOrbisPkg gets the Studio's two fixes: AES-XTS with one ECB call per sector (`XtsDecryptReader.cs`) and `ChunkedMemoryReader` reading only the part of each chunk (it read the whole request before). Output byte-identical (Ninja Gaiden Σ CUSA25891, 581 files, compared with PSVIETHOA STUDIO 2.1.0).
@@ -15,6 +19,40 @@ Fixes ported from PSVIETHOA STUDIO 2.1.0 (Ngô Phi Phương) and a new ZSTD PS5 
   - CLI: `zstd-info`, `zstd-list`, `zstd-pack`, `zstd-unpack`, `zstd-reindex`, `zstd-patch`, `zstd-undo`.
 - **Sidebar like PSVIETHOA STUDIO, larger.** *Search tools…* box (Ctrl+K / Cmd+K; Enter opens the first match, Esc clears; accents ignored), groups in the Studio order — PS4 PKG, PS5 FPKG, ZSTD PS5, PS5 Connect · Save — and a two-column grid of tool buttons (the odd last one spans the row). The whole sidebar scales with the window: 1× at 1400 × 900, up to 1.4× on large windows. The compact icon-only mode is unchanged.
 - Test hooks: `PSVIETHOA_PAGE=ZstdPack|ZstdUnpack|ZstdPatch`, `PSVIETHOA_ZSTD_SOURCE / _OUTPUT / _PATCH`, `PSVIETHOA_ZSTD_AUTOSTART=1`.
+
+### Sony SDK: `sdk-fpkg279-fix15`
+
+**Sony SDK mode now uses Drakmor's `sdk-fpkg279-fix15` toolkit** (profile `sdk279-plaintext-direct-v6`: plaintext outer PFS with stock development RIF signatures and protected CNT entries). `libs/sony-sdk` is replaced as a whole — re-patched `prospero-pub-cmd.exe` / `libScePubTools.dll`, `prospero-dds2png.exe`, `create-gp5-from-folder.py`, the launchers and `metadata-recovery.exe` — and the app reproduces the new script byte for byte. The 2.2.7 fixes stay on by default.
+
+- **What fix15 changes, now done by the app as well:**
+  - **SDK version kept in the package.** The new Publishing Tools keeps `sdkVersion` / `requiredSystemSoftwareVersion` instead of writing 0. When `param.json` has `sdkVersion` 0, the script reads the SDK from the `.sceversion` trailer of `eboot.bin`, and it raises the minimum system version when it is lower than the SDK. The *SDK version* override now works in Sony SDK mode too. The app passes the packed hex value: the toolkit turns a plain `10` into `0x0A…`, which is wrong for SDK 10 and later.
+  - **Source PlayGo layout.**
+    - The chunk count comes from the source `sce_sys/playgo-chunk.dat`.
+    - When `playgo-ficm.dat` and `playgo-hash-table.dat` are valid as well, chunk labels, chunk languages and each file's chunk are kept (path hash with the table's own seed/key). Unmapped files and incomplete chunks are logged.
+    - A one-chunk source keeps its real chunk 0.
+    - Without a usable layout the fallback is up to 800 chunks (1–255 before; the built-in engine stays at 255).
+  - **PlayGo languages.** *Generate for languages* now applies to the Sony SDK (`--playgo-languages`); the source layout is then replaced by generated chunks.
+  - **UDS / UCP.** A valid `sce_sys/uds/npbind.dat` names the NPWR id of every `udsNN.ucp`. A stale digest is recomputed and every member is kept; a missing or unreadable UCP becomes a well-formed empty stub (the package loses that file's original UDS data; the source is unchanged). trophy2 and UCPs outside npbind are still repaired by the app.
+  - **More exclusions.**
+    - Unreal Engine runtime config (`*/Saved/Config/*/*.ini`)
+    - a root `decrypted/` folder
+    - `entitlements.txt` and `entitlement_key.dat` written by pfsdump
+    - `sce_sys/lem_notification.dat`
+    - a `playgo-languages/` folder left in an extracted package
+- **Retail PlayGo scenarios are optional (new, off by default).** fix15 copies the retail scenario layout: the chunk order and the number of chunks needed before launch. The app keeps its 2.2.x behaviour, where every scenario lists every chunk and every chunk is initial, because the retail initial count made Ghost of Yōtei show *Something went wrong (CE-108111-2)*. Turn on *Keep retail PlayGo scenarios (fix15)* or pass `--sdk-retail-scenarios` to get the toolkit's layout.
+- **Dumps with misnamed PlayGo tables still build.** In Control (PPSA34547) and Plants vs. Zombies Replanted (PPSA29802), `playgo-ficm.dat` holds the FLT table or a copy of `param.json`. On such dumps the fix15 script stops with *unrecognized header*. The app warns and uses the script's own fallback for a source without those tables: the header's chunk count, every file in chunk 0, one placeholder per language. *Fill empty PlayGo chunks* still gives any remaining empty chunk a placeholder, so Control's "Installing game 0GB/0" fix still holds.
+- **Checked against the toolkit:**
+  - `SonySdkFidelityTests` and the new `SonySdkFix15Tests` run the fix15 script (`--volume app --keep-keystone --chunk-count N --auto-size-profile sdk279`, plus `--playgo-languages`) and compare the GP5, scenario JSON, `param.json`, UCP stubs and the `01-create-gp5.log` text, including source layouts, retail scenarios and selected languages.
+  - With the toolkit's defaults, the real PPSA29802 dump gives the same GP5, scenario and `param.json` as the script run on that dump without its broken tables.
+  - Real Publishing Tools builds under Wine verify every structure and content check. The 1,706,966,580-byte PPSA29802 package passes the full check.
+- **Logs.**
+  - The SDK version warning now compares the package with the normalized `param.json` the app handed to the SDK.
+  - The plan says when the toolkit would have stopped.
+  - The PlayGo lines say whether the source layout, the fallback or selected languages were used.
+- **Settings migration (once):** *SDK version → Override* is switched off and *PlayGo layout* goes back to *Source layout*, because these used to affect only the built-in engine and an old saved value would now silently change Sony SDK packages.
+- CLI: `--sdk`, `--playgo-languages`, `--keep-required-fw` and `--playgo 1..800` apply to Sony SDK builds; new `--sdk-retail-scenarios`.
+- Not ported: fix15's AC (DLC) volume through the SDK. `dlc-from-ini` still builds DLC with the built-in engine. Online metadata restore keeps using the app's own implementation; it never writes backups next to the source.
+
 
 ## 3.0.0 — 2026-11-02
 

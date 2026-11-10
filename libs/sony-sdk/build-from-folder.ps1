@@ -3,10 +3,14 @@
     [Parameter(Mandatory=$true)][string]$OutputPackage,
     [string]$ReferencePackage,
     [string]$Passcode = "00000000000000000000000000000000",
+    [string]$SdkVersion,
+    [ValidateSet("app", "ac")][string]$Volume = "app",
+    [string]$EntitlementKey,
     [string]$Python = "python",
     [string]$TemporaryDirectory = $env:LIBPROSPERO_TEMP_DIR,
     [ValidateRange(-4, 9)][int]$CompressionLevel = 7,
-    [ValidateRange(1, 255)][int]$ChunkCount = 100,
+    [ValidateRange(1, 800)][int]$ChunkCount = 100,
+    [ValidateNotNullOrEmpty()][string]$PlayGoLanguages,
     [switch]$KeepKeystone,
     [switch]$KeepIntermediate,
     [switch]$Force
@@ -16,6 +20,29 @@ $toolkit = [IO.Path]::GetFullPath($PSScriptRoot)
 $autoSizeProfile = "sdk279"
 $source = [IO.Path]::GetFullPath($SourceFolder)
 $final = [IO.Path]::GetFullPath($OutputPackage)
+if (-not [string]::IsNullOrWhiteSpace($SdkVersion)) {
+    if ($Volume -ne 'app') { throw "SdkVersion supports APP volumes only." }
+    $SdkVersion = $SdkVersion.Trim()
+    if ($SdkVersion -match '\A(?<major>[1-9][0-9]{0,2})(?:\.00)?\z') {
+        if ([int]$Matches.major -gt 255) { throw "SDK version major must be 1..255." }
+    } elseif ($SdkVersion -match '\A0x[0-9A-Fa-f]{16}\z') {
+        if ($SdkVersion.Substring(2, 4) -eq '0000') {
+            throw "SDK version major/minor must not be zero."
+        }
+    } else {
+        throw "SDK version must be 1..255, MAJOR.00, or 0x plus 16 hex digits."
+    }
+}
+if ($Volume -eq "ac") {
+    if ($EntitlementKey -notmatch '\A[0-9A-Fa-f]{32}\z') {
+        throw "AC requires EntitlementKey: exactly 32 hexadecimal characters (16 bytes)."
+    }
+    $EntitlementKey = $EntitlementKey.ToUpperInvariant()
+    if ($ChunkCount -ne 100) { throw "ChunkCount supports APP volumes only." }
+    if ($PSBoundParameters.ContainsKey('PlayGoLanguages')) { throw "PlayGoLanguages supports APP volumes only." }
+} elseif (-not [string]::IsNullOrEmpty($EntitlementKey)) {
+    throw "EntitlementKey supports AC volumes only."
+}
 $reference = $null
 if (-not [string]::IsNullOrWhiteSpace($ReferencePackage)) {
     $reference = [IO.Path]::GetFullPath($ReferencePackage)
@@ -23,12 +50,14 @@ if (-not [string]::IsNullOrWhiteSpace($ReferencePackage)) {
 if (-not (Test-Path -LiteralPath $source -PathType Container)) {
     throw "SourceFolder does not exist or is not a directory: $source"
 }
-$sourceKeystone = Join-Path $source "sce_sys\keystone"
-if (-not (Test-Path -LiteralPath $sourceKeystone -PathType Leaf)) {
-    throw "This custom-keystone toolchain requires: $sourceKeystone"
-}
-if ((Get-Item -LiteralPath $sourceKeystone).Length -ne 96) {
-    throw "The source keystone must be exactly 96 bytes: $sourceKeystone"
+if ($Volume -eq "app") {
+    $sourceKeystone = Join-Path $source "sce_sys\keystone"
+    if (-not (Test-Path -LiteralPath $sourceKeystone -PathType Leaf)) {
+        throw "This custom-keystone toolchain requires: $sourceKeystone"
+    }
+    if ((Get-Item -LiteralPath $sourceKeystone).Length -ne 96) {
+        throw "The source keystone must be exactly 96 bytes: $sourceKeystone"
+    }
 }
 if ([IO.Path]::GetExtension($final) -ine ".pkg") {
     throw "OutputPackage must be a .pkg path."
@@ -123,11 +152,21 @@ if ($temporaryBuildDirectory) {
 Write-Host "[1/2] Creating GP5: $gp5"
 $gp5Args = @(
     (Join-Path $toolkit "scripts/create-gp5-from-folder.py"),
-    $source, $gp5, "--passcode", $Passcode, "--absolute-paths", "--keep-keystone",
-    "--chunk-count", $ChunkCount)
-if (-not $reference) {
-    $gp5Args += @("--auto-size-profile", $autoSizeProfile)
+    $source, $gp5, "--passcode", $Passcode, "--absolute-paths", "--volume", $Volume)
+if (-not [string]::IsNullOrWhiteSpace($SdkVersion)) {
+    $gp5Args += @("--sdk-version", $SdkVersion)
+}
+if ($Volume -eq "ac") {
+    $gp5Args += @("--entitlement-key", $EntitlementKey)
 } else {
+    $gp5Args += @("--keep-keystone", "--chunk-count", $ChunkCount)
+    if ($PSBoundParameters.ContainsKey('PlayGoLanguages')) {
+        $gp5Args += @("--playgo-languages", $PlayGoLanguages)
+    }
+}
+if ($Volume -eq "app" -and -not $reference) {
+    $gp5Args += @("--auto-size-profile", $autoSizeProfile)
+} elseif ($reference) {
     Write-Host "Reference build: preserving source attributePub; unpacked patch size cannot determine remastered size."
 }
 & $Python @gp5Args 2>&1 |

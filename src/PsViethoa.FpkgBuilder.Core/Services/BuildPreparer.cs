@@ -252,9 +252,11 @@ public static class BuildPreparer
             errors.Add(new ValidationError(FieldThreads, Loc.T("Val.Threads")));
         }
 
-        if (normalized.PlayGoChunks is < BuildRequest.MinPlayGoChunks or > BuildRequest.MaxPlayGoChunks)
+        // SDK Sony (fix15) nhận tới 800 chunk dự phòng; engine tích hợp (kể cả khi SDK không dùng được) tối đa 255 — xem CreateOptions.
+        var maxChunks = normalized.UseSonySdk ? BuildRequest.MaxSdkPlayGoChunks : BuildRequest.MaxPlayGoChunks;
+        if (normalized.PlayGoChunks < BuildRequest.MinPlayGoChunks || normalized.PlayGoChunks > maxChunks)
         {
-            errors.Add(new ValidationError(FieldPlayGo, Loc.T("Val.PlayGo")));
+            errors.Add(new ValidationError(FieldPlayGo, Loc.F("Val.PlayGo", maxChunks)));
         }
 
         if (!normalized.PreserveSourcePlayGoLayout && normalized.PlayGoLanguages is { Count: 0 })

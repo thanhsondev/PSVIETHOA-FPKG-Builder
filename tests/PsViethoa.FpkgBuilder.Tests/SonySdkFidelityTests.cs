@@ -6,7 +6,7 @@ using Xunit;
 namespace PsViethoa.FpkgBuilder.Tests;
 
 /// <summary>
-/// GP5 của công cụ phải giống từng byte với <c>create-gp5-from-folder.py</c> của bộ sdk-fpkg279-fix12 (thứ tự tệp quyết định bố cục
+/// GP5 của công cụ phải giống từng byte với <c>create-gp5-from-folder.py</c> của bộ sdk-fpkg279-fix15 (thứ tự tệp quyết định bố cục
 /// gói của Publishing Tools). So trực tiếp với script Python khi máy có python3; các phép thử còn lại không cần Python.
 /// </summary>
 public sealed class SonySdkFidelityTests : IDisposable
@@ -265,7 +265,7 @@ public sealed class SonySdkFidelityTests : IDisposable
     /// Tệp SELF tổng hợp: magic PS4 (<paramref name="legacy"/>) hoặc Prospero, header ghi ranh giới .sceversion ở 0x40 nhưng bản ghi thật
     /// bắt đầu sớm hơn <paramref name="misalignment"/> byte.
     /// </summary>
-    internal static byte[] SelfFile(bool legacy, int misalignment)
+    internal static byte[] SelfFile(bool legacy, int misalignment, byte[]? sdkVersion = null)
     {
         const int boundary = 0x40;
         var name = "libc:"u8.ToArray();
@@ -273,7 +273,7 @@ public sealed class SonySdkFidelityTests : IDisposable
         record.AddRange(BitConverter.GetBytes((ushort)(name.Length + 17)));
         record.Add(8);
         record.AddRange(name);
-        var version = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 };
+        var version = sdkVersion ?? [1, 2, 3, 4, 5, 6, 7, 8];
         record.AddRange(version);
         record.AddRange(version);
         var data = new byte[boundary - misalignment + record.Count];
@@ -302,6 +302,9 @@ public sealed class SonySdkFidelityTests : IDisposable
         }
 
         var source = MakeTree();
+        // fix15 đọc playgo-chunk.dat của nguồn (tệp 4 byte giả thì script dừng): ca này là nguồn không còn bảng PlayGo.
+        File.Delete(Path.Combine(source, "sce_sys", "playgo-chunk.dat"));
+        SonySdkFix15Tests.AddFix15Cases(source);
         File.WriteAllText(
             Path.Combine(source, "sce_sys", "playgo-scenario.json"),
             "{\"scenarioCount\":2,\"scenarioDefaultId\":1,\"scenarioDefaultLanguage\":\"en-US\",\"scenarios\":[" +
@@ -373,8 +376,8 @@ public sealed class SonySdkFidelityTests : IDisposable
 
         var startInfo = new ProcessStartInfo(python)
         {
-            // Đúng các cờ build-from-folder.ps1 (fix12) truyền cho gói đầy đủ.
-            ArgumentList = { script, source, Path.Combine(pythonOut, "game.gp5"), "--passcode", Passcode, "--absolute-paths", "--keep-keystone", "--chunk-count", chunkCount.ToString(System.Globalization.CultureInfo.InvariantCulture), "--auto-size-profile", "sdk279" },
+            // Đúng các cờ build-from-folder.ps1 (fix15) truyền cho gói APP đầy đủ.
+            ArgumentList = { script, source, Path.Combine(pythonOut, "game.gp5"), "--passcode", Passcode, "--absolute-paths", "--volume", "app", "--keep-keystone", "--chunk-count", chunkCount.ToString(System.Globalization.CultureInfo.InvariantCulture), "--auto-size-profile", "sdk279" },
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -390,9 +393,9 @@ public sealed class SonySdkFidelityTests : IDisposable
         run.WaitForExit();
         Assert.True(run.ExitCode == 0, stderr);
 
-        // Script fix6 luôn tạo 100 chunk + chunk ngôn ngữ từ playgo-scenario.json: phía C# dùng cùng bố cục (PlayGo dự phòng).
-        var playGo = SonySdkPlayGo.ScriptFallback(Path.Combine(source, "sce_sys"), SonySdkProject.DefaultLanguageOf(Path.Combine(source, "sce_sys", "param.json")), out var scenarioWarning, chunkCount);
-        Assert.Null(scenarioWarning);
+        // Nguồn không có playgo-chunk.dat: script tạo N chunk + chunk ngôn ngữ từ playgo-scenario.json — phía C# đi đúng đường của công cụ.
+        var playGo = SonySdkPlayGo.Toolkit(Path.Combine(source, "sce_sys"), SonySdkProject.DefaultLanguageOf(Path.Combine(source, "sce_sys", "param.json")), chunkCount, null, retailScenarios: true, out var problems);
+        Assert.Equal(new PlayGoToolkitProblems(null, null, null), problems);
         var result = SonySdkProject.Create(source, Path.Combine(sharpOut, "game.gp5"), Passcode, path => path, SonySdkSourcePlan.Pure with { PlayGo = playGo, AutoSizeProfile = SonySdkPackageSize.Sdk279 }, ddsConverter: converter);
         Assert.Equal(3, result.PlayGoLanguagePayloads);
         Assert.Equal(["sce_module/libA.prx", "sce_module/libC.prx"], result.RepairedSelfs.Select(item => item.Relative));
@@ -434,6 +437,7 @@ public sealed class SonySdkFidelityTests : IDisposable
         }
 
         Assert.Equal(converter == null ? 0 : 3, result.RecoveredPngs.Count);
+        SonySdkFix15Tests.AssertFix15Cases(pythonOut, result);
     }
 
     [Fact]

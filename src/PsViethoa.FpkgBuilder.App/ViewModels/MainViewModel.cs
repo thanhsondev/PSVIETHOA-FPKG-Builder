@@ -291,6 +291,9 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _sdkKeepEmptyFolders = true;
     [ObservableProperty] private bool _sdkFillEmptyChunks = true;
 
+    /// <summary>SDK Sony (bộ fix15): giữ kịch bản PlayGo retail (thứ tự chunk, số chunk initial) thay vì mọi kịch bản gồm mọi chunk.</summary>
+    [ObservableProperty] private bool _sdkRetailPlayGoScenarios;
+
     /// <summary>Mức --compression_level mà mỗi preset ở bước 3 chọn khi SDK Sony bật: null = không truyền (7, như bộ gốc).</summary>
     private static int? SdkLevelForPreset(BuildPreset preset) =>
         preset.Id == BuildPresets.Fast.Id ? 2 : preset.Id == BuildPresets.Balanced.Id ? 4 : preset.Id == BuildPresets.Maximum.Id ? 9 : null;
@@ -1979,7 +1982,7 @@ public sealed partial class MainViewModel : ObservableObject
             PlayGoLayoutIndex = s.PreserveSourcePlayGoLayout ? 0 : 1;
             ApplyPlayGoLanguages(s.PlayGoLanguages);
 
-            PlayGoChunks = Math.Clamp(s.PlayGoChunks, BuildRequest.MinPlayGoChunks, BuildRequest.MaxPlayGoChunks);
+            PlayGoChunks = Math.Clamp(s.PlayGoChunks, BuildRequest.MinPlayGoChunks, BuildRequest.MaxSdkPlayGoChunks);
             Deterministic = s.Deterministic;
             ComputeSha256 = s.ComputeSha256;
             FullVerify = s.FullVerify;
@@ -1989,10 +1992,20 @@ public sealed partial class MainViewModel : ObservableObject
             SdkPlayGoFallback = s.SdkPlayGoFallback;
             SdkKeepEmptyFolders = s.SdkKeepEmptyFolders;
             SdkFillEmptyChunks = s.SdkFillEmptyChunks;
+            SdkRetailPlayGoScenarios = s.SdkRetailPlayGoScenarios;
             SdkCompressionIndex = SdkIndexFromLevel(s.SdkCompressionLevel);
             PreventSleep = s.PreventSleep;
             OverrideSdk = s.OverrideSdk;
             SdkIndex = Math.Clamp(s.SdkMajor - 1, 0, SdkOptions.Count - 1);
+            if (s.SdkOptionsRevision < AppSettings.CurrentSdkOptionsRevision)
+            {
+                // 3.0.1 (bộ fix15): "Ghi đè SDK" và "Tạo theo ngôn ngữ" nay đổi cả gói SDK Sony — giá trị cũ chỉ từng áp dụng cho engine tích hợp.
+                OverrideSdk = false;
+                PlayGoLayoutIndex = 0;
+                s.OverrideSdk = false;
+                s.PreserveSourcePlayGoLayout = true;
+                s.SdkOptionsRevision = AppSettings.CurrentSdkOptionsRevision;
+            }
             PublishingToolsPath = IsWindows ? (PublishingToolsLocator.Find(s.PublishingToolsPath) ?? s.PublishingToolsPath) : s.PublishingToolsPath;
             AdvancedExpanded = s.AdvancedExpanded;
             AutoScrollLog = s.AutoScrollLog;
@@ -2072,6 +2085,7 @@ public sealed partial class MainViewModel : ObservableObject
         s.SdkPlayGoFallback = d.SdkPlayGoFallback;
         s.SdkKeepEmptyFolders = d.SdkKeepEmptyFolders;
         s.SdkFillEmptyChunks = d.SdkFillEmptyChunks;
+        s.SdkRetailPlayGoScenarios = d.SdkRetailPlayGoScenarios;
         s.SdkCompressionLevel = d.SdkCompressionLevel;
         s.PreventSleep = d.PreventSleep;
         s.OverrideSdk = d.OverrideSdk;
@@ -2106,6 +2120,7 @@ public sealed partial class MainViewModel : ObservableObject
         s.OutputFolder = OutputFolder.Trim();
         s.OutputFolderAuto = AutoOutputFolder;
         s.OutputAutoRevision = AppSettings.CurrentOutputAutoRevision;
+        s.SdkOptionsRevision = AppSettings.CurrentSdkOptionsRevision;
         s.CheckUpdatesOnStartup = CheckUpdatesOnStartup;
         s.TemporaryFolder = TemporaryFolder.Trim();
         s.ContentId = ContentId.Trim();
@@ -2147,6 +2162,7 @@ public sealed partial class MainViewModel : ObservableObject
         s.SdkPlayGoFallback = SdkPlayGoFallback;
         s.SdkKeepEmptyFolders = SdkKeepEmptyFolders;
         s.SdkFillEmptyChunks = SdkFillEmptyChunks;
+        s.SdkRetailPlayGoScenarios = SdkRetailPlayGoScenarios;
         s.SdkCompressionLevel = SdkLevelFromIndex(SdkCompressionIndex);
         s.PreventSleep = PreventSleep;
         s.OverrideSdk = OverrideSdk;
@@ -2865,6 +2881,7 @@ public sealed partial class MainViewModel : ObservableObject
         SdkPlayGoFallback = SdkPlayGoFallback,
         SdkKeepEmptyFolders = SdkKeepEmptyFolders,
         SdkFillEmptyChunks = SdkFillEmptyChunks,
+        SdkRetailPlayGoScenarios = SdkRetailPlayGoScenarios,
         SdkCompressionLevel = SdkLevelFromIndex(SdkCompressionIndex),
         RemoveAmprLeftovers = RemoveAmprLeftovers,
         RemoveDumpLeftovers = RemoveDumpLeftovers,

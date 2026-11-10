@@ -555,6 +555,14 @@
                                                 </StackPanel>
                                             </Grid>
 
+                                            <Grid ColumnDefinitions="Auto,12,*">
+                                                <ToggleSwitch IsChecked="{Binding SdkRetailPlayGoScenarios, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" VerticalAlignment="Top" />
+                                                <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{l:T Advanced.SdkRetailScenarios}" TextWrapping="Wrap" />
+                                                    <TextBlock Classes="xs muted" Text="{l:T Advanced.SdkRetailScenariosHint}" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Grid>
+
                                             <Grid ColumnDefinitions="Auto,12,*" IsVisible="{Binding IsWindows}">
                                                 <ToggleSwitch IsChecked="{Binding SdkPrescan, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" VerticalAlignment="Top" />
                                                 <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
@@ -818,14 +826,14 @@
                                         </StackPanel>
                                         <StackPanel Grid.Column="2" Classes="field">
                                             <TextBlock Classes="label" Text="{l:T Advanced.PlayGo}" />
-                                            <NumericUpDown Name="PlayGoBox" Minimum="1" Maximum="255" Increment="1" FormatString="0" Value="{Binding PlayGoChunks, Mode=TwoWay}" IsEnabled="{Binding PlayGoChunksEnabled}" />
+                                            <NumericUpDown Name="PlayGoBox" Minimum="1" Maximum="800" Increment="1" FormatString="0" Value="{Binding PlayGoChunks, Mode=TwoWay}" IsEnabled="{Binding PlayGoChunksEnabled}" />
                                             <TextBlock Classes="hint" Text="{l:T Advanced.PlayGoHint}" />
                                             <TextBlock Classes="error" Text="{Binding PlayGoError}" IsVisible="{Binding PlayGoError, Converter={x:Static conv:AppConverters.NotEmpty}}" />
                                         </StackPanel>
                                     </Grid>
 
-                                    <!-- Engine 0.6.11: giữ bố cục PlayGo của nguồn, hoặc tạo theo danh sách ngôn ngữ (như fpkg-gui) -->
-                                    <StackPanel Classes="field" IsEnabled="{Binding EngineOptionsEnabled}">
+                                    <!-- Giữ bố cục PlayGo của nguồn, hoặc tạo theo danh sách ngôn ngữ: engine 0.6.11 (như fpkg-gui) và SDK Sony bộ fix15 (cờ playgo-languages) -->
+                                    <StackPanel Classes="field" IsEnabled="{Binding CanEdit}">
                                         <TextBlock Classes="label" Text="{l:T Advanced.PlayGoLayout}" />
                                         <ComboBox Name="PlayGoLayoutCombo" ItemsSource="{Binding PlayGoLayoutOptions}" SelectedIndex="{Binding PlayGoLayoutIndex, Mode=TwoWay}" HorizontalAlignment="Stretch" />
                                         <TextBlock Classes="hint" Text="{l:T Advanced.PlayGoLayoutHint}" TextWrapping="Wrap" />
@@ -854,7 +862,8 @@
                                         </Expander>
                                     </StackPanel>
 
-                                    <StackPanel Classes="field" IsEnabled="{Binding EngineOptionsEnabled}">
+                                    <!-- Chọn SDK: engine (.sceversion) và SDK Sony bộ fix15 (cờ sdk-version, ghi sdkVersion vào param.json) -->
+                                    <StackPanel Classes="field" IsEnabled="{Binding CanEdit}">
                                         <TextBlock Classes="label" Text="{l:T Advanced.Sdk}" />
                                         <Grid ColumnDefinitions="Auto,12,*">
                                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">

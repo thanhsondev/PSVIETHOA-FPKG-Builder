@@ -93,7 +93,7 @@ exit /b %RESULT%
 :usage
 echo Usage: %~nx0 "PROJECT_FOLDER" "OUTPUT.pkg" [compression_level] [chunks=COUNT] [reference=BASE.pkg] [force] [keep] [keystone]
 echo Compression level: -4 through 9; default is 7. Also accepted: compression=LEVEL
-echo PlayGo chunks: 1 through 255; default is 100. Use chunks=COUNT.
+echo PlayGo chunks: 1 through 800; default is 100. Use chunks=COUNT.
 echo Set LIBPROSPERO_TEMP_DIR to place SDK/Python temporary workspace on another drive.
 echo.
 echo Examples:

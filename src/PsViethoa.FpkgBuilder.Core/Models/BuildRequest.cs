@@ -11,6 +11,9 @@ public sealed class BuildRequest
     public const int MinPlayGoChunks = 1;
     public const int MaxPlayGoChunks = 255;
 
+    /// <summary>Số chunk dự phòng tối đa của SDK Sony (bộ fix15: 1..800); engine tích hợp vẫn tối đa <see cref="MaxPlayGoChunks"/>.</summary>
+    public const int MaxSdkPlayGoChunks = 800;
+
     /// <summary>Số khối PlayGo dự phòng mặc định của engine 0.6.8 (dùng khi nguồn không có playgo-chunk.dat).</summary>
     public const int DefaultPlayGoChunks = 100;
     public const int MinSdkMajor = 1;
@@ -246,6 +249,36 @@ public sealed class BuildRequest
     public bool SdkFillEmptyChunks { get; set; } = true;
 
     /// <summary>
+    /// SDK Sony (bộ fix15): khi nguồn còn bảng PlayGo hợp lệ, kịch bản trong GP5 giữ thứ tự chunk và số chunk "initial" (cần trước khi chạy)
+    /// của gói retail đúng như script ("recreate retail PlayGo scenario layout / early launch flags"). Mặc định tắt: mọi kịch bản gồm mọi chunk
+    /// và mọi chunk initial như công cụ làm từ 2.2.x — giữ số initial retail (Ghost of Yōtei 32/35) làm game hỏi hệ thống các chunk còn lại và
+    /// hiện "Something went wrong (CE-108111-2)".
+    /// </summary>
+    public bool SdkRetailPlayGoScenarios { get; set; }
+
+    /// <summary>
+    /// SDK Sony: danh sách <c>--playgo-languages</c> (fix15) — null = ngôn ngữ của nguồn (bố cục nguồn hoặc playgo-scenario.json). Cùng tuỳ chọn
+    /// "Bố cục PlayGo" với engine tích hợp: "tạo theo ngôn ngữ" dùng các ngôn ngữ đã chọn, không chọn ngôn ngữ nào = mọi ngôn ngữ.
+    /// </summary>
+    public IReadOnlyList<string>? SdkPlayGoLanguages =>
+        PreserveSourcePlayGoLayout
+            ? null
+            : (PlayGoLanguages is { Count: > 0 } languages ? languages : Services.SonySdkPlayGo.LanguageCodes)
+                .Select(code => Services.SonySdkPlayGo.LanguageCodes.FirstOrDefault(known => string.Equals(known, code.Trim(), StringComparison.OrdinalIgnoreCase)))
+                .OfType<string>()
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+
+    /// <summary>
+    /// SDK Sony: <c>--sdk-version</c> (fix15) từ <see cref="SdkMajorOverride"/> — dạng hex đầy đủ (major/minor BCD như param.json, 16 bit cao).
+    /// Truyền dạng hex chứ không phải số thập phân vì script đổi "10" thành 0x0A… thay vì 0x10… (sai với SDK 10 trở lên).
+    /// </summary>
+    public ulong? SdkVersionOverrideValue =>
+        SdkMajorOverride is { } major && Services.SdkVersions.Get(major) is { ExecutableVersion: var version } && (version & 0xFFFF000000000000UL) != 0
+            ? version & 0xFFFF000000000000UL
+            : null;
+
+    /// <summary>
     /// Do BuildEngine đặt khi lượt này thật sự chạy SDK Sony: bộ công cụ luôn chuẩn hoá param.json với applicationDrmType =
     /// "standard" (không có tuỳ chọn tắt), nên <see cref="ForceStandardDrm"/> không có tác dụng ở chế độ này.
     /// </summary>
@@ -263,7 +296,7 @@ public sealed class BuildRequest
     /// <summary>Tệp dự án GP5 khi SourceMode = Gp5Project.</summary>
     public string? ProjectFilePath { get; set; }
 
-    /// <summary>Số khối PlayGo dự phòng (1..255). Nguồn còn playgo-chunk.dat thì engine lấy số khối/kịch bản từ tệp đó.</summary>
+    /// <summary>Số khối PlayGo dự phòng (1..255; SDK Sony 1..800). Nguồn còn playgo-chunk.dat thì lấy số khối/kịch bản từ tệp đó.</summary>
     public int PlayGoChunks { get; set; } = DefaultPlayGoChunks;
 
     public bool Deterministic { get; set; } = true;

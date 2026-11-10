@@ -38,8 +38,8 @@ public sealed partial class MainViewModel
 
     public bool PreserveSourcePlayGoLayout => PlayGoLayoutIndex == 0;
 
-    /// <summary>Danh sách ngôn ngữ chỉ dùng khi tạo theo ngôn ngữ với engine tích hợp.</summary>
-    public bool PlayGoLanguagesEnabled => EngineOptionsEnabled && !PreserveSourcePlayGoLayout;
+    /// <summary>Danh sách ngôn ngữ chỉ dùng khi tạo theo ngôn ngữ (SDK Sony bộ fix15 và engine tích hợp đều nhận).</summary>
+    public bool PlayGoLanguagesEnabled => !PreserveSourcePlayGoLayout;
 
     public string PlayGoLanguagesSummary
     {

@@ -30,7 +30,7 @@
 
 <div align="center">
 
-**Ghi công:** PSVIETHOA — Nguyễn Thanh Sơn & Ngô Phi Phương · **Main project:** Drakmor (LibProsperoPkg) · Công cụ PS4, FTP và resign save chuyển từ **PSVIETHOA STUDIO** (Ngô Phi Phương)
+**Ghi công:** PSVIETHOA — Nguyễn Thanh Sơn & Ngô Phi Phương · **Main project:** Drakmor (LibProsperoPkg) · Công cụ PS4, ZSTD, FTP và resign save chuyển từ **PSVIETHOA STUDIO** (Ngô Phi Phương)
 
 </div>
 
@@ -40,12 +40,31 @@
 
 | | Trang | Chức năng |
 |---|---|---|
-| <img src="https://img.shields.io/badge/PS5-FPKG-3B82F6" /> | **Tạo gói · Tạo gói Update · Giải nén gói · Hàng chờ** | FPKG PS5 (FIH debug) từ thư mục ứng dụng, ảnh `.exfat` / `.ffpfsc` / `.ffpkg` hoặc dự án `.gp5` — bằng **Publishing Tools 2.79 của Sony** (mặc định) hoặc engine **LibProsperoPkg** của Drakmor. Gói update delta so với base đã cài, xem / giải nén gói, hàng chờ đóng gói song song. *Giữ nguyên như 2.2.7.* |
+| <img src="https://img.shields.io/badge/PS5-FPKG-3B82F6" /> | **Tạo gói · Tạo gói Update · Giải nén gói · Hàng chờ** | FPKG PS5 (FIH debug) từ thư mục ứng dụng, ảnh `.exfat`, `.ffpfsc` / `.ffpfs` (exFAT hoặc PFS), `.ffpkg` hoặc dự án `.gp5` — bằng **Publishing Tools 2.79 của Sony** (mặc định) hoặc engine **LibProsperoPkg** của Drakmor. Gói update delta so với base đã cài, xem / giải nén gói, hàng chờ đóng gói song song. *Bộ công cụ SDK Sony `sdk-fpkg279-fix15`, giữ các bản sửa của 2.2.7.* |
 | <img src="https://img.shields.io/badge/PS4-PKG-6366F1" /> | **Xả PKG · Đóng Base · Đóng Update · Đóng DLC · Gộp Base + Update** | Gói fake PKG cho PS4 bằng **orbis-pub-cmd 3.87** (bản vá CyB1K) và **LibOrbisPkg**, theo đúng quy trình của PSVIETHOA STUDIO. Xem trước game ngay (icon, tên, Content ID, phiên bản), sửa `param.sfo`, xả từng tệp. |
+| <img src="https://img.shields.io/badge/ZSTD-PS5-22C55E" /> | **Đóng ZSTD · Giải ZSTD · Vá ZSTD** *(beta)* | Gói ZSTD của ps5-dump-forge với runtime **ampr-emu-ng 0.3.4**: game còn khoảng một nửa, giải ra đúng từng byte, và vá Việt hoá vào game đã đóng mà không cần giải ra. |
 | <img src="https://img.shields.io/badge/PS5-FTP-14B8A6" /> | **FTP PS5** | Trình quản lý tệp hai khung cho máy chủ FTP trên PS5 (ftpsrv, etaHEN…): kéo tệp qua lại giữa hai khung hoặc từ Finder / Explorer, truyền nhiều luồng có tiếp tục khi bị ngắt, đổi tên / xoá / tạo thư mục, nhớ máy đã kết nối. |
 | <img src="https://img.shields.io/badge/SAVE-Resign-F59E0B" /> | **Resign Save** | Đổi chủ save PS4 / PS5 sang Account ID của bạn. Save đã giải mã được sửa ngay trên máy tính; save mã hoá đi qua **garlic-savemgr** trên PS5 (ứng dụng tự nạp). |
 
 > Gói PS5 là **FPKG debug** (ảnh FIH, byte chữ ký `0x00`), gói PS4 là **fake PKG** — chỉ cài được trên máy chạy homebrew tương ứng. Thư mục, ảnh đĩa và gói nguồn bạn chọn chỉ luôn được **đọc**.
+
+## Có gì mới ở 3.1
+
+- **Chế độ SDK Sony dùng bộ công cụ `sdk-fpkg279-fix15` của Drakmor** (profile `sdk279-plaintext-direct-v6`), tái tạo đúng từng byte:
+  - gói giữ phiên bản SDK (đọc từ `eboot.bin` khi `param.json` để 0);
+  - giữ bố cục PlayGo của nguồn và chunk của từng tệp;
+  - sửa / tạo lại UCP của UDS theo `npbind.dat`;
+  - bỏ tệp cấu hình runtime của Unreal;
+  - *Tạo theo ngôn ngữ* và chọn SDK nay dùng được với SDK;
+  - bố cục kịch bản retail là tuỳ chọn (*Giữ kịch bản PlayGo retail*, mặc định tắt).
+
+  Bản dump đặt nhầm tên bảng PlayGo (Control, PPSA29802), loại làm script fix15 dừng hẳn, vẫn tạo được gói. Các bản sửa của 2.2.7 (giữ thư mục rỗng, lấp chunk rỗng, mọi kịch bản gồm mọi chunk) vẫn bật.
+- **Tạo gói PS5 từ ảnh PFS.** Tệp `.ffpfsc` chứa ảnh PFS thô (bố cục ShadowMountPlus khuyên dùng, tạo bằng MkPFS `--raw`, ps5-ffpfs-cli…), ảnh `.ffpfs` không nén và `pfs_image.dat` trần nay mở được như ảnh exFAT: xem thông tin, tạo gói, giải nén và ổ Dokan đều chạy.
+- **Xả PKG PS4 nhanh hơn.** Tệp được giải mã song song (từng đoạn 4 MiB trên nhiều luồng), kèm hai bản sửa LibOrbisPkg của Studio; kết quả giống hệt từng byte.
+- **ZSTD PS5 (beta)** — *Đóng ZSTD*, *Giải ZSTD* và *Vá ZSTD*: gói ZSTD của ps5-dump-forge với runtime **ampr-emu-ng 0.3.4** (game còn khoảng một nửa, thư mục nguồn không bị sửa), kiểm tra và sửa `ampr_emu.index`, vá Việt hoá vào game đã đóng mà không cần giải cả game, có hoàn tác. CLI: `zstd-info`, `zstd-list`, `zstd-pack`, `zstd-unpack`, `zstd-reindex`, `zstd-patch`, `zstd-undo`.
+- **Thanh bên kiểu PSVIETHOA STUDIO.** Ô *Tìm công cụ…* (Ctrl+K / ⌘K), các nhóm theo thứ tự của Studio (PS4 PKG, PS5 FPKG, ZSTD PS5, Kết nối PS5 · Save) và lưới nút công cụ hai cột, co giãn theo cửa sổ.
+
+Phần ảnh PFS, PS4, ZSTD và thanh bên chuyển từ PSVIETHOA STUDIO 2.1.0 của Ngô Phi Phương.
 
 ## Có gì mới ở 3.0
 
@@ -59,7 +78,7 @@
 - **FTP PS5.** Kết nối tới máy chủ FTP của PS5 (tài khoản và mật khẩu mặc định để trống; mật khẩu không bao giờ được lưu). Kéo tệp / thư mục từ khung này sang khung kia, từ Finder / Explorer vào khung PS5, hoặc thả lên một thư mục để truyền thẳng vào đó; kéo tệp PS5 thả lên thư mục PS5 khác để di chuyển. Hàng đợi tự chọn số tệp song song, chia tệp lớn thành nhiều kết nối (tải về theo đoạn bằng `REST`), ước tính thời gian còn lại bằng mô hình tốc độ bình phương tối thiểu, tự thử lại / tiếp tục khi rớt mạng. Có tab Đang chờ / Lỗi / Xong, nhật ký lệnh FTP, phím tắt (Enter, Delete, F2, F5, Backspace).
 - **Resign Save.** Thả thư mục, `.zip`, `param.sfo` hoặc ảnh save mã hoá; loại save được nhận theo nội dung. Save đã giải mã được resign ngay trên máy (`ACCOUNT_ID`, `TITLE_ID` tuỳ chọn, giữ bản `.bak` của `param.sfo` gốc; `.zip` được ghi ra bản `_resigned.zip` mới). Save PS4 / PS5 mã hoá được giải mã, resign và chép vào máy qua **garlic-savemgr** (earthonion): **Nạp ELF** gửi bản kèm theo tới ELF loader (cổng 9021), **Quét user** liệt kê tài khoản trên máy, **Bốc save từ user khác** chép save giữa các user trên máy, và save sắp bị ghi đè luôn được tải bản sao lưu về trước.
 - **CLI:** thêm `ps4-info`, `ps4-list`, `ps4-extract`, `ps4-base`, `ps4-patch`, `ps4-dlc`, `ps4-merge`. `fpkg-cli info` báo bộ công cụ PS4 có chạy được không (Wine 32-bit / VC++ x86).
-- **PS5 FPKG giữ đúng cơ chế 2.2.7 từng byte** (bộ công cụ SDK Sony `sdk279-plaintext-direct-v3`, LibProsperoPkg của fpkg-gui 0.6.12) — cùng một game vẫn ra đúng gói 1.706.966.020 byte như 2.2.7. Riêng trang thì dễ dùng hơn: *Tự đặt theo nguồn* luôn bật, chọn game khác là thư mục xuất tự quay về theo game đó nên gói không bao giờ rơi vào thư mục của game trước; cột phải cuộn được nên nhật ký luôn đọc được (cao tối thiểu 280 px) khi khung kết quả đang hiện; các nút ghi rõ chọn gì (*Thư mục game…*, *Chọn PKG…*, *Chọn thư mục…*).
+- **PS5 FPKG giữ cơ chế 2.2.7** (LibProsperoPkg của fpkg-gui 0.6.12). Riêng trang thì dễ dùng hơn: *Tự đặt theo nguồn* luôn bật, chọn game khác là thư mục xuất tự quay về theo game đó nên gói không bao giờ rơi vào thư mục của game trước; cột phải cuộn được nên nhật ký luôn đọc được (cao tối thiểu 280 px) khi khung kết quả đang hiện; các nút ghi rõ chọn gì (*Thư mục game…*, *Chọn PKG…*, *Chọn thư mục…*).
 
 Các bản trước: xem [CHANGELOG.md](../CHANGELOG.md) — dòng 2.2 mang đến đóng gói bằng Publishing Tools của Sony, gói update, hàng chờ, khôi phục metadata online và các bản sửa PlayGo / bộ giả lập DLC.
 
@@ -100,6 +119,10 @@ fpkg-cli ps4-base  "/unpacked/CUSA12345-base" --output "/out"
 fpkg-cli ps4-patch "/unpacked/CUSA12345-update" --base "/games/CUSA12345.pkg" --output "/out" --version 01.51
 fpkg-cli ps4-merge "/games/CUSA12345-patch.pkg" --base "/games/CUSA12345.pkg" --output "/out"
 fpkg-cli ps4-dlc   "/unpacked/CUSA12345-dlc" --output "/out"
+
+# ZSTD PS5 (beta)
+fpkg-cli zstd-pack   "/games/PPSA12345-app" --output "/games/PPSA12345-zstd"
+fpkg-cli zstd-unpack "/games/PPSA12345-zstd" --output "/games/PPSA12345-app"
 ```
 
 `fpkg-cli --help` liệt kê mọi tuỳ chọn (`--verify` dùng engine PS4 đầy đủ, `--gp4-only`, `--only <đường dẫn>`, `--sfo <tệp>`, `--passcode`, `--base-passcode`, `--entitlement-key`, …). Mã thoát: `0` thành công · `1` tham số sai · `2` thất bại · `3` bị hủy. Đặt `FPKG_LANG=vi|en` để chọn ngôn ngữ.
@@ -162,6 +185,7 @@ libs/                               thành phần bên thứ ba, chỉ thay nguy
   LibOrbisPkg/                        PKG / PFS / SFO PS4 (Maxton, LGPL-3.0, kèm mã nguồn)
   orbis-pub/                          PS4 Fake PKG Tools 3.87 (CyB1K), bản gốc + engine nhanh
   garlic-savemgr/                     payload save PS5 (earthonion), kèm mã nguồn
+  ampr/                               runtime ampr-emu-ng 0.3.4 + ampr_emu 0.4.2.1 cho gói ZSTD (GPL-3.0-or-later)
 ```
 </details>
 
@@ -190,6 +214,7 @@ libs/                               thành phần bên thứ ba, chỉ thay nguy
 - **Maxton** — [LibOrbisPkg](https://github.com/maxton/LibOrbisPkg) (LGPL-3.0; DLL được liên kết như một assembly riêng, mã nguồn kèm trong `libs/LibOrbisPkg`).
 - **CyB1K** — PS4 Fake PKG Tools 3.87 (`orbis-pub-cmd`).
 - **earthonion** — garlic-savemgr (payload save PS5).
+- **quer3q** — [ps5-dump-forge](https://github.com/quer3q/ps5-dump-forge) (định dạng gói ZSTD) và [ampr-emu-ng](https://github.com/quer3q/ampr-emu-ng); **drakmor** — [ampr_emu](https://github.com/drakmor/ampr_emu). Tất cả GPL-3.0-or-later; runtime được giữ nguyên trong `libs/ampr`.
 - [Wine](https://www.winehq.org/) (LGPL-2.1) chạy bộ công cụ Windows trên macOS / Linux; [Dokan](https://github.com/dokan-dev/dokany) gắn ảnh đĩa trên Windows.
 - Phông chữ: JetBrains Mono & Inter (SIL OFL). Biểu tượng: Material Design Icons (Apache 2.0).
 

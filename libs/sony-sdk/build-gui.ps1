@@ -12,6 +12,8 @@ Add-Type -AssemblyName System.Drawing
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $builderCandidates = @(
     (Join-Path $PSScriptRoot 'build-from-folder.ps1'),
+    (Join-Path $repoRoot 'dist\plaintext-build-tools-v5\sdk279\build-from-folder.ps1'),
+    (Join-Path $repoRoot 'dist\plaintext-build-tools-v5\sdk313\build-from-folder.ps1'),
     (Join-Path $repoRoot 'dist\plaintext-build-tools\sdk279\build-from-folder.ps1'),
     (Join-Path $repoRoot 'dist\plaintext-build-tools\sdk313\build-from-folder.ps1')
 )
@@ -23,6 +25,15 @@ if ([string]::IsNullOrWhiteSpace($builderScript)) {
 }
 $toolkitRoot = Split-Path -Parent $builderScript
 $publisherExecutable = Join-Path $toolkitRoot 'toolchain\prospero-pub-cmd.exe'
+$metadataRecoveryCandidates = @(
+    (Join-Path $PSScriptRoot 'metadata-recovery.exe'),
+    (Join-Path $toolkitRoot 'metadata-recovery.exe'),
+    (Join-Path $repoRoot 'src\ProsperoMetadataRecoveryTool\bin\Release\net9.0\win-x64\publish\metadata-recovery.exe'),
+    (Join-Path $repoRoot 'src\ProsperoMetadataRecoveryTool\bin\Debug\net9.0\metadata-recovery.exe')
+)
+$metadataRecoveryExecutable = $metadataRecoveryCandidates |
+    Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+$script:metadataCancelFile = $null
 $script:buildProcess = $null
 $script:buildStartedAt = $null
 $script:finalizedProcessId = $null
@@ -30,10 +41,18 @@ $script:operationName = 'Build'
 $script:operationSuccessStatus = 'Build completed successfully'
 $script:operationResultFolder = $null
 $script:lastResultFolder = $null
-$script:stdoutReadTask = $null
-$script:stderrReadTask = $null
-$script:stdoutEnded = $true
-$script:stderrEnded = $true
+$script:processOutputStreams = @()
+$script:fallbackChunkCount = 100
+$script:sourceChunkCount = $null
+$script:sourceChunkError = $null
+$script:updatingChunkCount = $false
+$script:selectedPlayGoLanguages = $null
+$playGoLanguageCodes = @(
+    'ja-JP', 'en-US', 'fr-FR', 'es-ES', 'de-DE', 'it-IT', 'nl-NL', 'pt-PT',
+    'ru-RU', 'ko-KR', 'zh-Hant', 'zh-Hans', 'fi-FI', 'sv-SE', 'da-DK', 'no-NO',
+    'pl-PL', 'pt-BR', 'en-GB', 'tr-TR', 'es-419', 'ar-AE', 'fr-CA', 'cs-CZ',
+    'hu-HU', 'el-GR', 'ro-RO', 'th-TH', 'vi-VN', 'id-ID', 'uk-UA'
+)
 
 function Show-Error([string]$message) {
     [void][System.Windows.Forms.MessageBox]::Show(
@@ -63,11 +82,12 @@ $form = New-Object System.Windows.Forms.Form
 $form.Text = 'PKG Build / Verify / Extract'
 $form.StartPosition = 'CenterScreen'
 $form.Size = New-Object System.Drawing.Size(1050, 760)
-$form.MinimumSize = New-Object System.Drawing.Size(800, 560)
+$form.MinimumSize = New-Object System.Drawing.Size(900, 700)
 $form.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::Dpi
 
 $root = New-Object System.Windows.Forms.TableLayoutPanel
 $root.Dock = 'Fill'
+$root.AutoScroll = $true
 $root.Padding = New-Object System.Windows.Forms.Padding(12)
 $root.ColumnCount = 1
 $root.RowCount = 7
@@ -163,23 +183,36 @@ $btnExtractFolder = $extractControls.BrowseButton
 $btnExtractClear = $extractControls.ClearButton
 
 $hint = New-Object System.Windows.Forms.Label
-$hint.Text = 'Select a reference PKG to build a patch; the remastered companion is created automatically.'
+$hint.Text = 'Choose APP or AC; AC requires an entitlement key. Select a reference PKG to build a patch.'
 $hint.AutoSize = $true
-$hint.Margin = New-Object System.Windows.Forms.Padding(205, 0, 0, 8)
+$hint.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 8)
 [void]$root.Controls.Add($hint, 0, 1)
 
 $options = New-Object System.Windows.Forms.FlowLayoutPanel
 $options.Dock = 'Top'
 $options.AutoSize = $true
+$options.AutoSizeMode = 'GrowAndShrink'
 $options.FlowDirection = 'LeftToRight'
 $options.WrapContents = $true
 $options.Margin = New-Object System.Windows.Forms.Padding(0, 4, 0, 8)
+
+$lblVolume = New-Object System.Windows.Forms.Label
+$lblVolume.Text = 'Package type:'
+$lblVolume.AutoSize = $true
+$lblVolume.Margin = New-Object System.Windows.Forms.Padding(0, 7, 8, 0)
+
+$cmbVolume = New-Object System.Windows.Forms.ComboBox
+$cmbVolume.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
+$cmbVolume.Width = 185
+$cmbVolume.Margin = New-Object System.Windows.Forms.Padding(0, 3, 24, 0)
+[void]$cmbVolume.Items.Add('APP (application)')
+[void]$cmbVolume.Items.Add('AC (additional content)')
+$cmbVolume.SelectedIndex = 0
 
 $lblCompression = New-Object System.Windows.Forms.Label
 $lblCompression.Text = 'Compression (-4..9):'
 $lblCompression.AutoSize = $true
 $lblCompression.Margin = New-Object System.Windows.Forms.Padding(0, 7, 8, 0)
-[void]$options.Controls.Add($lblCompression)
 
 $numCompression = New-Object System.Windows.Forms.NumericUpDown
 $numCompression.Minimum = -4
@@ -187,33 +220,169 @@ $numCompression.Maximum = 9
 $numCompression.Value = 7
 $numCompression.Width = 60
 $numCompression.Margin = New-Object System.Windows.Forms.Padding(0, 3, 24, 0)
-[void]$options.Controls.Add($numCompression)
+
+$lblSdkVersion = New-Object System.Windows.Forms.Label
+$lblSdkVersion.Text = 'SDK version override:'
+$lblSdkVersion.AutoSize = $true
+$lblSdkVersion.Margin = New-Object System.Windows.Forms.Padding(0, 7, 8, 0)
+
+$cmbSdkVersion = New-Object System.Windows.Forms.ComboBox
+$cmbSdkVersion.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
+$cmbSdkVersion.Width = 130
+$cmbSdkVersion.Margin = New-Object System.Windows.Forms.Padding(0, 3, 24, 0)
+[void]$cmbSdkVersion.Items.Add('Auto')
+for ($major = 1; $major -le 13; $major++) {
+    [void]$cmbSdkVersion.Items.Add("SDK $major.00")
+}
+$cmbSdkVersion.SelectedIndex = 0
 
 $lblChunkCount = New-Object System.Windows.Forms.Label
-$lblChunkCount.Text = 'PlayGo chunks (1..255):'
+$lblChunkCount.Text = 'PlayGo chunks (1..800):'
 $lblChunkCount.AutoSize = $true
 $lblChunkCount.Margin = New-Object System.Windows.Forms.Padding(0, 7, 8, 0)
-[void]$options.Controls.Add($lblChunkCount)
 
 $numChunkCount = New-Object System.Windows.Forms.NumericUpDown
 $numChunkCount.Minimum = 1
-$numChunkCount.Maximum = 255
+$numChunkCount.Maximum = 800
 $numChunkCount.Value = 100
 $numChunkCount.Width = 65
 $numChunkCount.Margin = New-Object System.Windows.Forms.Padding(0, 3, 24, 0)
-[void]$options.Controls.Add($numChunkCount)
+
+$chunkToolTip = New-Object System.Windows.Forms.ToolTip
+$chunkToolTip.SetToolTip($cmbSdkVersion,
+    'APP only. Auto uses the source or eboot.bin. The selected SDK version must match eboot.bin for img_verify.')
+
+function Read-SourceChunkCount([string]$path) {
+    $stream = [IO.File]::OpenRead($path)
+    try {
+        $reader = New-Object IO.BinaryReader($stream)
+        $header = $reader.ReadBytes(0x18)
+        if ($header.Length -ne 0x18 -or
+            [Text.Encoding]::ASCII.GetString($header, 0, 4) -ne 'plgx' -or
+            [BitConverter]::ToUInt16($header, 4) -ne 0x1000 -or
+            [BitConverter]::ToUInt16($header, 6) -ne 0 -or
+            $stream.Length -lt 0x100 -or
+            [BitConverter]::ToUInt32($header, 0x10) -ne $stream.Length) {
+            throw 'Invalid PS5 playgo-chunk.dat header.'
+        }
+        $chunks = [BitConverter]::ToUInt16($header, 0x0a)
+        $scenarios = [BitConverter]::ToUInt16($header, 0x0e)
+        if ($chunks -lt 1 -or $chunks -gt 800 -or $scenarios -lt 1 -or $scenarios -gt 5) {
+            throw "Unsupported PlayGo counts: $chunks chunks, $scenarios scenarios."
+        }
+        return [int]$chunks
+    } finally {
+        $stream.Dispose()
+    }
+}
+
+function Update-SourceChunkCount {
+    $script:sourceChunkCount = $null
+    $script:sourceChunkError = $null
+    $source = $txtSource.Text.Trim()
+    try {
+        if ($cmbVolume.SelectedIndex -eq 0 -and
+            -not [string]::IsNullOrWhiteSpace($source) -and
+            (Test-Path -LiteralPath $source -PathType Container)) {
+            $chunkPath = Join-Path $source 'sce_sys\playgo-chunk.dat'
+            if (Test-Path -LiteralPath $chunkPath) {
+                $script:sourceChunkCount = Read-SourceChunkCount $chunkPath
+            }
+        }
+    } catch {
+        $script:sourceChunkError = $_.Exception.Message
+    }
+    $script:updatingChunkCount = $true
+    try {
+        if ($null -ne $script:sourceChunkCount) {
+            $numChunkCount.Value = $script:sourceChunkCount
+            $lblChunkCount.Text = 'PlayGo chunks (from source):'
+            $hint = 'Read from sce_sys\playgo-chunk.dat.'
+        } else {
+            $numChunkCount.Value = $script:fallbackChunkCount
+            $lblChunkCount.Text = 'PlayGo chunks (1..800):'
+            $hint = 'Fallback when sce_sys\playgo-chunk.dat is absent.'
+        }
+        if ($null -ne $script:sourceChunkError) {
+            $lblChunkCount.Text = 'PlayGo chunks (invalid source):'
+            $hint = $script:sourceChunkError
+        }
+        if ($cmbVolume.SelectedIndex -eq 1) {
+            $lblChunkCount.Text = 'PlayGo chunks (APP only):'
+            $hint = 'AC packages do not use APP chunk declarations.'
+        }
+        $lblChunkCount.ForeColor = if ($null -ne $script:sourceChunkError) {
+            [Drawing.Color]::DarkRed
+        } else { [Drawing.SystemColors]::ControlText }
+        $chunkToolTip.SetToolTip($numChunkCount, $hint)
+        $chunkToolTip.SetToolTip($lblChunkCount, $hint)
+        $numChunkCount.Enabled = $txtSource.Enabled -and $cmbVolume.SelectedIndex -eq 0 -and
+            $null -eq $script:sourceChunkCount -and $null -eq $script:sourceChunkError
+    } finally {
+        $script:updatingChunkCount = $false
+    }
+}
+
+$numChunkCount.Add_ValueChanged({
+    if (-not $script:updatingChunkCount) {
+        $script:fallbackChunkCount = [int]$numChunkCount.Value
+    }
+})
+$txtSource.Add_TextChanged({ Update-SourceChunkCount })
 
 $chkForce = New-Object System.Windows.Forms.CheckBox
 $chkForce.Text = 'Overwrite existing files (-Force)'
 $chkForce.AutoSize = $true
 $chkForce.Margin = New-Object System.Windows.Forms.Padding(0, 6, 0, 0)
+
+function Add-OptionPair([Windows.Forms.Control]$captionControl, [Windows.Forms.Control]$editorControl) {
+    $pair = New-Object Windows.Forms.FlowLayoutPanel
+    $pair.AutoSize = $true
+    $pair.AutoSizeMode = 'GrowAndShrink'
+    $pair.WrapContents = $false
+    $pair.Margin = New-Object Windows.Forms.Padding(0, 0, 20, 6)
+    $captionControl.Margin = New-Object Windows.Forms.Padding(0, 6, 8, 0)
+    $editorControl.Margin = New-Object Windows.Forms.Padding(0, 2, 0, 0)
+    [void]$pair.Controls.Add($captionControl)
+    [void]$pair.Controls.Add($editorControl)
+    [void]$options.Controls.Add($pair)
+}
+
+Add-OptionPair $lblVolume $cmbVolume
+Add-OptionPair $lblCompression $numCompression
+Add-OptionPair $lblSdkVersion $cmbSdkVersion
+Add-OptionPair $lblChunkCount $numChunkCount
 [void]$options.Controls.Add($chkForce)
+
+$buildOptions = New-Object System.Windows.Forms.TableLayoutPanel
+$buildOptions.Dock = 'Top'
+$buildOptions.AutoSize = $true
+$buildOptions.ColumnCount = 1
+$buildOptions.RowCount = 3
+$buildOptions.Margin = New-Object System.Windows.Forms.Padding(0)
+[void]$buildOptions.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))
+[void]$buildOptions.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))
+[void]$buildOptions.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize)))
+[void]$buildOptions.Controls.Add($options, 0, 0)
+
+$credentials = New-Object System.Windows.Forms.FlowLayoutPanel
+$credentials.Dock = 'Top'
+$credentials.AutoSize = $true
+$credentials.WrapContents = $true
+$credentials.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 8)
+
+$passcodePanel = New-Object System.Windows.Forms.FlowLayoutPanel
+$passcodePanel.AutoSize = $true
+$passcodePanel.AutoSizeMode = 'GrowAndShrink'
+$passcodePanel.WrapContents = $false
+$passcodePanel.Margin = New-Object System.Windows.Forms.Padding(0)
+[void]$credentials.Controls.Add($passcodePanel)
 
 $lblPasscode = New-Object System.Windows.Forms.Label
 $lblPasscode.Text = 'Passcode:'
 $lblPasscode.AutoSize = $true
-$lblPasscode.Margin = New-Object System.Windows.Forms.Padding(24, 7, 8, 0)
-[void]$options.Controls.Add($lblPasscode)
+$lblPasscode.Margin = New-Object System.Windows.Forms.Padding(0, 7, 8, 0)
+[void]$passcodePanel.Controls.Add($lblPasscode)
 
 $txtPasscode = New-Object System.Windows.Forms.TextBox
 $txtPasscode.Text = '00000000000000000000000000000000'
@@ -221,27 +390,217 @@ $txtPasscode.Width = 250
 $txtPasscode.MaxLength = 32
 $txtPasscode.Font = New-Object System.Drawing.Font('Consolas', 9)
 $txtPasscode.Margin = New-Object System.Windows.Forms.Padding(0, 3, 0, 0)
-[void]$options.Controls.Add($txtPasscode)
+[void]$passcodePanel.Controls.Add($txtPasscode)
 
-$lblVerificationMode = New-Object System.Windows.Forms.Label
-$lblVerificationMode.Text = 'Verification:'
-$lblVerificationMode.AutoSize = $true
-$lblVerificationMode.Margin = New-Object System.Windows.Forms.Padding(24, 7, 8, 0)
-[void]$options.Controls.Add($lblVerificationMode)
+$entitlementPanel = New-Object System.Windows.Forms.FlowLayoutPanel
+$entitlementPanel.AutoSize = $true
+$entitlementPanel.AutoSizeMode = 'GrowAndShrink'
+$entitlementPanel.WrapContents = $false
+$entitlementPanel.Margin = New-Object System.Windows.Forms.Padding(24, 0, 0, 0)
+[void]$credentials.Controls.Add($entitlementPanel)
 
-$cmbVerificationMode = New-Object System.Windows.Forms.ComboBox
-$cmbVerificationMode.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
-$cmbVerificationMode.Width = 190
-$cmbVerificationMode.Margin = New-Object System.Windows.Forms.Padding(0, 3, 0, 0)
-[void]$cmbVerificationMode.Items.Add('Full (format + integrity)')
-[void]$cmbVerificationMode.Items.Add('Format only')
-$cmbVerificationMode.SelectedIndex = 0
-[void]$options.Controls.Add($cmbVerificationMode)
-[void]$root.Controls.Add($options, 0, 2)
+$lblEntitlementKey = New-Object System.Windows.Forms.Label
+$lblEntitlementKey.Text = 'Entitlement key (required):'
+$lblEntitlementKey.AutoSize = $true
+$lblEntitlementKey.Margin = New-Object System.Windows.Forms.Padding(0, 7, 8, 0)
+[void]$entitlementPanel.Controls.Add($lblEntitlementKey)
+
+$txtEntitlementKey = New-Object System.Windows.Forms.TextBox
+$txtEntitlementKey.Width = 250
+$txtEntitlementKey.MaxLength = 32
+$txtEntitlementKey.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtEntitlementKey.Margin = New-Object System.Windows.Forms.Padding(0, 3, 0, 0)
+[void]$entitlementPanel.Controls.Add($txtEntitlementKey)
+$chunkToolTip.SetToolTip($txtEntitlementKey, 'AC requires 32 hexadecimal characters (16 bytes).')
+[void]$buildOptions.Controls.Add($credentials, 0, 1)
+
+$languagePanel = New-Object System.Windows.Forms.FlowLayoutPanel
+$languagePanel.Dock = 'Top'
+$languagePanel.AutoSize = $true
+$languagePanel.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 8)
+$lblLanguages = New-Object System.Windows.Forms.Label
+$lblLanguages.Text = 'PlayGo languages:'
+$lblLanguages.AutoSize = $true
+$lblLanguages.Margin = New-Object System.Windows.Forms.Padding(0, 7, 8, 0)
+$txtLanguages = New-Object System.Windows.Forms.TextBox
+$txtLanguages.ReadOnly = $true
+$txtLanguages.Text = 'From source (preserve PlayGo layout)'
+$txtLanguages.Width = 370
+$txtLanguages.Margin = New-Object System.Windows.Forms.Padding(0, 3, 8, 0)
+$btnLanguages = New-Object System.Windows.Forms.Button
+$btnLanguages.Text = 'Choose languages...'
+$btnLanguages.AutoSize = $true
+$btnLanguages.MinimumSize = New-Object System.Drawing.Size(130, 28)
+$btnSourceLanguages = New-Object System.Windows.Forms.Button
+$btnSourceLanguages.Text = 'From source'
+$btnSourceLanguages.AutoSize = $true
+$btnSourceLanguages.MinimumSize = New-Object System.Drawing.Size(100, 28)
+$languageInput = New-Object Windows.Forms.FlowLayoutPanel
+$languageInput.AutoSize = $true
+$languageInput.AutoSizeMode = 'GrowAndShrink'
+$languageInput.WrapContents = $false
+$languageInput.Margin = New-Object Windows.Forms.Padding(0)
+$languageInput.Controls.AddRange(@($lblLanguages, $txtLanguages))
+$languageActions = New-Object Windows.Forms.FlowLayoutPanel
+$languageActions.AutoSize = $true
+$languageActions.AutoSizeMode = 'GrowAndShrink'
+$languageActions.WrapContents = $false
+$languageActions.Margin = New-Object Windows.Forms.Padding(0)
+$languageActions.Controls.AddRange(@($btnLanguages, $btnSourceLanguages))
+$languagePanel.Controls.AddRange(@($languageInput, $languageActions))
+[void]$buildOptions.Controls.Add($languagePanel, 0, 2)
+[void]$root.Controls.Add($buildOptions, 0, 2)
+
+function Set-PlayGoLanguages([string[]]$languages) {
+    if ($null -ne $languages) {
+        if ($languages.Count -eq 0 -or @($languages | Where-Object { $_ -notin $playGoLanguageCodes }).Count -gt 0) {
+            throw 'Select at least one supported PlayGo language.'
+        }
+        $languages = @($playGoLanguageCodes | Where-Object { $_ -in $languages })
+    }
+    $script:selectedPlayGoLanguages = $languages
+    $txtLanguages.Text = if ($null -eq $languages) { 'From source (preserve PlayGo layout)' } else { $languages -join ', ' }
+    $chunkToolTip.SetToolTip($txtLanguages, $txtLanguages.Text)
+}
+
+function Get-PlayGoLanguageArguments {
+    if ($cmbVolume.SelectedIndex -eq 0 -and $null -ne $script:selectedPlayGoLanguages) {
+        return @('-PlayGoLanguages', ($script:selectedPlayGoLanguages -join ','))
+    }
+    return @()
+}
+
+function Get-SourcePlayGoLanguages {
+    $source = $txtSource.Text.Trim()
+    if (-not [string]::IsNullOrWhiteSpace($source)) {
+        # Use the generator's validated masks, rather than an incomplete scenario JSON list.
+        # This preview only seeds the explicit language picker; failed source-map reads fall
+        # through to presentation metadata so the user can replace a damaged source layout.
+        $generator = Join-Path $PSScriptRoot 'create-gp5-from-folder.py'
+        if (-not (Test-Path -LiteralPath $generator)) { $generator = Join-Path $toolkitRoot 'create-gp5-from-folder.py' }
+        if ((Test-Path -LiteralPath $generator) -and
+            (Test-Path -LiteralPath (Join-Path $source 'sce_sys\playgo-hash-table.dat')) -and
+            (Test-Path -LiteralPath (Join-Path $source 'sce_sys\playgo-ficm.dat')) -and
+            (Test-Path -LiteralPath (Join-Path $source 'sce_sys\playgo-chunk.dat'))) {
+            $previewCode = 'import json,runpy,sys; from pathlib import Path; m=runpy.run_path(sys.argv[1]); layout=m[''read_source_playgo_layout''](Path(sys.argv[2])); print(json.dumps(layout.languages if layout else []))'
+            try {
+                $preview = @(& python -c $previewCode $generator $source 2>&1)
+                if ($LASTEXITCODE -eq 0) {
+                    $languages = ConvertFrom-Json -InputObject ($preview -join "`n")
+                    if ($languages.Count -gt 0) { return $languages }
+                }
+            } catch { } # The builder validates source maps; explicit languages replace them.
+        }
+        $scenarioPath = Join-Path $source 'sce_sys\playgo-scenario.json'
+        if (Test-Path -LiteralPath $scenarioPath -PathType Leaf) {
+            $scenario = Get-Content -LiteralPath $scenarioPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ($scenario.chunkSupportedLanguages) { return @($scenario.chunkSupportedLanguages) }
+            $codes = @($scenario.chunkDefaultLanguage, $scenario.scenarioDefaultLanguage)
+            foreach ($entry in $scenario.scenarios) { $codes += @($entry.PSObject.Properties.Name) }
+            return @($playGoLanguageCodes | Where-Object { $_ -in $codes })
+        }
+        $paramPath = Join-Path $source 'sce_sys\param.json'
+        if (Test-Path -LiteralPath $paramPath -PathType Leaf) {
+            $param = Get-Content -LiteralPath $paramPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ($param.localizedParameters.defaultLanguage -in $playGoLanguageCodes) {
+                return @($param.localizedParameters.defaultLanguage)
+            }
+        }
+    }
+    return @('en-US')
+}
+
+$btnSourceLanguages.Add_Click({ Set-PlayGoLanguages $null })
+$btnLanguages.Add_Click({
+    try {
+        $selected = if ($null -eq $script:selectedPlayGoLanguages) { @(Get-SourcePlayGoLanguages) }
+                    else { $script:selectedPlayGoLanguages }
+    } catch { Show-Error ('Unable to read source PlayGo languages: ' + $_.Exception.Message); return }
+    $dialog = New-Object System.Windows.Forms.Form
+    $dialog.Text = 'PlayGo languages'
+    $dialog.StartPosition = 'CenterParent'
+    $dialog.Size = New-Object System.Drawing.Size(460, 500)
+    $dialog.MinimumSize = New-Object System.Drawing.Size(400, 350)
+    $dialog.AutoScaleMode = 'Dpi'
+    $dialog.ShowInTaskbar = $false
+    $dialog.MinimizeBox = $false
+    $list = New-Object System.Windows.Forms.CheckedListBox
+    $list.Dock = 'Fill'
+    $list.CheckOnClick = $true
+    $list.IntegralHeight = $false
+    foreach ($code in $playGoLanguageCodes) {
+        $name = [Globalization.CultureInfo]::GetCultureInfo($code).EnglishName
+        if ($code -eq 'no-NO') { $name = 'Norwegian (Norway)' }
+        [void]$list.Items.Add(($code + ' - ' + $name), ($code -in $selected))
+    }
+    $actions = New-Object System.Windows.Forms.FlowLayoutPanel
+    $actions.Dock = 'Bottom'
+    $actions.AutoSize = $true
+    $all = New-Object System.Windows.Forms.Button
+    $all.Text = 'Select all'
+    $all.Add_Click({ for ($i = 0; $i -lt $list.Items.Count; $i++) { $list.SetItemChecked($i, $true) } })
+    $none = New-Object System.Windows.Forms.Button
+    $none.Text = 'Clear'
+    $none.Add_Click({ for ($i = 0; $i -lt $list.Items.Count; $i++) { $list.SetItemChecked($i, $false) } })
+    $ok = New-Object System.Windows.Forms.Button
+    $ok.Text = 'OK'
+    $ok.Enabled = $list.CheckedIndices.Count -gt 0
+    $list.Add_ItemCheck({
+        $count = $list.CheckedIndices.Count
+        if ($_.NewValue -eq [Windows.Forms.CheckState]::Checked) { $count++ }
+        if ($_.CurrentValue -eq [Windows.Forms.CheckState]::Checked) { $count-- }
+        $ok.Enabled = $count -gt 0
+    })
+    $ok.Add_Click({
+        if ($list.CheckedIndices.Count -eq 0) {
+            [void][Windows.Forms.MessageBox]::Show($dialog, 'Select at least one language.', 'PlayGo languages')
+            return
+        }
+        $dialog.DialogResult = [Windows.Forms.DialogResult]::OK
+    })
+    $cancel = New-Object System.Windows.Forms.Button
+    $cancel.Text = 'Cancel'
+    $cancel.DialogResult = [Windows.Forms.DialogResult]::Cancel
+    foreach ($action in @($all, $none, $ok, $cancel)) { [void]$actions.Controls.Add($action) }
+    [void]$dialog.Controls.Add($list)
+    [void]$dialog.Controls.Add($actions)
+    $dialog.AcceptButton = $ok
+    $dialog.CancelButton = $cancel
+    try {
+        if ($dialog.ShowDialog($form) -eq [Windows.Forms.DialogResult]::OK) {
+            Set-PlayGoLanguages @($list.CheckedIndices | ForEach-Object { $playGoLanguageCodes[$_] })
+        }
+    } finally { $dialog.Dispose() }
+})
+
+function Get-BuildVolumeArguments {
+    if ($cmbVolume.SelectedIndex -eq 0) { return @('-Volume', 'app') }
+    $key = $txtEntitlementKey.Text.Trim()
+    if ($key -notmatch '\A[0-9A-Fa-f]{32}\z') {
+        throw 'AC requires an entitlement key: exactly 32 hexadecimal characters (16 bytes).'
+    }
+    return @('-Volume', 'ac', '-EntitlementKey', $key.ToUpperInvariant())
+}
+
+function Get-SdkVersionOverrideArguments {
+    if ($cmbVolume.SelectedIndex -ne 0) { return @() }
+    $major = $cmbSdkVersion.SelectedIndex
+    if ($major -eq 0) { return @() }
+    if ($major -lt 1 -or $major -gt 13) {
+        throw 'Select Auto or an SDK version from 1.00 through 13.00.'
+    }
+    return @('-SdkVersion', [string]$major)
+}
+
+$cmbVolume.Add_SelectedIndexChanged({
+    Set-BuildControlsEnabled $txtSource.Enabled
+    Update-SourceChunkCount
+})
 
 $buttons = New-Object System.Windows.Forms.FlowLayoutPanel
 $buttons.Dock = 'Top'
 $buttons.AutoSize = $true
+$buttons.AutoSizeMode = 'GrowAndShrink'
 $buttons.FlowDirection = 'LeftToRight'
 $buttons.WrapContents = $true
 $buttons.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 8)
@@ -250,38 +609,61 @@ $btnBuild = New-Object System.Windows.Forms.Button
 $btnBuild.Text = 'Build'
 $btnBuild.AutoSize = $true
 $btnBuild.MinimumSize = New-Object System.Drawing.Size(110, 32)
-[void]$buttons.Controls.Add($btnBuild)
+
+$btnRecoverMetadata = New-Object System.Windows.Forms.Button
+$btnRecoverMetadata.Text = 'Restore metadata online'
+$btnRecoverMetadata.AutoSize = $true
+$btnRecoverMetadata.MinimumSize = New-Object System.Drawing.Size(165, 32)
+$chunkToolTip.SetToolTip($btnRecoverMetadata,
+    'Download matching-version *_sc.pkg from versionFileUri. Back up originals and restore plaintext metadata.')
 
 $btnSelectPackage = New-Object System.Windows.Forms.Button
 $btnSelectPackage.Text = 'Select existing PKG...'
 $btnSelectPackage.AutoSize = $true
 $btnSelectPackage.MinimumSize = New-Object System.Drawing.Size(155, 32)
-[void]$buttons.Controls.Add($btnSelectPackage)
 
-$btnVerify = New-Object System.Windows.Forms.Button
-$btnVerify.Text = 'Verify PKG'
-$btnVerify.AutoSize = $true
-$btnVerify.MinimumSize = New-Object System.Drawing.Size(110, 32)
-[void]$buttons.Controls.Add($btnVerify)
+$btnQuickVerify = New-Object System.Windows.Forms.Button
+$btnQuickVerify.Text = 'Quick verify'
+$btnQuickVerify.AutoSize = $true
+$btnQuickVerify.MinimumSize = New-Object System.Drawing.Size(110, 32)
+
+$btnFullVerify = New-Object System.Windows.Forms.Button
+$btnFullVerify.Text = 'Full verify'
+$btnFullVerify.AutoSize = $true
+$btnFullVerify.MinimumSize = New-Object System.Drawing.Size(110, 32)
+$chunkToolTip.SetToolTip($btnQuickVerify, 'Check the PKG format without the integrity pass.')
+$chunkToolTip.SetToolTip($btnFullVerify, 'Check the PKG format and integrity.')
 
 $btnExtract = New-Object System.Windows.Forms.Button
 $btnExtract.Text = 'Extract PKG'
 $btnExtract.AutoSize = $true
 $btnExtract.MinimumSize = New-Object System.Drawing.Size(110, 32)
-[void]$buttons.Controls.Add($btnExtract)
 
 $btnOpenOutput = New-Object System.Windows.Forms.Button
 $btnOpenOutput.Text = 'Open result folder'
 $btnOpenOutput.AutoSize = $true
 $btnOpenOutput.Enabled = $false
 $btnOpenOutput.MinimumSize = New-Object System.Drawing.Size(180, 32)
-[void]$buttons.Controls.Add($btnOpenOutput)
 
 $btnClearLog = New-Object System.Windows.Forms.Button
 $btnClearLog.Text = 'Clear log'
 $btnClearLog.AutoSize = $true
 $btnClearLog.MinimumSize = New-Object System.Drawing.Size(110, 32)
-[void]$buttons.Controls.Add($btnClearLog)
+function New-ActionGroup([Windows.Forms.Control[]]$controls) {
+    $group = New-Object Windows.Forms.FlowLayoutPanel
+    $group.AutoSize = $true
+    $group.AutoSizeMode = 'GrowAndShrink'
+    $group.WrapContents = $false
+    $group.Margin = New-Object Windows.Forms.Padding(0, 0, 16, 0)
+    $group.Controls.AddRange($controls)
+    return $group
+}
+
+$buildActions = New-ActionGroup @($btnBuild, $btnRecoverMetadata)
+$packageActions = New-ActionGroup @($btnSelectPackage, $btnQuickVerify, $btnFullVerify, $btnExtract)
+$utilityActions = New-ActionGroup @($btnOpenOutput, $btnClearLog)
+$buttons.Controls.AddRange(@($buildActions, $packageActions, $utilityActions))
+$buttons.SetFlowBreak($packageActions, $true)
 [void]$root.Controls.Add($buttons, 0, 3)
 
 $statusPanel = New-Object System.Windows.Forms.FlowLayoutPanel
@@ -312,6 +694,7 @@ $lblLog.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 4)
 
 $log = New-Object System.Windows.Forms.RichTextBox
 $log.Dock = 'Fill'
+$log.MinimumSize = New-Object Drawing.Size(0, 120)
 $log.ReadOnly = $true
 $log.WordWrap = $false
 $log.DetectUrls = $false
@@ -426,7 +809,10 @@ $btnTemp.Add_Click({
 $btnTempClear.Add_Click({ $txtTemp.Clear() })
 $btnReferenceClear.Add_Click({ $txtReference.Clear() })
 $btnExtractClear.Add_Click({ $txtExtract.Clear() })
-$btnClearLog.Add_Click({ $log.Clear() })
+$btnClearLog.Add_Click({
+    $log.Clear()
+    foreach ($stream in $script:processOutputStreams) { $stream.LogStart = -1; $stream.LogLength = 0 }
+})
 
 $btnExtractFolder.Add_Click({
     if ($txtExtract.Text -and (Test-Path -LiteralPath $txtExtract.Text -PathType Container)) {
@@ -493,13 +879,23 @@ function Set-BuildControlsEnabled([bool]$enabled) {
     $btnExtractFolder.Enabled = $enabled
     $btnExtractClear.Enabled = $enabled
     $numCompression.Enabled = $enabled
-    $numChunkCount.Enabled = $enabled
+    $cmbSdkVersion.Enabled = $enabled -and $cmbVolume.SelectedIndex -eq 0
+    $cmbVolume.Enabled = $enabled
+    $usesEntitlement = $cmbVolume.SelectedIndex -eq 1
+    $entitlementPanel.Visible = $usesEntitlement
+    $lblEntitlementKey.Visible = $usesEntitlement
+    $txtEntitlementKey.Visible = $usesEntitlement
+    $txtEntitlementKey.Enabled = $enabled -and $usesEntitlement
+    $languagePanel.Enabled = $enabled -and -not $usesEntitlement
+    $numChunkCount.Enabled = $enabled -and -not $usesEntitlement -and $null -eq $script:sourceChunkCount -and
+        $null -eq $script:sourceChunkError
     $chkForce.Enabled = $enabled
     $txtPasscode.Enabled = $enabled
-    $cmbVerificationMode.Enabled = $enabled
     $btnBuild.Enabled = $enabled -and (Test-Path -LiteralPath $builderScript -PathType Leaf)
+    $btnRecoverMetadata.Enabled = $enabled -and -not [string]::IsNullOrWhiteSpace($metadataRecoveryExecutable)
     $btnSelectPackage.Enabled = $enabled
-    $btnVerify.Enabled = $enabled -and (Test-Path -LiteralPath $publisherExecutable -PathType Leaf)
+    $btnQuickVerify.Enabled = $enabled -and (Test-Path -LiteralPath $publisherExecutable -PathType Leaf)
+    $btnFullVerify.Enabled = $btnQuickVerify.Enabled
     $btnExtract.Enabled = $enabled -and (Test-Path -LiteralPath $publisherExecutable -PathType Leaf)
 }
 
@@ -512,50 +908,74 @@ function Get-ValidatedPasscode {
     return $passcode
 }
 
+function Update-ProcessLogLine($stream) {
+    $text = $stream.Prefix + $stream.Text
+    if ($stream.LogStart -lt 0) {
+        $stream.LogStart = $log.TextLength
+        $log.AppendText($text + [Environment]::NewLine)
+    } else {
+        $log.Select($stream.LogStart, $stream.LogLength)
+        $log.SelectedText = $text
+        $delta = $text.Length - $stream.LogLength
+        foreach ($other in $script:processOutputStreams) {
+            if ($other.LogStart -gt $stream.LogStart) { $other.LogStart += $delta }
+        }
+    }
+    $stream.LogLength = $text.Length
+    $log.SelectionStart = $log.TextLength
+    $log.SelectionLength = 0
+    $log.ScrollToCaret()
+}
+
+function Write-ProcessOutput($stream, [string]$text) {
+    # A CR may be either a progress-line repaint or half of a CRLF split
+    # across reads. Keep the current line until the next character decides.
+    foreach ($part in [regex]::Matches($text, '[^\r\n]+|[\r\n]')) {
+        $value = $part.Value
+        if ($stream.PendingCR -and $value -ne "`n") { $stream.Text = '' }
+        $stream.PendingCR = $false
+        if ($value -eq "`r") {
+            $stream.PendingCR = $true
+        } elseif ($value -eq "`n") {
+            if ($stream.LogStart -lt 0) { Update-ProcessLogLine $stream }
+            $stream.Text = ''
+            $stream.LogStart = -1
+            $stream.LogLength = 0
+        } else {
+            $stream.Text += $value
+            Update-ProcessLogLine $stream
+        }
+    }
+}
+
+function New-ProcessOutputStream($reader, [string]$prefix) {
+    $buffer = New-Object char[] 4096
+    return @{
+        Reader = $reader; Buffer = $buffer; Prefix = $prefix
+        Task = $reader.ReadAsync($buffer, 0, $buffer.Length); Ended = $false
+        Text = ''; PendingCR = $false; LogStart = -1; LogLength = 0
+    }
+}
+
 function Pump-ProcessOutput {
     # Do not use OutputDataReceived/ErrorDataReceived callbacks here.
     # Windows PowerShell 5.1 may invoke those callbacks on a .NET worker thread
     # without a PowerShell runspace, which can terminate the GUI process.
-    $maxLinesPerTick = 250
-
-    $count = 0
-    while (-not $script:stdoutEnded -and $null -ne $script:stdoutReadTask -and $script:stdoutReadTask.IsCompleted -and $count -lt $maxLinesPerTick) {
-        if ($script:stdoutReadTask.IsFaulted) {
-            throw $script:stdoutReadTask.Exception.GetBaseException()
+    foreach ($stream in $script:processOutputStreams) {
+        $count = 0
+        while (-not $stream.Ended -and $stream.Task.IsCompleted -and $count -lt 8) {
+            if ($stream.Task.IsFaulted) { throw $stream.Task.Exception.GetBaseException() }
+            $length = $stream.Task.Result
+            if ($length -eq 0) { $stream.Ended = $true; $stream.Task = $null; break }
+            Write-ProcessOutput $stream ([string]::new($stream.Buffer, 0, $length))
+            $stream.Task = $stream.Reader.ReadAsync($stream.Buffer, 0, $stream.Buffer.Length)
+            $count++
         }
-        $line = $script:stdoutReadTask.Result
-        if ($null -eq $line) {
-            $script:stdoutEnded = $true
-            $script:stdoutReadTask = $null
-            break
-        }
-        Append-LogLine $line
-        $script:stdoutReadTask = $script:buildProcess.StandardOutput.ReadLineAsync()
-        $count++
-    }
-
-    $count = 0
-    while (-not $script:stderrEnded -and $null -ne $script:stderrReadTask -and $script:stderrReadTask.IsCompleted -and $count -lt $maxLinesPerTick) {
-        if ($script:stderrReadTask.IsFaulted) {
-            throw $script:stderrReadTask.Exception.GetBaseException()
-        }
-        $line = $script:stderrReadTask.Result
-        if ($null -eq $line) {
-            $script:stderrEnded = $true
-            $script:stderrReadTask = $null
-            break
-        }
-        Append-LogLine ('[stderr] ' + $line)
-        $script:stderrReadTask = $script:buildProcess.StandardError.ReadLineAsync()
-        $count++
     }
 }
 
 function Reset-ProcessState {
-    $script:stdoutReadTask = $null
-    $script:stderrReadTask = $null
-    $script:stdoutEnded = $true
-    $script:stderrEnded = $true
+    $script:processOutputStreams = @()
 }
 
 function Start-Operation {
@@ -607,10 +1027,10 @@ function Start-Operation {
         $started = $proc.Start()
         if (-not $started) { throw "Failed to start $Executable" }
         $script:buildProcess = $proc
-        $script:stdoutEnded = $false
-        $script:stderrEnded = $false
-        $script:stdoutReadTask = $proc.StandardOutput.ReadLineAsync()
-        $script:stderrReadTask = $proc.StandardError.ReadLineAsync()
+        $script:processOutputStreams = @(
+            (New-ProcessOutputStream $proc.StandardOutput ''),
+            (New-ProcessOutputStream $proc.StandardError '[stderr] ')
+        )
     } catch {
         Set-BuildControlsEnabled $true
         $lblStatus.Text = 'Launch error'
@@ -631,12 +1051,12 @@ $pollTimer.Add_Tick({
         Pump-ProcessOutput
 
         if ($script:buildProcess.HasExited) {
-            # The process may have exited while a final asynchronous ReadLineAsync
+            # The process may have exited while a final asynchronous ReadAsync
             # is still completing. Keep pumping until both redirected streams reach EOF.
             $script:buildProcess.WaitForExit()
             Pump-ProcessOutput
 
-            if (-not $script:stdoutEnded -or -not $script:stderrEnded) {
+            if (@($script:processOutputStreams | Where-Object { -not $_.Ended }).Count -gt 0) {
                 return
             }
 
@@ -649,11 +1069,15 @@ $pollTimer.Add_Tick({
                 if ($exitCode -eq 0) {
                     Append-LogLine ('=== {0} SUCCEEDED ({1:hh\:mm\:ss}) ===' -f $script:operationName.ToUpperInvariant(), $elapsed)
                     $lblStatus.Text = $script:operationSuccessStatus
+                    if ($script:operationName -eq 'Metadata recovery') { Update-SourceChunkCount }
                     if (-not [string]::IsNullOrWhiteSpace($script:operationResultFolder) -and
                         (Test-Path -LiteralPath $script:operationResultFolder -PathType Container)) {
                         $script:lastResultFolder = $script:operationResultFolder
                         $btnOpenOutput.Enabled = $true
                     }
+                } elseif ($exitCode -eq 130 -and $script:operationName -eq 'Metadata recovery') {
+                    Append-LogLine 'Metadata recovery canceled; applied changes were rolled back.'
+                    $lblStatus.Text = 'Metadata recovery canceled'
                 } else {
                     Append-LogLine ('=== {0} FAILED: exit code {1} ({2:hh\:mm\:ss}) ===' -f $script:operationName.ToUpperInvariant(), $exitCode, $elapsed)
                     $lblStatus.Text = ('{0} failed (exit code {1})' -f $script:operationName, $exitCode)
@@ -663,6 +1087,12 @@ $pollTimer.Add_Tick({
                 Set-BuildControlsEnabled $true
                 $script:buildProcess.Dispose()
                 $script:buildProcess = $null
+                if ($null -ne $script:metadataCancelFile) {
+                    if (Test-Path -LiteralPath $script:metadataCancelFile) {
+                        Remove-Item -LiteralPath $script:metadataCancelFile
+                    }
+                    $script:metadataCancelFile = $null
+                }
                 Reset-ProcessState
             }
         }
@@ -699,14 +1129,24 @@ $btnBuild.Add_Click({
         return
     }
 
-    $keystone = Join-Path $source 'sce_sys\keystone'
-    if (-not (Test-Path -LiteralPath $keystone -PathType Leaf)) {
-        Show-Error "Required file was not found in the project:`r`nsce_sys\keystone"
+    try {
+        $volumeArguments = @(Get-BuildVolumeArguments)
+        $sdkVersionArguments = @(Get-SdkVersionOverrideArguments)
+    } catch {
+        Show-Error $_.Exception.Message
         return
     }
-    if ((Get-Item -LiteralPath $keystone).Length -ne 96) {
-        Show-Error 'sce_sys\keystone must be exactly 96 bytes.'
-        return
+    $volume = if ($cmbVolume.SelectedIndex -eq 1) { 'ac' } else { 'app' }
+    if ($volume -eq 'app') {
+        $keystone = Join-Path $source 'sce_sys\keystone'
+        if (-not (Test-Path -LiteralPath $keystone -PathType Leaf)) {
+            Show-Error "Required file was not found in the project:`r`nsce_sys\keystone"
+            return
+        }
+        if ((Get-Item -LiteralPath $keystone).Length -ne 96) {
+            Show-Error 'sce_sys\keystone must be exactly 96 bytes.'
+            return
+        }
     }
 
     if ([string]::IsNullOrWhiteSpace($output)) {
@@ -766,6 +1206,11 @@ $btnBuild.Add_Click({
     $txtSource.Text = $source
     $txtOutput.Text = $output
     $txtReference.Text = $reference
+    Update-SourceChunkCount
+    if ($null -ne $script:sourceChunkError) {
+        Show-Error ('Unable to read source PlayGo metadata: ' + $script:sourceChunkError)
+        return
+    }
     $compression = [int]$numCompression.Value
     $chunkCount = [int]$numChunkCount.Value
 
@@ -783,9 +1228,12 @@ $btnBuild.Add_Click({
         '-SourceFolder', $source,
         '-OutputPackage', $output,
         '-Passcode', $passcode,
-        '-CompressionLevel', $compression.ToString(),
-        '-ChunkCount', $chunkCount.ToString()
+        '-CompressionLevel', $compression.ToString()
     )
+    $arguments += $volumeArguments
+    $arguments += $sdkVersionArguments
+    if ($volume -eq 'app') { $arguments += @('-ChunkCount', $chunkCount.ToString()) }
+    $arguments += @(Get-PlayGoLanguageArguments)
     if (-not [string]::IsNullOrWhiteSpace($temp)) {
         $arguments += @('-TemporaryDirectory', $temp)
     }
@@ -796,6 +1244,7 @@ $btnBuild.Add_Click({
 
     $header = @(
         ('Source:      ' + $source),
+        ('Volume:      ' + $volume.ToUpperInvariant()),
         ('Output:      ' + $output),
         ('Reference:   ' + $(if ($reference) { $reference } else { '<none; full package>' }))
     )
@@ -806,9 +1255,14 @@ $btnBuild.Add_Click({
     }
     $header += @(
         ('Compression: ' + $compression),
-        ('Chunks:      ' + $chunkCount),
+        ('SDK version: ' + $(if ($sdkVersionArguments.Count) { $sdkVersionArguments[1] } else { '<source / eboot>' })),
         ('Force:       ' + $chkForce.Checked)
     )
+    if ($volume -eq 'app') {
+        $header += ('Chunks:      ' + $chunkCount)
+        $header += ('Languages:   ' + $txtLanguages.Text)
+    }
+    else { $header += 'Entitlement: supplied (16 bytes)' }
 
     Start-Operation `
         -Executable $powershellExe `
@@ -820,7 +1274,7 @@ $btnBuild.Add_Click({
         -LogHeader $header
 })
 
-$btnVerify.Add_Click({
+function Start-PackageVerification([bool]$full) {
     if ($null -ne $script:buildProcess) { return }
 
     $package = $txtOutput.Text.Trim()
@@ -852,7 +1306,7 @@ $btnVerify.Add_Click({
     if ($null -eq $passcode) { return }
 
     $txtOutput.Text = $package
-    $integrityCheck = if ($cmbVerificationMode.SelectedIndex -eq 1) { 'off' } else { 'on' }
+    $integrityCheck = if ($full) { 'on' } else { 'off' }
     $checksDescription = if ($integrityCheck -eq 'on') { 'format + integrity' } else { 'format only' }
     $arguments = @(
         'img_verify', '--passcode', $passcode,
@@ -866,11 +1320,14 @@ $btnVerify.Add_Click({
     Start-Operation `
         -Executable $publisherExecutable `
         -Arguments $arguments `
-        -Name 'Verify' `
+        -Name $(if ($full) { 'Full verify' } else { 'Quick verify' }) `
         -SuccessStatus 'Verification completed successfully' `
         -WorkingDirectory $toolkitRoot `
         -LogHeader $verifyHeader
-})
+}
+
+$btnQuickVerify.Add_Click({ Start-PackageVerification $false })
+$btnFullVerify.Add_Click({ Start-PackageVerification $true })
 
 $btnExtract.Add_Click({
     if ($null -ne $script:buildProcess) { return }
@@ -948,7 +1405,98 @@ $btnExtract.Add_Click({
         -LogHeader $extractHeader
 })
 
+$btnRecoverMetadata.Add_Click({
+    if ($null -ne $script:buildProcess) { return }
+    $source = $txtSource.Text.Trim()
+    if ([string]::IsNullOrWhiteSpace($source) -or -not (Test-Path -LiteralPath $source -PathType Container)) {
+        Show-Error 'Select the existing game source folder.'
+        return
+    }
+    if ([string]::IsNullOrWhiteSpace($metadataRecoveryExecutable)) {
+        Show-Error 'metadata-recovery.exe is missing. Build ProsperoMetadataRecoveryTool or refresh the toolkit.'
+        return
+    }
+    $dialog = New-Object Windows.Forms.Form
+    $dialog.Text = 'Restore metadata online'
+    $dialog.StartPosition = 'CenterParent'
+    $dialog.ClientSize = New-Object Drawing.Size(740, 240)
+    $dialog.FormBorderStyle = 'FixedDialog'
+    $dialog.MinimizeBox = $false
+    $dialog.MaximizeBox = $false
+    $description = New-Object Windows.Forms.Label
+    $description.Text = 'Downloads only *_sc.pkg matching the dump version. Originals are backed up beside the game folder. Protected records are skipped and listed in the log.'
+    $description.SetBounds(12, 12, 710, 44)
+    $urlLabel = New-Object Windows.Forms.Label
+    $urlLabel.Text = 'URL (optional):'
+    $urlLabel.SetBounds(12, 67, 165, 22)
+    $url = New-Object Windows.Forms.TextBox
+    $url.SetBounds(180, 64, 545, 24)
+    $caLabel = New-Object Windows.Forms.Label
+    $caLabel.Text = 'Root CA (optional):'
+    $caLabel.SetBounds(12, 102, 165, 22)
+    $ca = New-Object Windows.Forms.TextBox
+    $ca.SetBounds(180, 99, 495, 24)
+    $browseCa = New-Object Windows.Forms.Button
+    $browseCa.Text = '...'
+    $browseCa.SetBounds(682, 98, 43, 26)
+    $browseCa.Add_Click({
+        $picker = New-Object Windows.Forms.OpenFileDialog
+        $picker.Filter = 'CA certificates (*.cer;*.crt;*.pem)|*.cer;*.crt;*.pem|All files (*.*)|*.*'
+        try { if ($picker.ShowDialog($dialog) -eq 'OK') { $ca.Text = $picker.FileName } }
+        finally { $picker.Dispose() }
+    })
+    $preserve = New-Object Windows.Forms.CheckBox
+    $preserve.Text = 'Keep local SDK, firmware and DRM settings'
+    $preserve.Checked = $true
+    $preserve.SetBounds(12, 141, 700, 25)
+    $restore = New-Object Windows.Forms.Button
+    $restore.Text = 'Download and restore'
+    $restore.DialogResult = 'OK'
+    $restore.SetBounds(450, 192, 175, 30)
+    $cancel = New-Object Windows.Forms.Button
+    $cancel.Text = 'Cancel'
+    $cancel.DialogResult = 'Cancel'
+    $cancel.SetBounds(635, 192, 90, 30)
+    $dialog.Controls.AddRange(@($description, $urlLabel, $url, $caLabel, $ca, $browseCa, $preserve, $restore, $cancel))
+    $dialog.AcceptButton = $restore
+    $dialog.CancelButton = $cancel
+    $tip = New-Object Windows.Forms.ToolTip
+    $tip.SetToolTip($url, 'Blank uses versionFileUri from param.json. Accepts a version XML, manifest JSON or matching *_sc.pkg URL.')
+    try {
+        if ($dialog.ShowDialog($form) -ne 'OK') { return }
+        $source = [IO.Path]::GetFullPath($source)
+        $script:metadataCancelFile = Join-Path ([IO.Path]::GetTempPath()) ('prospero-metadata-cancel-' + [Guid]::NewGuid().ToString('N') + '.flag')
+        $arguments = @($source, '--cancel-file', $script:metadataCancelFile)
+        if (-not [string]::IsNullOrWhiteSpace($url.Text)) { $arguments += @('--url', $url.Text.Trim()) }
+        if (-not [string]::IsNullOrWhiteSpace($ca.Text)) { $arguments += @('--ca-cert', $ca.Text.Trim()) }
+        if (-not $preserve.Checked) { $arguments += '--original-runtime' }
+        $metadataSourceUrl = $url.Text.Trim()
+        if ([string]::IsNullOrWhiteSpace($metadataSourceUrl)) {
+            $metadataParam = Get-Content -LiteralPath (Join-Path $source 'sce_sys\param.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+            $metadataSourceUrl = ([string]$metadataParam.versionFileUri).Trim()
+        }
+        $metadataHeader = @(
+            ('Source: ' + $source)
+            ('Source URL: ' + $metadataSourceUrl)
+        )
+        Start-Operation -Executable $metadataRecoveryExecutable -Arguments $arguments `
+            -Name 'Metadata recovery' -SuccessStatus 'Metadata recovery completed; see skipped records in the log' `
+            -WorkingDirectory (Split-Path -Parent $metadataRecoveryExecutable) -ResultFolder $source `
+            -LogHeader $metadataHeader
+    } catch { Show-Error $_.Exception.Message }
+    finally { $tip.Dispose(); $dialog.Dispose() }
+})
+
 $form.Add_FormClosing({
+    if ($null -ne $script:buildProcess -and $script:operationName -eq 'Metadata recovery') {
+        # Let the helper roll back an in-progress transaction before the GUI can close.
+        if ($null -ne $script:metadataCancelFile) {
+            [IO.File]::WriteAllText($script:metadataCancelFile, 'cancel')
+        }
+        $lblStatus.Text = 'Canceling metadata recovery; waiting for rollback...'
+        $_.Cancel = $true
+        return
+    }
     if ($null -ne $script:buildProcess) {
         $answer = [System.Windows.Forms.MessageBox]::Show(
             $form,
@@ -967,6 +1515,7 @@ $form.Add_FormClosing({
     }
 })
 
+Update-SourceChunkCount
 Set-BuildControlsEnabled $true
 if (-not (Test-Path -LiteralPath $builderScript -PathType Leaf) -and
     -not (Test-Path -LiteralPath $publisherExecutable -PathType Leaf)) {

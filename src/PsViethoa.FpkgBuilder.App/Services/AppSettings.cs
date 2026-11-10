@@ -73,6 +73,9 @@ public sealed class AppSettings
     /// <summary>SDK Sony: tệp giữ chỗ 1 MiB cho chunk PlayGo không có tệp nào (PS5 coi chunk rỗng là chưa cài) — mặc định bật (từ 2.2.7).</summary>
     public bool SdkFillEmptyChunks { get; set; } = true;
 
+    /// <summary>SDK Sony (bộ fix15): giữ thứ tự chunk và số chunk initial của kịch bản PlayGo retail — mặc định tắt (mọi kịch bản gồm mọi chunk).</summary>
+    public bool SdkRetailPlayGoScenarios { get; set; }
+
     /// <summary>SDK Sony: mức --compression_level; null = mặc định của Publishing Tools (7), như bộ công cụ gốc.</summary>
     public int? SdkCompressionLevel { get; set; }
 
@@ -94,6 +97,15 @@ public sealed class AppSettings
     public int OutputAutoRevision { get; set; }
 
     public const int CurrentOutputAutoRevision = 1;
+
+    /// <summary>
+    /// Phiên bản quy tắc của "Ghi đè SDK" / "Bố cục PlayGo". Trước 3.0.1 hai ô này chỉ có tác dụng với engine tích hợp, SDK Sony bỏ qua; từ
+    /// bộ fix15 chúng áp dụng cho cả SDK Sony (--sdk-version, --playgo-languages), nên giá trị cũ còn lưu (có thể đã quên từ lâu) được đưa
+    /// về mặc định một lần để không lặng lẽ đổi gói SDK.
+    /// </summary>
+    public int SdkOptionsRevision { get; set; }
+
+    public const int CurrentSdkOptionsRevision = 1;
 
     /// <summary>Hạ requiredSystemSoftwareVersion về SDK của game khi tạo gói (mặc định bật, theo fpkg-gui 0.6.8).</summary>
     public bool LowerRequiredFirmware { get; set; } = true;

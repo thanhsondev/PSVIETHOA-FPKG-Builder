@@ -600,11 +600,12 @@ internal static class CommandLine
         }
         else
         {
-            // SDK Sony: Publishing Tools tự quyết mức nén, PFS, PlayGo, SDK… — các cờ của engine không có tác dụng, báo để khỏi hiểu lầm.
+            // SDK Sony: Publishing Tools tự quyết mức nén, PFS… — các cờ của engine không có tác dụng, báo để khỏi hiểu lầm. --sdk,
+            // --playgo-languages (bộ fix15: --sdk-version, --playgo-languages) và --playgo (số chunk dự phòng) áp dụng cho cả SDK.
             var ignored = new[]
                 {
                     "preset", "level", "pfs", "block-size", "shuffle", "shuffle-analysis", "shuffle-prediction-level", "skip-pfs-input-check",
-                    "playgo", "sdk", "backend", "dll", "no-deterministic", "no-layout-optimization", "source-mode", "project", "keep-playgo", "remove-playgo", "playgo-languages", "keep-required-fw", "keep-drm",
+                    "playgo", "backend", "dll", "no-deterministic", "no-layout-optimization", "source-mode", "project", "keep-playgo", "remove-playgo", "keep-drm",
                 }
                 .Where(flag => arguments.Has(flag))
                 // --playgo đặt số chunk của PlayGo dự phòng khi có --sdk-playgo-fallback.
@@ -675,6 +676,11 @@ internal static class CommandLine
         if (arguments.Has("sdk-keep-empty-chunks"))
         {
             request.SdkFillEmptyChunks = false;
+        }
+
+        if (arguments.Has("sdk-retail-scenarios"))
+        {
+            request.SdkRetailPlayGoScenarios = true;
         }
 
         if (arguments.Has("restore-metadata") || arguments.Get("metadata-url") != null)

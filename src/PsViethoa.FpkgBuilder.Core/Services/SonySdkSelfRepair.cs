@@ -152,6 +152,66 @@ public static class SonySdkSelfRepair
         return Fallback();
     }
 
+    /// <summary>
+    /// <c>executable_sdk_version</c> (fix15): phiên bản SDK (major/minor, 16 bit cao) lớn nhất trong đoạn <c>.sceversion</c> cuối tệp SELF —
+    /// mỗi bản ghi mang 8 byte phiên bản big-endian. Null khi không phải SELF hoặc không tìm thấy đoạn hợp lệ.
+    /// </summary>
+    public static ulong? ExecutableSdkVersion(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1, FileOptions.None);
+        var size = stream.Length;
+        if (size < 0x20)
+        {
+            return null;
+        }
+
+        Span<byte> header = stackalloc byte[0x20];
+        stream.ReadExactly(header);
+        if (!header[..4].SequenceEqual(LegacyMagic) && !header[..4].SequenceEqual(ProsperoMagic))
+        {
+            return null;
+        }
+
+        var boundary = BinaryPrimitives.ReadUInt64LittleEndian(header[0x10..]);
+        if (boundary < 0x20 || boundary > (ulong)size)
+        {
+            return null;
+        }
+
+        var start = Math.Max(0L, (long)boundary - 0x0F);
+        if (size - start is <= 0 or > MaxMetadataSize)
+        {
+            return null;
+        }
+
+        var tail = new byte[size - start];
+        stream.Position = start;
+        stream.ReadExactly(tail);
+        var localBoundary = (int)((long)boundary - start);
+        for (var backtrack = 0; backtrack <= Math.Min(0x0F, localBoundary); backtrack++)
+        {
+            var records = tail.AsSpan(localBoundary - backtrack);
+            if (!IsCompleteSceVersion(records))
+            {
+                continue;
+            }
+
+            ulong highest = 0;
+            var offset = 0;
+            while (offset < records.Length)
+            {
+                int payloadSize = BinaryPrimitives.ReadUInt16LittleEndian(records[(offset + 2)..]);
+                var versionOffset = offset + 5 + payloadSize - 17;
+                highest = Math.Max(highest, BinaryPrimitives.ReadUInt64BigEndian(records[versionOffset..]));
+                offset += payloadSize + 4;
+            }
+
+            return highest & 0xFFFF000000000000UL;
+        }
+
+        return null;
+    }
+
     /// <summary><c>write_repaired_self</c>: chép phần trước đoạn cuối (đổi magic nếu cần), chèn byte 0, chép phần còn lại, giữ thời gian tệp.</summary>
     public static void Write(string source, string destination, SelfRepairPlan plan, CancellationToken cancellationToken = default)
     {

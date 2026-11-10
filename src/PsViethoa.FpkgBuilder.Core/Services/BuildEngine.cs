@@ -303,6 +303,7 @@ public sealed class BuildEngine
                         KeepEmptyDirectories = normalized.SdkKeepEmptyFolders,
                         FillEmptyChunks = normalized.SdkFillEmptyChunks,
                         SceSysOverlay = metadata?.SceSysFolder,
+                        SdkVersionOverride = normalized.SdkVersionOverrideValue,
                     }
                     : await Task.Run(() => PlanSonySdkSource(normalized, sourceFolder, log, metadata: metadata), cancellationToken).ConfigureAwait(false);
                 return await BuildWithSonySdkAsync(normalized, sdkRuntime, sourceFolder, plan, tracker, stopwatch, log, progress, cancellationToken).ConfigureAwait(false);
@@ -591,10 +592,10 @@ public sealed class BuildEngine
         var structure = ReadPlayGoStructure(metadata?.Root ?? appFolder, request, log);
         if (playgo.Count > 0)
         {
-            // Bảng playgo* của nguồn không bao giờ đưa thẳng vào gói (SDK từ chối); nhiều chunk thì SDK tạo lại theo cấu trúc giữ trong GP5.
+            // Bảng playgo* của nguồn không bao giờ đưa thẳng vào gói (SDK từ chối); SDK tạo lại theo cấu trúc giữ trong GP5.
             log(new LogEntry(LogLevel.Info, structure == null
                 ? Loc.F("Sdk.PlayGoRegenerated", PlayGoCleanup.Describe(playgo))
-                : structure.SupportedLanguageMask == 0
+                : structure.SourceLayout == null
                     ? Loc.F("Sdk.PlayGoRebuiltFallback", PlayGoCleanup.Describe(playgo))
                     : Loc.F("Sdk.PlayGoRebuilt", PlayGoCleanup.Describe(playgo), structure.Chunks.Count, structure.Scenarios.Count)));
         }
@@ -605,6 +606,7 @@ public sealed class BuildEngine
             KeepEmptyDirectories = request.SdkKeepEmptyFolders,
             FillEmptyChunks = request.SdkFillEmptyChunks,
             SceSysOverlay = metadata?.SceSysFolder,
+            SdkVersionOverride = request.SdkVersionOverrideValue,
         };
     }
 
@@ -689,49 +691,59 @@ public sealed class BuildEngine
     }
 
     /// <summary>
-    /// Cấu trúc PlayGo của gói gốc để giữ lại trong GP5 (nhiều chunk = các gói ngôn ngữ thoại). Chỉ 1 chunk / 1 kịch bản thì
-    /// null (script gốc đã đúng). Tệp hỏng thì cảnh báo và dùng 1 chunk. Nguồn không còn bảng (hoặc bảng hỏng) và người dùng bật
-    /// "PlayGo dự phòng" thì dùng <see cref="SonySdkPlayGo.Fallback"/> (N chunk như engine tích hợp, số kịch bản của nguồn).
+    /// Bố cục PlayGo cho GP5 đúng như script fix15 (<see cref="SonySdkPlayGo.Toolkit"/>): nguồn còn playgo-chunk.dat thì lấy số chunk từ đó và,
+    /// khi đủ ba bảng hợp lệ, giữ nhãn/ngôn ngữ/chunk của từng tệp; không thì mỗi ngôn ngữ một chunk với tệp giữ chỗ. Bảng nguồn hỏng (script
+    /// dừng hẳn) thì cảnh báo và dùng bố cục dự phòng của script. Null = 1 chunk / 1 kịch bản (tắt "PlayGo dự phòng" và nguồn không có bảng).
     /// </summary>
     private static PlayGoStructure? ReadPlayGoStructure(string appFolder, BuildRequest request, Action<LogEntry> log)
     {
         var sceSys = Path.Combine(appFolder, "sce_sys");
-        var structure = SonySdkPlayGo.TryRead(sceSys, out var problem);
-        if (structure == null)
-        {
-            if (problem != null)
-            {
-                log(new LogEntry(LogLevel.Warning, Loc.F("Sdk.PlayGoStructureInvalid", problem)));
-            }
-
-            if (request.SdkPlayGoFallback)
-            {
-                // Bố cục của script fix6: 100 chunk, mỗi ngôn ngữ trong playgo-scenario.json một chunk có tệp giữ chỗ 1 MiB (máy báo
-                // ngôn ngữ "đã cài"), kịch bản/tiêu đề của nguồn, mọi chunk initial.
-                var fallback = SonySdkPlayGo.ScriptFallback(sceSys, SonySdkProject.DefaultLanguageOf(Path.Combine(sceSys, "param.json")), out var scenarioWarning, request.PlayGoChunks);
-                if (scenarioWarning != null)
-                {
-                    log(new LogEntry(LogLevel.Warning, Loc.F("Sdk.PlayGoScenarioInvalid", scenarioWarning)));
-                }
-
-                log(new LogEntry(LogLevel.Info, Loc.F("Sdk.PlayGoScriptFallback", fallback.Chunks.Count, fallback.LanguagePayloads.Count, fallback.SupportedLanguagesText, fallback.Scenarios.Count)));
-                return fallback;
-            }
-
-            return null;
-        }
-
-        if (structure.IsTrivial)
+        var selected = request.SdkPlayGoLanguages;
+        if (!request.SdkPlayGoFallback && selected == null && !File.Exists(Path.Combine(sceSys, SonySdkPlayGo.ChunkFileName)))
         {
             return null;
         }
 
-        var languages = string.Join(", ", SonySdkPlayGo.Codes(structure.SupportedLanguageMask));
-        var languageChunks = structure.Chunks.Count(chunk => chunk.LanguageMask != structure.SupportedLanguageMask);
-        log(new LogEntry(LogLevel.Info, Loc.F("Sdk.PlayGoStructure", structure.Chunks.Count, structure.Scenarios.Count, languageChunks, languages, structure.FileChunks.Count)));
-        if (structure.FileMapProblem is { } mapProblem)
+        var structure = SonySdkPlayGo.Toolkit(
+            sceSys,
+            SonySdkProject.DefaultLanguageOf(Path.Combine(sceSys, "param.json")),
+            request.PlayGoChunks,
+            selected,
+            request.SdkRetailPlayGoScenarios,
+            out var problems);
+        if (problems.ChunkCount is { } countProblem)
         {
-            log(new LogEntry(LogLevel.Warning, Loc.F("Sdk.PlayGoFileMapProblem", mapProblem, structure.Chunks.Count - 1)));
+            log(new LogEntry(LogLevel.Warning, Loc.F("Sdk.PlayGoHeaderInvalid", countProblem, structure.Chunks.Count)));
+        }
+
+        if (problems.Layout is { } layoutProblem)
+        {
+            log(new LogEntry(LogLevel.Warning, Loc.F("Sdk.PlayGoLayoutInvalid", layoutProblem, structure.Chunks.Count)));
+        }
+
+        if (problems.Scenario is { } scenarioProblem)
+        {
+            log(new LogEntry(LogLevel.Warning, Loc.F("Sdk.PlayGoScenarioInvalid", scenarioProblem)));
+        }
+
+        if (structure.SourceLayout is { } layout)
+        {
+            var languageChunks = structure.Chunks.Count(chunk => chunk.Declared && chunk.LanguagesText != structure.SupportedLanguagesText);
+            log(new LogEntry(LogLevel.Info, Loc.F("Sdk.PlayGoSourceLayout", structure.Chunks.Count, structure.Scenarios.Count, languageChunks, structure.SupportedLanguagesText, layout.FileChunks.Count)));
+            log(new LogEntry(LogLevel.Info, structure.SourceScenarios == null
+                ? Loc.T("Sdk.PlayGoScenariosAllChunks")
+                : structure.RetailScenarios
+                    ? Loc.F("Sdk.PlayGoScenariosRetail", string.Join(", ", structure.Scenarios.Select(scenario => $"{scenario.InitialChunkCount}/{scenario.ChunkOrder.Count}")))
+                    : Loc.F("Sdk.PlayGoScenariosEveryChunk", string.Join(", ", structure.SourceScenarios.Select(scenario => $"{scenario.InitialChunkCount}/{scenario.ChunkIds.Count}")))));
+        }
+        else
+        {
+            log(new LogEntry(LogLevel.Info, Loc.F(
+                selected != null ? "Sdk.PlayGoSelectedLanguages" : "Sdk.PlayGoScriptFallback",
+                structure.Chunks.Count,
+                structure.LanguagePayloads.Count,
+                structure.SupportedLanguagesText,
+                structure.Scenarios.Count)));
         }
 
         return structure;
@@ -796,7 +808,7 @@ public sealed class BuildEngine
             log(new LogEntry(LogLevel.Info, Loc.T("Patch.Verifying")));
             progress?.Report(tracker.EnterPhase(PhaseCatalog.Verify));
             var verification = await Task.Run(() => PackageVerifier.Verify(result.RemasteredPath, request.ImageMode, false, cancellationToken, null), cancellationToken).ConfigureAwait(false);
-            LogSdkVersionChange(appFolder, result.RemasteredPath, request.Passcode, log);
+            LogSdkVersionChange(result.ParamVersions, result.RemasteredPath, request.Passcode, log);
             if (await Task.Run(() => ExpectedDlcEmuPaths(request, appFolder, plan.OverlayRoot), cancellationToken).ConfigureAwait(false) is { Count: > 0 } patchDlcEmu)
             {
                 await Task.Run(() => ConfirmDlcEmuInPackage(request, result.RemasteredPath, patchDlcEmu, log, cancellationToken), cancellationToken).ConfigureAwait(false);
@@ -829,7 +841,7 @@ public sealed class BuildEngine
 
         var dlcEmu = await Task.Run(() => ExpectedDlcEmuPaths(request, appFolder, plan.OverlayRoot), cancellationToken).ConfigureAwait(false);
         var outcome = await VerifyOutputAsync(request, result.OutputPath, result.Warnings.ToArray(), tracker, stopwatch, log, progress, cancellationToken, dlcEmu).ConfigureAwait(false);
-        LogSdkVersionChange(appFolder, result.OutputPath, request.Passcode, log);
+        LogSdkVersionChange(result.ParamVersions, result.OutputPath, request.Passcode, log);
         return outcome;
     }
 
@@ -954,26 +966,33 @@ public sealed class BuildEngine
         }
     }
 
-    /// <summary>Ghi chú khi SDK Sony ghi sdkVersion / requiredSystemSoftwareVersion khác với param.json của nguồn.</summary>
-    private static void LogSdkVersionChange(string appFolder, string outputPath, string passcode, Action<LogEntry> log)
+    /// <summary>
+    /// Ghi chú khi SDK Sony ghi sdkVersion / requiredSystemSoftwareVersion vào gói khác với param.json chuẩn hoá mà công cụ đưa cho nó
+    /// (bộ fix15 giữ nguyên hai trường; bộ cũ đặt sdkVersion = 0). Thay đổi của chính công cụ/script đã ghi ở dòng "param.json chuẩn hoá".
+    /// </summary>
+    private static void LogSdkVersionChange((string? Sdk, string? Required) expected, string outputPath, string passcode, Action<LogEntry> log)
     {
         try
         {
-            var sourceParams = PackageInspector.ParseParamJson(File.ReadAllBytes(Path.Combine(appFolder, "sce_sys", "param.json")));
+            if (expected == default)
+            {
+                return;
+            }
+
             var output = PackageInspector.Inspect(outputPath, passcode, CancellationToken.None).Params;
             if (output == null)
             {
                 return;
             }
 
-            if (!string.Equals(sourceParams.SdkVersion, output.SdkVersion, StringComparison.OrdinalIgnoreCase) ||
-                !string.Equals(sourceParams.RequiredSystemSoftwareVersion, output.RequiredSystemSoftwareVersion, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(expected.Sdk, output.SdkVersion, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(expected.Required, output.RequiredSystemSoftwareVersion, StringComparison.OrdinalIgnoreCase))
             {
                 log(new LogEntry(LogLevel.Warning, Loc.F(
                     "Sdk.VersionChanged",
-                    sourceParams.SdkVersion ?? "—",
+                    expected.Sdk ?? "—",
                     output.SdkVersion ?? "—",
-                    sourceParams.RequiredSystemSoftwareVersion ?? "—",
+                    expected.Required ?? "—",
                     output.RequiredSystemSoftwareVersion ?? "—")));
             }
         }
@@ -1583,7 +1602,8 @@ public sealed class BuildEngine
                 _ => ProsperoKrakenBackend.BuiltIn,
             },
             PublishingToolsLibraryPath = backend == KrakenBackendKind.PublishingTools ? publishingToolsPath : null,
-            PlayGoChunkCount = request.PlayGoChunks,
+            // SDK Sony nhận tới 800 chunk; engine tích hợp tối đa 255 (lượt SDK rơi về engine thì dùng mức tối đa của engine).
+            PlayGoChunkCount = Math.Min(request.PlayGoChunks, BuildRequest.MaxPlayGoChunks),
             // Engine 0.6.11: giữ bố cục PlayGo của nguồn (mặc định), hoặc "tạo theo ngôn ngữ" với danh sách người dùng chọn.
             PreserveSourcePlayGoLayout = request.PreserveSourcePlayGoLayout,
             OverrideSourcePlayGoLanguages = !request.PreserveSourcePlayGoLayout,

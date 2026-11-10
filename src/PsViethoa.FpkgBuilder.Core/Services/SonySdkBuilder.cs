@@ -11,10 +11,14 @@ namespace PsViethoa.FpkgBuilder.Core.Services;
 /// <param name="OutputPath">Tệp .pkg cuối.</param>
 /// <param name="ProjectPath">Tệp .gp5 giữ lại cạnh gói (như build-from-folder.ps1).</param>
 /// <param name="LogFolder">Thư mục &lt;tên&gt;-build-logs với 01-create-gp5.log, 02-img-create.log, 03-postprocess.log.</param>
-public sealed record SonySdkBuildResult(string OutputPath, string ProjectPath, string LogFolder, IReadOnlyList<string> Warnings, SonySdkConversionReport? Report, string? RemasteredPath = null);
+public sealed record SonySdkBuildResult(string OutputPath, string ProjectPath, string LogFolder, IReadOnlyList<string> Warnings, SonySdkConversionReport? Report, string? RemasteredPath = null)
+{
+    /// <summary>sdkVersion / requiredSystemSoftwareVersion của param.json chuẩn hoá đưa cho SDK (để biết SDK có ghi lại khác đi không).</summary>
+    public (string? Sdk, string? Required) ParamVersions { get; init; }
+}
 
 /// <summary>
-/// Tạo gói theo chuẩn của bộ sdk-fpkg279-fix12 (profile <c>sdk279-plaintext-direct-v3</c>), đúng các bước và đúng tên tệp của
+/// Tạo gói theo chuẩn của bộ sdk-fpkg279-fix15 (profile <c>sdk279-plaintext-direct-v6</c>), đúng các bước và đúng tên tệp của
 /// <c>build-from-folder.ps1</c>: [1/3] <c>&lt;tên&gt;.gp5</c> + <c>&lt;tên&gt;.playgo-scenario.json</c> trong thư mục xuất, [2/3]
 /// Publishing Tools 2.79 đã vá tạo <c>&lt;tên&gt;.sdk-plaintext.pkg</c> (<c>img_create --oformat nwonly</c>), [3/3] chuyển sang gói
 /// tương thích LibProsperoPkg (PLAINTEXT_NOAUTH) rồi bỏ gói thô. GP5, scenario và thư mục <c>&lt;tên&gt;-build-logs</c> được giữ lại
@@ -228,6 +232,15 @@ public static class SonySdkBuilder
                     converter),
                 cancellationToken).ConfigureAwait(false);
             WriteLog(Path.Combine(logFolder, "01-create-gp5.log"), project.Report);
+            (string? Sdk, string? Required) paramVersions = default;
+            try
+            {
+                var normalizedParams = PackageInspector.ParseParamJson(File.ReadAllBytes(project.ParamJsonPath));
+                paramVersions = (normalizedParams.SdkVersion, normalizedParams.RequiredSystemSoftwareVersion);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
+            {
+            }
 
             // Tên Publishing Tools từ chối ("invalid attribute value dst_path"): dừng ngay với danh sách tệp thay vì để SDK tự dừng sau vài phút.
             if (project.UnsupportedPaths is { Count: > 0 } unsupported)
@@ -268,6 +281,17 @@ public static class SonySdkBuilder
                 log(new LogEntry(LogLevel.Warning, Loc.F("Plan.UcpInvalid", string.Join("; ", project.InvalidUcps.Select(item => item.Relative + " (" + item.Error + ")")))));
             }
 
+            // UDS theo npbind.dat (bộ fix15): sửa digest giữ dữ liệu, hoặc UCP rỗng thay cho tệp thiếu/không đọc được.
+            if (project.UdsFixes.Where(fix => !fix.Stub).Select(fix => fix.Relative).ToList() is { Count: > 0 } udsRepaired)
+            {
+                log(new LogEntry(LogLevel.Info, Loc.F("Sdk.UdsRepaired", Summarize(udsRepaired))));
+            }
+
+            if (project.UdsFixes.Where(fix => fix.Stub).Select(fix => fix.Relative + " (" + fix.NpCommunicationId + ")").ToList() is { Count: > 0 } udsStubbed)
+            {
+                log(new LogEntry(LogLevel.Warning, Loc.F("Sdk.UdsStubbed", Summarize(udsStubbed))));
+            }
+
             if (project.SizeSelection is { } size)
             {
                 log(new LogEntry(LogLevel.Info, Loc.F("Sdk.PackageSize", Formatters.Size(project.SizeInputs.Bytes), project.SizeInputs.Files.ToString("N0", CultureInfo.CurrentCulture), Formatters.Size(size.EstimatedBytes), size.AttributePub, size.MountLevel)));
@@ -282,13 +306,13 @@ public static class SonySdkBuilder
                 }
             }
 
-            if (plan.PlayGo is { IsTrivial: false } structure)
+            // Bố cục nguồn (fix15): bao nhiêu tệp nằm ở chunk khác 0 theo bảng của gói gốc. Bố cục dự phòng: mọi tệp game ở chunk 0, đã báo khi lập kế hoạch.
+            if (plan.PlayGo is { IsTrivial: false, SourceLayout: not null } structure)
             {
-                if (structure.SupportedLanguageMask != 0)
-                {
-                    log(new LogEntry(LogLevel.Info, Loc.F("Sdk.PlayGoMapped", structure.Chunks.Count, project.PlayGoMappedFiles, project.FileCount - 1 - project.PlayGoMappedFiles)));
-                }
-
+                log(new LogEntry(LogLevel.Info, Loc.F("Sdk.PlayGoMapped", structure.Chunks.Count, project.PlayGoMappedFiles, project.FileCount - 1 - project.PlayGoMappedFiles)));
+            }
+            else if (plan.PlayGo is { IsTrivial: false, ScriptLayout: false })
+            {
                 log(new LogEntry(LogLevel.Info, Loc.T(project.ScenarioFromSource ? "Sdk.PlayGoScenarioOriginal" : "Sdk.PlayGoScenarioGenerated")));
             }
 
@@ -413,7 +437,7 @@ public static class SonySdkBuilder
                 log(new LogEntry(LogLevel.Success, Loc.F("Patch.Done", Path.GetFileName(finalPath), Formatters.Size(new FileInfo(finalPath).Length), Path.GetFileName(finalRemastered), Formatters.Size(new FileInfo(finalRemastered).Length))));
                 progress(PhaseCatalog.SdkConvert, 100, null);
                 CleanIntermediate(request, projectPath, scenarioPath, assetsFolder, logFolder, stem, log);
-                return new SonySdkBuildResult(finalPath, projectPath, logFolder, warnings, null, finalRemastered);
+                return new SonySdkBuildResult(finalPath, projectPath, logFolder, warnings, null, finalRemastered) { ParamVersions = paramVersions };
             }
 
             // Bộ công cụ fix6 (profile direct-v3): img_create đã ghi thẳng gói PLAINTEXT_NOAUTH — chỉ đổi tên, không còn bước chuyển đổi.
@@ -424,7 +448,7 @@ public static class SonySdkBuilder
                 log(new LogEntry(LogLevel.Info, Loc.T("Sdk.Step3Direct")));
                 progress(PhaseCatalog.SdkConvert, 100, null);
                 CleanIntermediate(request, projectPath, scenarioPath, assetsFolder, logFolder, stem, log);
-                return new SonySdkBuildResult(finalPath, projectPath, logFolder, warnings, null);
+                return new SonySdkBuildResult(finalPath, projectPath, logFolder, warnings, null) { ParamVersions = paramVersions };
             }
 
             // [3/3] Bộ công cụ cũ (chưa có dấu plaintext): chuyển sang gói tương thích LibProsperoPkg (sửa tại chỗ rồi đổi tên)
@@ -461,7 +485,7 @@ public static class SonySdkBuilder
             log(new LogEntry(LogLevel.Info, Loc.F("Sdk.Step3Done", report.OuterBlocks, report.ClearedEncryptionFlags, report.CntHeaderWrapBytes, report.PlayGoCrcBlocks)));
             CleanIntermediate(request, projectPath, scenarioPath, assetsFolder, logFolder, stem, log);
             progress(PhaseCatalog.SdkConvert, 100, null);
-            return new SonySdkBuildResult(finalPath, projectPath, logFolder, warnings, report);
+            return new SonySdkBuildResult(finalPath, projectPath, logFolder, warnings, report) { ParamVersions = paramVersions };
         }
         catch (Exception)
         {

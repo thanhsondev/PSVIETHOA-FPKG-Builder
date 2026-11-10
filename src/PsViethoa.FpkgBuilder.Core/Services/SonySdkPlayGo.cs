@@ -7,7 +7,17 @@ namespace PsViethoa.FpkgBuilder.Core.Services;
 
 /// <summary>Một chunk PlayGo của gói gốc: mã, mask ngôn ngữ (bit 63 − id ngôn ngữ) và nhãn. <paramref name="LanguagesText"/>: chuỗi
 /// <c>languages</c> ghi nguyên văn vào GP5 (bố cục script fix6), null = suy từ mask.</summary>
-public sealed record PlayGoChunk(int Id, ulong LanguageMask, string Label, string? LanguagesText = null);
+public sealed record PlayGoChunk(int Id, ulong LanguageMask, string Label, string? LanguagesText = null)
+{
+    /// <summary>Có khai báo trong GP5 không. Script fix15 bỏ chunk của bảng nguồn không có nhãn và không có ngôn ngữ nào.</summary>
+    public bool Declared { get; init; } = true;
+}
+
+/// <summary>Lý do script fix15 sẽ dừng mà công cụ đã bỏ qua để dùng bố cục dự phòng (null = không có).</summary>
+/// <param name="ChunkCount">Header playgo-chunk.dat không hợp lệ: không dùng số chunk/bảng của nguồn.</param>
+/// <param name="Layout">Bảng ánh xạ tệp hoặc bảng chunk không hợp lệ: không giữ bố cục nguồn.</param>
+/// <param name="Scenario">playgo-scenario.json không hợp lệ: dùng kịch bản mặc định.</param>
+public sealed record PlayGoToolkitProblems(string? ChunkCount, string? Layout, string? Scenario);
 
 /// <summary>Một kịch bản PlayGo của gói gốc: số chunk cần trước khi chạy, thứ tự tải chunk, nhãn và kiểu (<c>type</c> của GP5).</summary>
 public sealed record PlayGoScenario(int Id, int InitialChunkCount, IReadOnlyList<int> ChunkOrder, string Label, string Type = "playmode");
@@ -54,6 +64,50 @@ public sealed record PlayGoStructure(
     /// <summary>Bố cục script: tệp giữ chỗ cho từng chunk ngôn ngữ.</summary>
     public IReadOnlyList<PlayGoLanguagePayload> LanguagePayloads { get; init; } = Array.Empty<PlayGoLanguagePayload>();
 
+    /// <summary>Bố cục nguồn script fix15 giữ lại (nhãn, ngôn ngữ, chunk của từng tệp); null = bố cục dự phòng.</summary>
+    public PlayGoSourceLayout? SourceLayout { get; init; }
+
+    /// <summary>Kịch bản của bảng nguồn (khi hợp lệ và cùng số kịch bản với playgo-scenario.json).</summary>
+    public IReadOnlyList<PlayGoSourceScenario>? SourceScenarios { get; init; }
+
+    /// <summary>Kịch bản trong GP5 giữ thứ tự chunk và số chunk initial của retail (script fix15); false = mọi kịch bản gồm mọi chunk.</summary>
+    public bool RetailScenarios { get; init; }
+
+    /// <summary>Dòng script in ra khi đọc bảng PlayGo (trước mọi dòng khác của 01-create-gp5.log).</summary>
+    public IReadOnlyList<string> ToolkitLines { get; init; } = Array.Empty<string>();
+
+    /// <summary>Cảnh báo số kịch bản lệch giữa bảng nguồn và playgo-scenario.json (script in khi ghi chunk_info).</summary>
+    public string? ScenarioMismatchLine { get; init; }
+
+    /// <summary>
+    /// Chunk của một mục GP5 theo bố cục nguồn (<c>mapped_chunk</c>): thử đúng đường dẫn, rồi với ảnh sce_sys/*.png thử tên .dds (SDK
+    /// chuyển PNG thành nút DDS nên bảng gốc thường mang tên DDS). Null = không có trong bảng (vào chunk 0) hoặc không có bố cục nguồn.
+    /// </summary>
+    public int? SourceChunkOf(string destination, out ulong hash)
+    {
+        hash = 0;
+        if (SourceLayout is not { } layout)
+        {
+            return null;
+        }
+
+        var normalized = PythonCaseFold.Fold(destination);
+        var candidates = normalized.StartsWith("sce_sys/", StringComparison.Ordinal) && normalized.EndsWith(".png", StringComparison.Ordinal)
+            ? new[] { destination, destination[..^4] + ".dds" }
+            : new[] { destination };
+        foreach (var candidate in candidates)
+        {
+            var candidateHash = layout.HashOf(candidate);
+            if (layout.FileChunks.TryGetValue(candidateHash, out var chunk))
+            {
+                hash = candidateHash;
+                return chunk;
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// Lý do bảng ánh xạ tệp → chunk (playgo-ficm.dat + playgo-hash-table.dat) của bản dump không dùng được; null khi dùng được hoặc
     /// gói chỉ có một chunk. Khi đó mọi tệp vào chunk 0 và các chunk khác của bảng gốc rỗng.
@@ -69,6 +123,11 @@ public sealed record PlayGoStructure(
     /// <summary>Chunk mà tệp <paramref name="relativePath"/> (a/b/c) thuộc về trong gói gốc; null khi không có trong bảng.</summary>
     public int? ChunkOf(string relativePath)
     {
+        if (SourceLayout != null)
+        {
+            return SourceChunkOf(relativePath, out _);
+        }
+
         if (FileChunks.Count == 0)
         {
             return null;
@@ -332,16 +391,65 @@ public static class SonySdkPlayGo
     public const string ChunkPayloadFolder = "playgo-chunks";
 
     /// <summary>
-    /// Bố cục PlayGo của script create-gp5-from-folder.py (fix6) cho nguồn không còn bảng gốc: đọc <c>sce_sys/playgo-scenario.json</c>
-    /// (thiếu → kịch bản mặc định với ngôn ngữ mặc định của param.json), lấy danh sách ngôn ngữ (<c>chunkSupportedLanguages</c>, hoặc
-    /// các khoá bản địa hoá của kịch bản), mỗi ngôn ngữ một chunk 1..L với tệp giữ chỗ, các chunk còn lại "mọi ngôn ngữ", mọi kịch bản
-    /// gồm cả 100 chunk và initial = 100. Tệp scenario không hợp lệ theo luật của script → dùng mặc định và báo <paramref name="warning"/>
-    /// (script gốc dừng hẳn).
+    /// Bố cục script cho nguồn không còn bảng gốc (lớp bọc cũ của <see cref="Toolkit"/>): <paramref name="chunkCount"/> chunk, mỗi ngôn ngữ
+    /// của playgo-scenario.json một chunk với tệp giữ chỗ, mọi kịch bản gồm mọi chunk. Không đọc playgo-chunk.dat của nguồn.
     /// </summary>
     public static PlayGoStructure ScriptFallback(string sceSysFolder, string fallbackLanguage, out string? warning, int chunkCount = ScriptChunkCount)
     {
+        var structure = Build(sceSysFolder, fallbackLanguage, chunkCount, null, null, retailScenarios: false, new List<string>(), out warning);
+        return structure;
+    }
+
+    /// <summary>
+    /// Bố cục PlayGo đúng như <c>build_gp5</c> của script fix15 cho gói APP:
+    /// <list type="number">
+    /// <item>Nguồn còn <c>sce_sys/playgo-chunk.dat</c> hợp lệ → số chunk lấy từ header (bỏ qua <paramref name="chunkCount"/>).</item>
+    /// <item>Có <paramref name="selectedLanguages"/> (<c>--playgo-languages</c>) → không dùng bố cục nguồn, tạo chunk theo ngôn ngữ đã chọn.</item>
+    /// <item>Đủ ba bảng hợp lệ → giữ nhãn, ngôn ngữ từng chunk và chunk của từng tệp; ngôn ngữ của scenario JSON = ngôn ngữ các chunk.</item>
+    /// <item>Còn lại → bố cục dự phòng: mỗi ngôn ngữ một chunk với tệp giữ chỗ 1 MiB.</item>
+    /// </list>
+    /// Script dừng hẳn khi bảng nguồn hoặc scenario JSON không hợp lệ; ở đây lý do được trả về trong <paramref name="problems"/> và bố
+    /// cục rơi về bước tiếp theo như khi thiếu tệp. <paramref name="retailScenarios"/> = giữ thứ tự chunk và số chunk initial của kịch bản
+    /// retail như script; tắt (mặc định của công cụ) = mọi kịch bản gồm mọi chunk, mọi chunk initial.
+    /// </summary>
+    public static PlayGoStructure Toolkit(string sceSysFolder, string fallbackLanguage, int chunkCount, IReadOnlyList<string>? selectedLanguages, bool retailScenarios, out PlayGoToolkitProblems problems)
+    {
+        var lines = new List<string>();
+        chunkCount = Math.Clamp(chunkCount, 1, SonySdkPlayGoSource.MaxChunks);
+        var sourceCount = SonySdkPlayGoSource.ReadChunkCount(sceSysFolder, out var countProblem);
+        if (sourceCount is { } count)
+        {
+            chunkCount = count;
+            lines.Add($"PlayGo: using {count} chunks from {SonySdkProject.RealPath(Path.Combine(sceSysFolder, ChunkFileName))}");
+        }
+
+        PlayGoSourceLayout? layout = null;
+        string? layoutProblem = null;
+        if (selectedLanguages != null)
+        {
+            lines.Add("PlayGo: --playgo-languages given; replacing the source chunk layout with generated chunks");
+        }
+        else if (sourceCount != null)
+        {
+            layout = SonySdkPlayGoSource.ReadLayout(sceSysFolder, chunkCount, lines, out layoutProblem);
+            if (layout is { Languages.Count: 0 })
+            {
+                // Script: chunkSupportedLanguages rỗng → write_scenario dừng (IndexError).
+                layoutProblem = "the source PlayGo chunks declare no known language";
+                layout = null;
+            }
+        }
+
+        var structure = Build(sceSysFolder, fallbackLanguage, chunkCount, layout != null ? layout.Languages : selectedLanguages, layout, retailScenarios, lines, out var scenarioWarning);
+        problems = new PlayGoToolkitProblems(countProblem, layoutProblem, scenarioWarning);
+        return structure;
+    }
+
+    /// <summary>Phần chung: scenario JSON (write_scenario), danh sách chunk và kịch bản, tệp giữ chỗ ngôn ngữ khi không có bố cục nguồn.</summary>
+    private static PlayGoStructure Build(string sceSysFolder, string fallbackLanguage, int chunkCount, IReadOnlyList<string>? selectedLanguages, PlayGoSourceLayout? layout, bool retailScenarios, List<string> lines, out string? warning)
+    {
         warning = null;
-        chunkCount = Math.Clamp(chunkCount, 1, MaxChunks);
+        chunkCount = Math.Clamp(chunkCount, 1, SonySdkPlayGoSource.MaxChunks);
         var codes = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var code in LanguageCodes)
         {
@@ -353,42 +461,42 @@ public static class SonySdkPlayGo
 
         var path = Path.Combine(sceSysFolder, ScenarioFileName);
         JsonObject value;
-        List<string>? supportedLanguages = null;
+        List<string> languages;
         try
         {
-            value = ParseScenario(path, fallback, out supportedLanguages);
+            value = ParseScenario(path, fallback, selectedLanguages, out languages);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException or InvalidDataException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException or InvalidDataException or InvalidOperationException)
         {
             warning = ex.Message;
             value = DefaultScenarioObject(fallback);
-            supportedLanguages = null;
+            if (selectedLanguages != null)
+            {
+                ApplyLanguageSelection(value, fallback, selectedLanguages);
+            }
+
+            languages = value["chunkSupportedLanguages"]!.AsArray().Select(item => Canonical(item!.GetValue<string>())).ToList();
         }
 
         // Từ đây value đã qua kiểm tra của ParseScenario (hoặc là mặc định).
-        var count = value["scenarioCount"]!.GetValue<int>();
         var defaultId = value["scenarioDefaultId"]!.GetValue<int>();
         var language = Canonical(value["scenarioDefaultLanguage"]!.GetValue<string>());
-        var definitions = new List<PlayGoScenario>();
-        var order = Enumerable.Range(0, chunkCount).ToList();
+        var definitions = new List<(int Id, string Type, string Title)>();
         foreach (var node in value["scenarios"]!.AsArray())
         {
             var scenario = node!.AsObject();
             var id = scenario["id"]!.GetValue<int>();
-            var type = scenario["type"]!.GetValue<string>().Trim();
+            var type = scenario["type"]!.GetValue<string>();
             var title = scenario[language] is JsonObject localized && localized["title"] is JsonValue titleValue && titleValue.TryGetValue<string>(out var titleText) && !string.IsNullOrWhiteSpace(titleText)
                 ? titleText.Trim()
                 : $"Scenario #{id}";
-            definitions.Add(new PlayGoScenario(id, chunkCount, order, title, type));
+            definitions.Add((id, type, title));
         }
 
+        // sorted(definitions): theo id (id duy nhất).
         definitions.Sort((a, b) => a.Id.CompareTo(b.Id));
         var chunkDefault = Canonical(value["chunkDefaultLanguage"] is JsonValue chunkDefaultValue && chunkDefaultValue.TryGetValue<string>(out var chunkDefaultText) ? chunkDefaultText : language);
-        // Tệp cũ không có chunkSupportedLanguages: danh sách suy ra chỉ dùng cho GP5, script không ghi nó vào scenario JSON.
-        var languages = supportedLanguages ?? value["chunkSupportedLanguages"]!.AsArray().Select(item => Canonical(item!.GetValue<string>())).ToList();
         var all = string.Join(' ', languages);
-        var chunks = new List<PlayGoChunk>(chunkCount);
-        var payloads = new List<PlayGoLanguagePayload>();
         ulong supportedMask = 0;
         foreach (var code in languages)
         {
@@ -399,34 +507,91 @@ public static class SonySdkPlayGo
             }
         }
 
-        // fix12: ngôn ngữ thứ i (đếm từ 1) vào chunk min(i, N − 1) — thiếu chunk thì các ngôn ngữ cuối dùng chung chunk cuối.
-        static int ChunkFor(int languageNumber, int count) => Math.Min(languageNumber, count - 1);
-        for (var id = 0; id < chunkCount; id++)
+        var chunks = new List<PlayGoChunk>(chunkCount);
+        var payloads = new List<PlayGoLanguagePayload>();
+        IReadOnlyList<PlayGoSourceScenario>? sourceScenarios = null;
+        string? mismatch = null;
+        if (layout != null)
         {
-            var assigned = languages.Where((_, index) => ChunkFor(index + 1, chunkCount) == id).ToList();
-            ulong mask = 0;
-            foreach (var code in assigned)
+            for (var id = 0; id < chunkCount; id++)
             {
-                mask |= LanguageIndex(code) is var languageIndex && languageIndex >= 0 ? LanguageBit(languageIndex) : 0;
+                var (label, assigned) = (layout.Chunks[id].Label, layout.Chunks[id].Languages);
+                chunks.Add(new PlayGoChunk(id, MaskOf(assigned), label, assigned.Count > 0 ? string.Join(' ', assigned) : all)
+                {
+                    // Chunk không nhãn, không ngôn ngữ: script không khai báo trong GP5.
+                    Declared = label.Length > 0 || assigned.Count > 0,
+                });
             }
 
-            chunks.Add(new PlayGoChunk(id, assigned.Count == 0 ? supportedMask : mask, $"Chunk #{id}", assigned.Count == 0 ? all : string.Join(' ', assigned)));
+            sourceScenarios = layout.Scenarios;
+            if (sourceScenarios != null && sourceScenarios.Count != definitions.Count)
+            {
+                mismatch = $"[Warn] PlayGo: the source has {sourceScenarios.Count} scenarios but playgo-scenario.json declares {definitions.Count}; every scenario will list all chunks.";
+                sourceScenarios = null;
+            }
         }
-
-        for (var index = 0; index < languages.Count; index++)
+        else
         {
-            var safe = System.Text.RegularExpressions.Regex.Replace(languages[index], "[^A-Za-z0-9._-]", "_");
-            payloads.Add(new PlayGoLanguagePayload($"{LanguagePayloadFolder}/{index + 1:00}-{safe}.bin", ChunkFor(index + 1, chunkCount), languages[index]));
+            // Ngôn ngữ thứ i (đếm từ 1) vào chunk min(i, N − 1) — thiếu chunk thì các ngôn ngữ cuối dùng chung chunk cuối.
+            static int ChunkFor(int languageNumber, int count) => Math.Min(languageNumber, count - 1);
+            for (var id = 0; id < chunkCount; id++)
+            {
+                var assigned = languages.Where((_, index) => ChunkFor(index + 1, chunkCount) == id).ToList();
+                chunks.Add(new PlayGoChunk(id, assigned.Count == 0 ? supportedMask : MaskOf(assigned), $"Chunk #{id}", assigned.Count == 0 ? all : string.Join(' ', assigned)));
+            }
+
+            for (var index = 0; index < languages.Count; index++)
+            {
+                var safe = System.Text.RegularExpressions.Regex.Replace(languages[index], "[^A-Za-z0-9._-]", "_");
+                payloads.Add(new PlayGoLanguagePayload($"{LanguagePayloadFolder}/{index + 1:00}-{safe}.bin", ChunkFor(index + 1, chunkCount), languages[index]));
+            }
         }
 
-        return new PlayGoStructure(supportedMask, Math.Max(0, LanguageIndex(chunkDefault)), defaultId, chunks, definitions, new Dictionary<ulong, int>())
+        var everyChunk = Enumerable.Range(0, chunkCount).ToList();
+        var scenarios = new List<PlayGoScenario>(definitions.Count);
+        foreach (var (id, type, title) in definitions)
+        {
+            if (sourceScenarios != null)
+            {
+                // Nhãn của bảng nguồn như script; thứ tự chunk và số chunk initial của retail chỉ giữ khi bật kịch bản retail.
+                var source = sourceScenarios[id];
+                scenarios.Add(retailScenarios
+                    ? new PlayGoScenario(id, source.InitialChunkCount, source.ChunkIds, source.Label, type)
+                    : new PlayGoScenario(id, chunkCount, everyChunk, source.Label, type));
+            }
+            else
+            {
+                scenarios.Add(new PlayGoScenario(id, chunkCount, everyChunk, title, type));
+            }
+        }
+
+        return new PlayGoStructure(supportedMask, Math.Max(0, LanguageIndex(chunkDefault)), defaultId, chunks, scenarios, new Dictionary<ulong, int>())
         {
             ScriptLayout = true,
             SupportedLanguagesText = all,
             DefaultLanguageCode = chunkDefault,
             ScenarioJson = PythonJson.Serialize(value) + "\n",
             LanguagePayloads = payloads,
+            SourceLayout = layout,
+            SourceScenarios = sourceScenarios,
+            RetailScenarios = retailScenarios && sourceScenarios != null,
+            ToolkitLines = lines,
+            ScenarioMismatchLine = mismatch,
         };
+    }
+
+    private static ulong MaskOf(IEnumerable<string> codes)
+    {
+        ulong mask = 0;
+        foreach (var code in codes)
+        {
+            if (LanguageIndex(code) is var index && index >= 0)
+            {
+                mask |= LanguageBit(index);
+            }
+        }
+
+        return mask;
     }
 
     private static int LanguageIndex(string code)
@@ -459,25 +624,52 @@ public static class SonySdkPlayGo
     };
 
     /// <summary>
-    /// write_scenario() của script: đọc playgo-scenario.json (utf-8-sig), kiểm tra scenarioCount 1..5, scenarioDefaultId, ngôn ngữ mặc định
-    /// hợp lệ, mảng scenarios đủ và id liên tục, bổ sung chunkSupportedLanguages khi thiếu (mọi khoá bản địa hoá + ngôn ngữ mặc định).
-    /// Không hợp lệ → InvalidDataException với lý do của script.
+    /// Phần chọn ngôn ngữ của write_scenario() (fix15): chunkSupportedLanguages = danh sách đã chọn; chunkDefaultLanguage giữ ngôn ngữ cũ
+    /// khi nó có trong danh sách, không thì en-US, không thì ngôn ngữ đầu tiên. Khoá chưa có được thêm vào cuối như dict của Python.
     /// </summary>
-    private static JsonObject ParseScenario(string path, string fallbackLanguage, out List<string>? supportedLanguages)
+    private static void ApplyLanguageSelection(JsonObject value, string scenarioLanguage, IReadOnlyList<string> selected)
     {
-        supportedLanguages = null;
+        if (selected.Count == 0)
+        {
+            throw new InvalidOperationException("PlayGo languages must be a non-empty comma-separated list of supported codes");
+        }
+
+        var codes = LanguageCodes.ToDictionary(PythonCaseFold.Fold, code => code, StringComparer.Ordinal);
+        string? canonicalDefault = null;
+        if (value["chunkDefaultLanguage"] is null && value.ContainsKey("chunkDefaultLanguage") is false)
+        {
+            canonicalDefault = codes.TryGetValue(PythonCaseFold.Fold(scenarioLanguage.Trim()), out var fromScenario) ? fromScenario : null;
+        }
+        else if (value["chunkDefaultLanguage"] is JsonValue original && original.TryGetValue<string>(out var originalText))
+        {
+            canonicalDefault = codes.TryGetValue(PythonCaseFold.Fold(originalText.Trim()), out var canonical) ? canonical : null;
+        }
+
+        value["chunkSupportedLanguages"] = new JsonArray(selected.Select(code => (JsonNode?)JsonValue.Create(code)).ToArray());
+        value["chunkDefaultLanguage"] = canonicalDefault != null && selected.Contains(canonicalDefault) ? canonicalDefault
+            : selected.Contains("en-US") ? "en-US"
+            : selected[0];
+    }
+
+    /// <summary>
+    /// write_scenario() của script: đọc playgo-scenario.json (utf-8-sig), kiểm tra scenarioCount 1..5, scenarioDefaultId, ngôn ngữ mặc định
+    /// hợp lệ, mảng scenarios đủ và id liên tục, áp danh sách ngôn ngữ đã chọn (fix15), bổ sung chunkSupportedLanguages khi thiếu (mọi
+    /// khoá bản địa hoá + ngôn ngữ mặc định). Không hợp lệ → InvalidDataException với lý do của script.
+    /// </summary>
+    private static JsonObject ParseScenario(string path, string fallbackLanguage, IReadOnlyList<string>? selected, out List<string> supportedLanguages)
+    {
+        JsonObject value;
         var info = new FileInfo(path);
         if (!info.Exists)
         {
-            return DefaultScenarioObject(fallbackLanguage);
+            value = DefaultScenarioObject(fallbackLanguage);
         }
-
-        var bytes = File.ReadAllBytes(path);
-        ReadOnlySpan<byte> bom = [0xEF, 0xBB, 0xBF];
-        var json = bytes.AsSpan().StartsWith(bom) ? bytes.AsSpan(bom.Length) : bytes.AsSpan();
-        if (System.Text.Json.Nodes.JsonNode.Parse(json) is not JsonObject value)
+        else
         {
-            throw new InvalidDataException($"{path} must contain a JSON object");
+            var bytes = File.ReadAllBytes(path);
+            ReadOnlySpan<byte> bom = [0xEF, 0xBB, 0xBF];
+            var json = bytes.AsSpan().StartsWith(bom) ? bytes.AsSpan(bom.Length) : bytes.AsSpan();
+            value = JsonNode.Parse(json) as JsonObject ?? throw new InvalidDataException($"{path} must contain a JSON object");
         }
 
         var codes = LanguageCodes.ToDictionary(PythonCaseFold.Fold, code => code, StringComparer.Ordinal);
@@ -528,13 +720,19 @@ public static class SonySdkPlayGo
             }
         }
 
+        if (selected != null)
+        {
+            ApplyLanguageSelection(value, language, selected);
+        }
+
         var chunkDefault = value["chunkDefaultLanguage"] is JsonValue chunkDefaultValue && chunkDefaultValue.TryGetValue<string>(out var chunkDefaultText)
             ? (string.IsNullOrWhiteSpace(chunkDefaultText) ? throw new InvalidDataException($"{path} has no valid chunkDefaultLanguage") : Canonical(chunkDefaultText))
-            : language;
+            : value.ContainsKey("chunkDefaultLanguage") ? throw new InvalidDataException($"{path} has no valid chunkDefaultLanguage") : language;
         List<string> supported;
         if (value["chunkSupportedLanguages"] is null)
         {
-            // Tệp cũ không có danh sách: mọi khoá bản địa hoá của các kịch bản + ngôn ngữ mặc định (đúng thứ tự script duyệt).
+            // Tệp cũ không có danh sách: mọi khoá bản địa hoá của các kịch bản + ngôn ngữ mặc định (đúng thứ tự script duyệt). Danh sách suy
+            // ra chỉ dùng cho GP5, script không ghi nó vào scenario JSON.
             supported = [chunkDefault];
             foreach (var node in scenarios)
             {
@@ -546,7 +744,6 @@ public static class SonySdkPlayGo
                     }
                 }
             }
-
         }
         else if (value["chunkSupportedLanguages"] is JsonArray array && array.Count > 0 && array.All(item => item is JsonValue v && v.TryGetValue<string>(out var t) && !string.IsNullOrWhiteSpace(t)))
         {
@@ -625,26 +822,54 @@ public static class SonySdkPlayGo
         var xml = new StringBuilder();
         if (structure.ScriptLayout)
         {
-            // Đúng thứ tự thuộc tính của script (ElementTree giữ thứ tự chèn): id, label, layer_no, languages; kịch bản "0-99".
+            // Đúng thứ tự thuộc tính của script (ElementTree giữ thứ tự chèn): id, label, layer_no, languages.
             xml.Append("    <chunk_info chunk_count=\"").Append(structure.Chunks.Count).Append("\" scenario_count=\"").Append(structure.Scenarios.Count).Append("\">\n");
             xml.Append("      <chunks supported_languages=\"").Append(SonySdkProject.EscapeAttribute(structure.SupportedLanguagesText ?? string.Empty))
-                .Append("\" default_language=\"").Append(SonySdkProject.EscapeAttribute(structure.DefaultLanguageCode ?? "en-US")).Append("\">\n");
-            foreach (var chunk in structure.Chunks)
+                .Append("\" default_language=\"").Append(SonySdkProject.EscapeAttribute(structure.DefaultLanguageCode ?? "en-US")).Append('"');
+            var declared = structure.Chunks.Where(chunk => chunk.Declared).ToList();
+            if (declared.Count == 0)
             {
-                xml.Append("        <chunk id=\"").Append(chunk.Id).Append("\" label=\"").Append(SonySdkProject.EscapeAttribute(chunk.Label))
-                    .Append("\" layer_no=\"0\" languages=\"").Append(SonySdkProject.EscapeAttribute(chunk.LanguagesText ?? structure.SupportedLanguagesText ?? string.Empty)).Append("\" />\n");
+                xml.Append(" />\n");
+            }
+            else
+            {
+                xml.Append(">\n");
+                foreach (var chunk in declared)
+                {
+                    xml.Append("        <chunk id=\"").Append(chunk.Id).Append("\" label=\"").Append(SonySdkProject.EscapeAttribute(chunk.Label))
+                        .Append("\" layer_no=\"0\" languages=\"").Append(SonySdkProject.EscapeAttribute(chunk.LanguagesText ?? structure.SupportedLanguagesText ?? string.Empty)).Append("\" />\n");
+                }
+
+                xml.Append("      </chunks>\n");
             }
 
-            xml.Append("      </chunks>\n");
-            xml.Append("      <scenarios default_id=\"").Append(structure.DefaultScenarioId).Append("\">\n");
-            foreach (var scenario in structure.Scenarios)
+            xml.Append("      <scenarios default_id=\"").Append(structure.DefaultScenarioId).Append('"');
+            if (structure.Scenarios.Count == 0)
             {
-                xml.Append("        <scenario id=\"").Append(scenario.Id).Append("\" type=\"").Append(SonySdkProject.EscapeAttribute(scenario.Type))
-                    .Append("\" initial_chunk_count=\"").Append(structure.Chunks.Count).Append("\" label=\"").Append(SonySdkProject.EscapeAttribute(scenario.Label)).Append("\">")
-                    .Append(structure.Chunks.Count > 1 ? "0-" + (structure.Chunks.Count - 1) : "0").Append("</scenario>\n");
+                xml.Append(" />\n");
+            }
+            else
+            {
+                xml.Append(">\n");
+                foreach (var scenario in structure.Scenarios)
+                {
+                    // Mọi chunk theo thứ tự tăng ("0-99") hoặc thứ tự retail ("0-31 33 32"): chunk_ranges cho ra đúng cả hai dạng của script.
+                    var text = SonySdkPlayGoSource.ChunkRanges(scenario.ChunkOrder);
+                    xml.Append("        <scenario id=\"").Append(scenario.Id).Append("\" type=\"").Append(SonySdkProject.EscapeAttribute(scenario.Type))
+                        .Append("\" initial_chunk_count=\"").Append(scenario.InitialChunkCount).Append("\" label=\"").Append(SonySdkProject.EscapeAttribute(scenario.Label)).Append('"');
+                    if (text.Length == 0)
+                    {
+                        xml.Append(" />\n");
+                    }
+                    else
+                    {
+                        xml.Append('>').Append(text).Append("</scenario>\n");
+                    }
+                }
+
+                xml.Append("      </scenarios>\n");
             }
 
-            xml.Append("      </scenarios>\n");
             xml.Append("    </chunk_info>\n");
             return xml.ToString();
         }

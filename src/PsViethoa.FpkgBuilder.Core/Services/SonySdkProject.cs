@@ -69,6 +69,12 @@ public sealed record SonySdkSourcePlan(IReadOnlySet<string> Skip, IReadOnlyDicti
     /// </summary>
     public bool FillEmptyChunks { get; init; }
 
+    /// <summary>
+    /// <c>--sdk-version</c> (fix15): sdkVersion ghi vào param.json chuẩn hoá (major/minor, 16 bit cao; requiredSystemSoftwareVersion được
+    /// nâng lên khi thấp hơn). Null = như script không có cờ: giữ của nguồn, nguồn để 0 thì suy từ eboot.bin.
+    /// </summary>
+    public ulong? SdkVersionOverride { get; init; }
+
     /// <summary>Đúng như script gốc: không bỏ, không thay, không sửa gì ngoài applicationDrmType.</summary>
     public static readonly SonySdkSourcePlan Pure = new(new HashSet<string>(StringComparer.OrdinalIgnoreCase), new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), false);
 }
@@ -127,6 +133,9 @@ public sealed record SonySdkProjectResult(
 
     /// <summary>UCP (sce_sys/trophy2, sce_sys/uds) có digest lệch đã được tính lại — bản sửa nằm trong .gp5-assets/&lt;tên&gt;/repaired-ucp.</summary>
     public IReadOnlyList<string> RepairedUcps { get; init; } = Array.Empty<string>();
+
+    /// <summary>UCP của sce_sys/uds theo npbind.dat mà script fix15 sửa digest hoặc thay/thêm bằng UCP rỗng (trong .gp5-assets/&lt;tên&gt;/sce_sys/uds).</summary>
+    public IReadOnlyList<SonySdkUcpFix> UdsFixes { get; init; } = Array.Empty<SonySdkUcpFix>();
 
     /// <summary>UCP không đọc được (bản niêm phong của gói gốc, tệp cụt…) — đưa nguyên vào gói, kèm lý do.</summary>
     public IReadOnlyList<(string Relative, string Error)> InvalidUcps { get; init; } = Array.Empty<(string, string)>();
@@ -222,8 +231,9 @@ public sealed record SonySdkProjectResult(
 
 /// <summary>
 /// Tạo dự án GP5 "phẳng" từ một thư mục ứng dụng, giống từng byte với <c>scripts/create-gp5-from-folder.py</c> của bộ
-/// sdk-fpkg279-fix12 (chế độ <c>--keep-keystone --absolute-paths --chunk-count N [--auto-size-profile sdk279]</c> mà
-/// build-from-folder.ps1 dùng): mọi tệp được liệt kê tường
+/// sdk-fpkg279-fix15 (chế độ <c>--absolute-paths --volume app --keep-keystone --chunk-count N [--auto-size-profile sdk279]
+/// [--sdk-version V] [--playgo-languages L]</c> mà build-from-folder.ps1 dùng; bố cục PlayGo do <see cref="SonySdkPlayGo.Toolkit"/>
+/// dựng, UDS theo <see cref="SonySdkUds"/>): mọi tệp được liệt kê tường
 /// minh (không dùng rootdir) để tàn dư của lần giải nén/đóng gói trước không lọt vào gói; các tệp sce_sys do SDK tự sinh (PlayGo,
 /// pfs-version, license giả, ảnh .dds, about/…) bị loại để SDK tạo lại; <c>ampr_emu.index</c> và hai module giả lập
 /// <c>fakelib/libSceAmpr.sprx</c>, <c>fakelib/libScePlayGo.sprx</c> bị loại; keystone 96 byte của nguồn luôn được giữ (SDK đã vá
@@ -264,6 +274,8 @@ public static partial class SonySdkProject
         "target-deltainfo.dat",
         "license.info",
         "license.dat",
+        // fix15: thông báo LEM của gói gốc (SDK tự tạo).
+        "lem_notification.dat",
         // Bản gốc/đích của param.json mà Publishing Tools cất trong CNT của gói (bản vá/backport); chế độ Giải nén chép chúng ra
         // sce_sys, đưa lại vào GP5 thì SDK từ chối "reserved node found" (đo 2026-09-18; script fix12 đã thêm hai tên này).
         "origin-param.json",
@@ -301,8 +313,23 @@ public static partial class SonySdkProject
         return item;
     }
 
-    /// <summary><c>GENERATED_ROOT_DIRECTORIES</c> (fix12): thư mục ở gốc mà Publishing Tools giữ riêng, bản giải nén có thể mang theo.</summary>
-    private static readonly HashSet<string> GeneratedRootDirectories = new(StringComparer.Ordinal) { "sce_suppl", "sce_sc" };
+    /// <summary>
+    /// <c>GENERATED_ROOT_DIRECTORIES</c>: thư mục ở gốc mà Publishing Tools giữ riêng (sce_suppl, sce_sc), và (fix15) thư mục tệp giữ chỗ
+    /// ngôn ngữ của một gói đã tạo bằng bộ công cụ rồi giải nén ra.
+    /// </summary>
+    private static readonly HashSet<string> GeneratedRootDirectories = new(StringComparer.Ordinal) { "sce_suppl", "sce_sc", "playgo-languages" };
+
+    /// <summary><c>EXCLUDED_ROOT_DIRECTORIES</c> (fix15): thư mục ở gốc bị loại kèm lý do — bản sao giải mã của máy dump.</summary>
+    private static readonly Dictionary<string, string> ExcludedRootDirectories = new(StringComparer.Ordinal) { ["decrypted"] = "host decryption artifacts" };
+
+    /// <summary>
+    /// <c>EXCLUDED_PATH_PATTERNS</c> (fix15): <c>fnmatchcase</c> trên đường dẫn đã casefold — <c>*</c> khớp mọi ký tự kể cả "/". Tệp cấu
+    /// hình Unreal Engine ghi lúc chạy (<c>…/Saved/Config/&lt;nền tảng&gt;/*.ini</c>).
+    /// </summary>
+    private static readonly (Regex Pattern, string Reason)[] ExcludedPathPatterns =
+    [
+        (new Regex(@"\A.*/saved/config/.*/.*\.ini\z", RegexOptions.Singleline | RegexOptions.CultureInvariant), "runtime artifacts"),
+    ];
 
     private static readonly HashSet<string> GeneratedSceSysDirectories = new(StringComparer.OrdinalIgnoreCase) { "about" };
 
@@ -310,8 +337,23 @@ public static partial class SonySdkProject
 
     private static readonly HashSet<string> ProjectSuffixes = new(StringComparer.OrdinalIgnoreCase) { ".gp4", ".gp5", ".esbak" };
 
-    /// <summary><c>EXCLUDED_ROOT_FILES</c>: tệp ở gốc thư mục ứng dụng bị loại (chỉ mục AMPR emu của máy chủ).</summary>
-    private static readonly HashSet<string> ExcludedRootFiles = new(StringComparer.Ordinal) { "ampr_emu.index" };
+    /// <summary><c>EXCLUDED_ROOT_FILES</c>: tệp ở gốc thư mục ứng dụng bị loại kèm lý do (chỉ mục AMPR emu; fix15: tệp entitlement pfsdump ghi cạnh bản dump).</summary>
+    private static readonly Dictionary<string, string> ExcludedRootFiles = new(StringComparer.Ordinal)
+    {
+        ["ampr_emu.index"] = "host emulator index",
+        ["entitlements.txt"] = "dumper entitlement record",
+        ["entitlement_key.dat"] = "dumper entitlement record",
+    };
+
+    /// <summary>
+    /// <c>PLAYGO_SDK_GENERATED_PATHS</c> (fix15): đầu vào cố ý bị loại hoặc do Publishing Tools tạo lại — không tính là "thiếu" khi đối chiếu
+    /// với bảng tệp của bố cục PlayGo nguồn.
+    /// </summary>
+    public static IEnumerable<string> PlayGoSdkGeneratedPaths =>
+        new[] { "sce_sys/about/right.sprx" }
+            .Concat(GeneratedSceSysFiles.Where(name => name != "playgo-scenario.json").Select(name => "sce_sys/" + name))
+            .Concat(ExcludedRootFiles.Keys)
+            .Concat(ExcludedFakeLibraries.Select(name => "fakelib/" + name));
 
     /// <summary><c>EXCLUDED_FAKE_LIBRARIES</c>: module giả lập AMPR/PlayGo trong fakelib (khoá đã casefold).</summary>
     private static readonly HashSet<string> ExcludedFakeLibraries = new(StringComparer.Ordinal) { "libsceampr.sprx", "libsceplaygo.sprx" };
@@ -409,9 +451,17 @@ public static partial class SonySdkProject
         }
 
         var normalized = PythonCaseFold.Fold(relative);
-        if (ExcludedRootFiles.Contains(normalized))
+        foreach (var (pattern, patternReason) in ExcludedPathPatterns)
         {
-            return "host emulator index";
+            if (pattern.IsMatch(normalized))
+            {
+                return patternReason;
+            }
+        }
+
+        if (ExcludedRootFiles.TryGetValue(normalized, out var rootReason))
+        {
+            return rootReason;
         }
 
         if (normalized.StartsWith("fakelib/", StringComparison.Ordinal) && ExcludedFakeLibraries.Contains(normalized["fakelib/".Length..]))
@@ -488,9 +538,8 @@ public static partial class SonySdkProject
         var projectFolder = Path.GetDirectoryName(projectPath)!;
         Directory.CreateDirectory(projectFolder);
         var playGo = plan.PlayGo is { IsTrivial: false } structure ? structure : null;
-        // Bố cục script (không có bảng gốc): scenario JSON do write_scenario() tạo. Bảng gốc nhiều chunk: Publishing Tools chép
-        // nguyên playgo-scenario.json vào gói, nên dùng lại đúng tệp của gói gốc (tiêu đề, mô tả, danh sách ngôn ngữ) khi nó khớp cấu
-        // trúc; không có/không khớp thì tạo từ nhãn kịch bản. 1 chunk (tuỳ chọn dự phòng tắt): kịch bản mặc định.
+        // Bố cục script (fix15: bố cục nguồn hoặc dự phòng): scenario JSON do write_scenario() tạo. Cấu trúc cũ (không phải bố cục script,
+        // chỉ còn trong mã gọi trực tiếp): dùng lại tệp của gói gốc khi khớp cấu trúc. Không có PlayGo: kịch bản mặc định.
         var originalScenario = playGo is null or { ScriptLayout: true } ? null : OriginalScenarioJson(Path.Combine(walker.Root, "sce_sys", SonySdkPlayGo.ScenarioFileName), playGo);
         if (playGo is { ScriptLayout: true, ScenarioJson: { } scenarioJson })
         {
@@ -505,15 +554,29 @@ public static partial class SonySdkProject
             WriteScriptText(scenarioPath, playGo == null ? DefaultScenario(language) : ScenarioJson(playGo, language));
         }
 
-        // .gp5-assets/<tên>: sce_sys/param.json chuẩn hoá, sce_sys/*.png chuyển từ DDS, normalized-self/, playgo-languages/.
+        // .gp5-assets/<tên>: sce_sys/param.json chuẩn hoá, sce_sys/*.png chuyển từ DDS, normalized-self/, sce_sys/uds/, playgo-languages/.
         var generatedSystem = Path.Combine(projectFolder, AssetsFolderName, Path.GetFileNameWithoutExtension(projectPath), "sce_sys");
         var generatedRoot = Path.GetDirectoryName(generatedSystem)!;
         Directory.CreateDirectory(generatedSystem);
         var generatedParam = Path.Combine(generatedSystem, "param.json");
-        var scriptLines = new List<string>();
+        // Dòng script in khi đọc bảng PlayGo ("PlayGo: using N chunks…", cảnh báo bảng) đứng trước mọi dòng khác.
+        var scriptLines = new List<string>(playGo?.ToolkitLines ?? Array.Empty<string>());
         var recovered = ConvertDdsImages(conversions, generatedSystem, ddsConverter, scriptLines, cancellationToken);
         var repairs = PrepareExecutableInputs(files, generatedRoot, scriptLines, cancellationToken);
-        var ucpRepairs = PrepareUcpInputs(files, generatedRoot, scriptLines, out var invalidUcps, cancellationToken);
+
+        // prepare_ucp_stubs (fix15): UCP của sce_sys/uds theo npbind.dat — sửa digest hoặc thay bằng UCP rỗng, thêm UCP thiếu. Sau đó công
+        // cụ sửa digest các UCP còn lại (trophy2, uds ngoài npbind) mà Publishing Tools sẽ từ chối.
+        var (udsFixes, udsAdditions) = SonySdkUds.Prepare(
+            files.Select(file => (file.Relative, file.FullPath)).ToList(),
+            Path.Combine(walker.Root, "sce_sys", "uds", "npbind.dat"),
+            generatedSystem,
+            scriptLines,
+            cancellationToken);
+        var ucpRepairs = PrepareUcpInputs(files, generatedRoot, scriptLines, out var invalidUcps, udsFixes.Keys.ToHashSet(), cancellationToken);
+        foreach (var (index, fix) in udsFixes)
+        {
+            ucpRepairs[index] = fix.Path;
+        }
 
         // write_language_payloads(): tệp giữ chỗ 1 MiB (không nén) cho từng ngôn ngữ trong .gp5-assets/<tên>/playgo-languages/.
         // Rồi tới chunk không có tệp nào (FillEmptyChunks): cũng một tệp giữ chỗ để PS5 thấy chunk đó đã cài.
@@ -549,14 +612,15 @@ public static partial class SonySdkProject
                     continue;
                 }
 
-                unpacked += repairs.TryGetValue(index, out var repaired) ? new FileInfo(repaired.Path).Length
-                    : ucpRepairs.TryGetValue(index, out var ucp) ? new FileInfo(ucp).Length
+                unpacked += ucpRepairs.TryGetValue(index, out var ucp) ? new FileInfo(ucp).Length
+                    : repairs.TryGetValue(index, out var repaired) ? new FileInfo(repaired.Path).Length
                     : files[index].Length;
                 mappedCount++;
             }
 
-            unpacked += recovered.Sum(png => new FileInfo(png.PngPath).Length) + payloadPaths.Sum(path => new FileInfo(path).Length) + new FileInfo(scenarioPath).Length;
-            mappedCount += recovered.Count + payloadPaths.Count + 1;
+            unpacked += recovered.Sum(png => new FileInfo(png.PngPath).Length) + udsAdditions.Sum(item => new FileInfo(item.Path).Length) +
+                        payloadPaths.Sum(path => new FileInfo(path).Length) + new FileInfo(scenarioPath).Length;
+            mappedCount += recovered.Count + udsAdditions.Count + payloadPaths.Count + 1;
             sizeInputs = (unpacked, mappedCount + 1);
             originalMountLevel = SonySdkPackageSize.ReadMountLevel(ParseParamObject(paramSource), paramSource);
             selection = SonySdkPackageSize.Choose(unpacked, mappedCount + 1, profile, originalMountLevel);
@@ -576,7 +640,21 @@ public static partial class SonySdkProject
             scriptLines.Add($"Unpacked GP5 inputs: {unpacked} bytes, {mappedCount + 1} files; conservative estimate: {selection.EstimatedBytes} bytes; addcontMountLevel={selection.MountLevel}; attributePub={selection.AttributePub}{detail}");
         }
 
-        var paramChanges = WriteStandardParam(paramSource, generatedParam, plan.ParamPatch, selection);
+        // fix15: phiên bản SDK suy từ eboot.bin (bản đã sửa header nếu có) khi param.json để 0, hoặc phiên bản người dùng chọn.
+        var ebootIndex = files.FindIndex(file => PythonCaseFold.Fold(file.Relative) == "eboot.bin");
+        ulong? inferredSdk = null;
+        if (ebootIndex >= 0)
+        {
+            try
+            {
+                inferredSdk = SonySdkSelfRepair.ExecutableSdkVersion(repairs.TryGetValue(ebootIndex, out var repairedEboot) ? repairedEboot.Path : files[ebootIndex].FullPath);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+
+        var paramChanges = WriteStandardParam(paramSource, generatedParam, plan.ParamPatch, selection, inferredSdk, plan.SdkVersionOverride);
 
         // Cùng bố cục với ElementTree của Python (khai báo nháy đơn, thụt 2 khoảng trắng, " />" cho phần tử rỗng, không xuống dòng cuối).
         var xml = new StringBuilder(512 + files.Count * 160);
@@ -598,18 +676,64 @@ public static partial class SonySdkProject
         }
         else
         {
-            // Cấu trúc chunk/kịch bản/ngôn ngữ (bố cục script hoặc của gói gốc — Publishing Tools tự ghi đúng cú pháp này qua gp5_chunk_add/gp5_scenario_add).
+            // Cấu trúc chunk/kịch bản/ngôn ngữ (bố cục script — Publishing Tools tự ghi đúng cú pháp này qua gp5_chunk_add/gp5_scenario_add).
+            if (playGo.ScenarioMismatchLine is { } mismatch)
+            {
+                scriptLines.Add(mismatch);
+            }
+
             xml.Append(SonySdkPlayGo.ChunkInfoXml(playGo));
         }
 
         xml.Append("  </volume>\n");
         xml.Append("  <files>\n");
-        // Bố cục script ghi chunk="0" tường minh trên mọi tệp; bố cục bảng gốc chỉ ghi chunk khác 0 (chunk 0 là mặc định của SDK).
+
+        // mapped_chunk (fix15): với bố cục nguồn, mọi mục GP5 (trừ tệp giữ chỗ) lấy chunk từ bảng tệp của nguồn; không có trong bảng → 0.
+        // Bố cục script ghi chunk="0" tường minh trên mọi tệp; cấu trúc cũ chỉ ghi chunk khác 0 (chunk 0 là mặc định của SDK).
         var explicitChunk = playGo is { ScriptLayout: true };
-        AppendFile(xml, "sce_sys/playgo-scenario.json", toolPath(scenarioPath), explicitChunk ? 0 : -1);
+        var layout = playGo?.SourceLayout;
+        var placed = new HashSet<ulong>();
+        var unmappedCount = 0;
+        var mappedEntries = 0;
+        var unmappedSample = new List<string>();
+        var unexpectedUnmapped = new List<string>();
+        int MappedChunk(string destination)
+        {
+            mappedEntries++;
+            if (layout == null)
+            {
+                return explicitChunk ? 0 : -1;
+            }
+
+            if (playGo!.SourceChunkOf(destination, out var hash) is { } chunk)
+            {
+                placed.Add(hash);
+                return chunk;
+            }
+
+            unmappedCount++;
+            if (unmappedSample.Count < 5)
+            {
+                unmappedSample.Add(destination);
+            }
+
+            if (!PythonCaseFold.Fold(destination).StartsWith("sce_sys/", StringComparison.Ordinal))
+            {
+                unexpectedUnmapped.Add(destination);
+            }
+
+            return 0;
+        }
+
+        AppendFile(xml, "sce_sys/playgo-scenario.json", toolPath(scenarioPath), MappedChunk("sce_sys/playgo-scenario.json"));
         foreach (var png in recovered)
         {
-            AppendFile(xml, png.Destination, toolPath(png.PngPath), explicitChunk ? 0 : -1);
+            AppendFile(xml, png.Destination, toolPath(png.PngPath), MappedChunk(png.Destination));
+        }
+
+        foreach (var addition in udsAdditions)
+        {
+            AppendFile(xml, addition.Relative, toolPath(addition.Path), MappedChunk(addition.Relative));
         }
 
         for (var index = 0; index < payloads.Count; index++)
@@ -621,8 +745,18 @@ public static partial class SonySdkProject
         for (var index = 0; index < files.Count; index++)
         {
             var file = files[index];
-            // Tệp thuộc chunk khác 0 trong gói gốc: giữ nguyên (gp5_file_add --chunk).
-            var chunk = playGo?.ChunkOf(file.Relative) ?? 0;
+            int chunk;
+            if (layout != null || explicitChunk)
+            {
+                chunk = MappedChunk(file.Relative);
+            }
+            else
+            {
+                // Cấu trúc cũ: tệp thuộc chunk khác 0 trong gói gốc giữ nguyên (gp5_file_add --chunk).
+                chunk = playGo?.ChunkOf(file.Relative) ?? 0;
+                chunk = chunk > 0 ? chunk : -1;
+            }
+
             if (chunk > 0)
             {
                 mapped++;
@@ -630,14 +764,19 @@ public static partial class SonySdkProject
 
             var actual = string.Equals(file.FullPath, paramSource, StringComparison.Ordinal)
                 ? generatedParam
-                : repairs.TryGetValue(index, out var repaired) ? repaired.Path
                 : ucpRepairs.TryGetValue(index, out var ucp) ? ucp
+                : repairs.TryGetValue(index, out var repaired) ? repaired.Path
                 : file.FullPath;
-            AppendFile(xml, file.Relative, toolPath(actual), explicitChunk || chunk > 0 ? chunk : -1);
+            AppendFile(xml, file.Relative, toolPath(actual), chunk);
             if ((index + 1) % 2000 == 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
             }
+        }
+
+        if (layout != null)
+        {
+            AppendLayoutReport(scriptLines, playGo!, layout, mappedEntries, unmappedCount, unmappedSample, unexpectedUnmapped, placed);
         }
 
         // Thư mục phải có dù rỗng (thư mục gắn DLC, thư mục rỗng của nguồn): script chỉ liệt kê tệp nên chúng mất; khai báo như Publishing
@@ -659,7 +798,7 @@ public static partial class SonySdkProject
             paramChanges,
             recovered,
             contentId,
-            files.Count + recovered.Count + payloads.Count + 1,
+            files.Count + recovered.Count + udsAdditions.Count + payloads.Count + 1,
             files.Sum(file => file.Length),
             walker.Excluded,
             walker.SkippedByApp,
@@ -674,7 +813,8 @@ public static partial class SonySdkProject
             OverlayReplaced = walker.OverlayReplaced,
             OverlayAdded = walker.OverlayAdded,
             RepairedSelfs = repairs.OrderBy(pair => pair.Key).Select(pair => (files[pair.Key].Relative, pair.Value.Repairs)).ToList(),
-            RepairedUcps = ucpRepairs.OrderBy(pair => pair.Key).Select(pair => files[pair.Key].Relative).ToList(),
+            RepairedUcps = ucpRepairs.Where(pair => !udsFixes.ContainsKey(pair.Key)).OrderBy(pair => pair.Key).Select(pair => files[pair.Key].Relative).ToList(),
+            UdsFixes = udsFixes.OrderBy(pair => pair.Key).Select(pair => pair.Value).Concat(udsAdditions).ToList(),
             InvalidUcps = invalidUcps,
             SizeSelection = selection,
             SizeInputs = sizeInputs,
@@ -712,7 +852,7 @@ public static partial class SonySdkProject
             var parts = directory.Split('/');
             if (directory.Length == 0 || !IsSdkPackagePath(directory) || parts.Any(part => JunkFileFinder.IsJunkDirectoryName(part)) ||
                 Enumerable.Range(1, parts.Length).Any(depth => plan.Skip.Contains(string.Join('/', parts.Take(depth)))) ||
-                PythonCaseFold.Fold(parts[0]) is var root && (root == AssetsFolderName || root == "sce_sys" || GeneratedRootDirectories.Contains(root)) ||
+                PythonCaseFold.Fold(parts[0]) is var root && (root == AssetsFolderName || root == "sce_sys" || GeneratedRootDirectories.Contains(root) || ExcludedRootDirectories.ContainsKey(root)) ||
                 result.Contains(directory, StringComparer.OrdinalIgnoreCase))
             {
                 continue;
@@ -805,9 +945,10 @@ public static partial class SonySdkProject
     /// ensure_ascii=False) + "\n"; các sửa đổi tuỳ chọn của công cụ (versionFileUri, attribute3, hạ firmware) áp thêm. Trả về
     /// danh sách thay đổi (đã dịch) so với nguồn.
     /// </summary>
-    public static IReadOnlyList<string> WriteStandardParam(string source, string destination, ParamJsonPatchOptions extra, SonySdkSizeSelection? selection = null)
+    public static IReadOnlyList<string> WriteStandardParam(string source, string destination, ParamJsonPatchOptions extra, SonySdkSizeSelection? selection = null, ulong? inferredSdkVersion = null, ulong? sdkVersionOverride = null)
     {
         var node = ParseParamObject(source);
+        var sdkChanges = ApplySdkVersion(node, source, inferredSdkVersion, sdkVersionOverride);
         var options = extra with { ForceStandardDrm = true };
         var changes = ParamJsonPatch.ApplyTo(node, options);
         if (node[ParamJsonPatch.DrmField] is not JsonValue drm || !drm.TryGetValue<string>(out var text) || text != ParamJsonPatch.StandardDrm)
@@ -823,7 +964,119 @@ public static partial class SonySdkProject
 
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
         WriteScriptText(destination, PythonJson.Serialize(node) + "\n");
+        return sdkChanges.Concat(changes).ToList();
+    }
+
+    /// <summary>
+    /// Bước SDK của <c>write_standard_param</c> (fix15, gói APP): phiên bản hiệu lực = <paramref name="sdkVersionOverride"/> hoặc phiên bản suy
+    /// từ eboot.bin. Có phiên bản (khác 0) thì: chọn riêng hoặc sdkVersion của nguồn bằng 0 → ghi sdkVersion; requiredSystemSoftwareVersion
+    /// thấp hơn SDK → nâng lên bằng SDK. Giá trị ghi theo <c>f"0x{v:016X}"</c> (hex hoa). Trường không phải chuỗi "0x" + 16 hex → lỗi như script.
+    /// </summary>
+    private static IReadOnlyList<string> ApplySdkVersion(JsonObject node, string source, ulong? inferred, ulong? sdkOverride)
+    {
+        var changes = new List<string>();
+        var effective = sdkOverride ?? inferred;
+        if (effective is not { } sdk || sdk == 0)
+        {
+            return changes;
+        }
+
+        ulong ParseVersion(string name)
+        {
+            var raw = node[name];
+            if (raw is null && !node.ContainsKey(name))
+            {
+                return 0;
+            }
+
+            if (raw is JsonValue value && value.TryGetValue<string>(out var text) && HexVersionPattern().IsMatch(text))
+            {
+                return ulong.Parse(text.AsSpan(2), System.Globalization.NumberStyles.AllowHexSpecifier, System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            throw new InvalidDataException(Loc.F("Sdk.ParamInvalid", source, $"invalid {name}: {raw?.ToJsonString() ?? "null"}"));
+        }
+
+        var current = sdkOverride ?? ParseVersion(ParamJsonPatch.SdkVersionField);
+        if (sdkOverride != null || current == 0)
+        {
+            var before = node[ParamJsonPatch.SdkVersionField] is JsonValue old && old.TryGetValue<string>(out var oldText) ? oldText : "—";
+            current = sdk;
+            var formatted = "0x" + current.ToString("X16", System.Globalization.CultureInfo.InvariantCulture);
+            node[ParamJsonPatch.SdkVersionField] = formatted;
+            if (!string.Equals(before, formatted, StringComparison.OrdinalIgnoreCase))
+            {
+                changes.Add(Loc.F(sdkOverride != null ? "Sdk.ParamSdkOverride" : "Sdk.ParamSdkFromEboot", before, formatted));
+            }
+        }
+
+        var required = ParseVersion(ParamJsonPatch.RequiredSystemVersionField);
+        if (required < current)
+        {
+            var formatted = "0x" + current.ToString("X16", System.Globalization.CultureInfo.InvariantCulture);
+            node[ParamJsonPatch.RequiredSystemVersionField] = formatted;
+            changes.Add(Loc.F("Sdk.ParamRequiredRaised", ParamJsonPatch.FormatFirmware(required), ParamJsonPatch.FormatFirmware(current)));
+        }
+
         return changes;
+    }
+
+    [GeneratedRegex("^0x[0-9a-fA-F]{16}$", RegexOptions.CultureInvariant)]
+    private static partial Regex HexVersionPattern();
+
+    /// <summary>
+    /// Các dòng script fix15 in sau khi ghi danh sách tệp với bố cục nguồn: bao nhiêu mục đặt theo playgo-ficm.dat, tệp ngoài bảng (vào chunk
+    /// 0), và chunk của bảng nguồn còn thiếu tệp.
+    /// </summary>
+    private static void AppendLayoutReport(List<string> lines, PlayGoStructure playGo, PlayGoSourceLayout layout, int entries, int unmappedCount, List<string> unmappedSample, List<string> unexpected, HashSet<ulong> placed)
+    {
+        lines.Add($"PlayGo: kept the source layout ({playGo.Chunks.Count} chunks, languages {playGo.SupportedLanguagesText}); {entries - unmappedCount} of {entries} files placed from playgo-ficm.dat");
+        if (unmappedCount > 0)
+        {
+            lines.Add($"PlayGo: {unmappedCount} file(s) not in the source map went to chunk 0: {string.Join(", ", unmappedSample)}{(unmappedCount > 5 ? ", ..." : string.Empty)}");
+        }
+
+        if (unexpected.Count > 0)
+        {
+            lines.Add($"[Warn] PlayGo: {unexpected.Count} file(s) outside sce_sys are not in the retail file map and were added to chunk 0:");
+            foreach (var path in unexpected.Take(25))
+            {
+                lines.Add("  " + path);
+            }
+
+            if (unexpected.Count > 25)
+            {
+                lines.Add($"  ... and {unexpected.Count - 25} more");
+            }
+        }
+
+        var generated = PlayGoSdkGeneratedPaths.Select(layout.HashOf).ToHashSet();
+        var expected = new Dictionary<int, int>();
+        var missing = new Dictionary<int, int>();
+        foreach (var (hash, chunk) in layout.FileChunks)
+        {
+            if (generated.Contains(hash))
+            {
+                continue;
+            }
+
+            expected[chunk] = expected.GetValueOrDefault(chunk) + 1;
+            if (!placed.Contains(hash))
+            {
+                missing[chunk] = missing.GetValueOrDefault(chunk) + 1;
+            }
+        }
+
+        foreach (var (chunk, count) in missing.OrderBy(pair => pair.Key))
+        {
+            var source = layout.Chunks[chunk];
+            lines.Add($"[Warn] PlayGo chunk {chunk} ({source.Label}; {string.Join(' ', source.Languages)}) is missing {count} of its {expected[chunk]} file(s) in the source");
+        }
+
+        if (missing.Count > 0)
+        {
+            lines.Add("[Warn] The package still declares these chunks. Installing a language that uses them gives the game an incomplete data set.");
+        }
     }
 
     /// <summary>
@@ -1074,7 +1327,7 @@ public static partial class SonySdkProject
     /// <summary>
     /// Chunk của <paramref name="playGo"/> không có dữ liệu sau khi ánh xạ → mỗi chunk một tệp giữ chỗ trong
     /// <see cref="SonySdkPlayGo.ChunkPayloadFolder"/>. Chunk 0 luôn có dữ liệu (tệp không có trong bảng, param.json, scenario, PNG khôi phục
-    /// đều vào đó); tệp 0 byte không tạo extent nào nên không tính. Bố cục script ghi chunk="0" trên mọi tệp game nên chỉ chunk ngôn ngữ có dữ liệu.
+    /// đều vào đó); tệp 0 byte không tạo extent nào nên không tính. Bố cục dự phòng ghi chunk="0" trên mọi tệp game nên chỉ chunk ngôn ngữ có dữ liệu; bố cục nguồn (fix15) xếp tệp theo bảng của nguồn.
     /// </summary>
     private static List<PlayGoLanguagePayload> EmptyChunkFillers(SonySdkSourcePlan plan, PlayGoStructure? playGo, List<(string Relative, string FullPath, long Length)> files, IReadOnlyList<PlayGoLanguagePayload> languagePayloads)
     {
@@ -1086,7 +1339,7 @@ public static partial class SonySdkProject
 
         var occupied = new HashSet<int> { 0 };
         occupied.UnionWith(languagePayloads.Select(payload => payload.ChunkId));
-        if (!playGo.ScriptLayout)
+        if (!playGo.ScriptLayout || playGo.SourceLayout != null)
         {
             foreach (var file in files)
             {
@@ -1100,7 +1353,8 @@ public static partial class SonySdkProject
         // Nguồn là gói đã giải nén từng tạo bằng công cụ (còn playgo-chunks/) thì tránh trùng dst_path — Publishing Tools từ chối GP5 có hai tệp cùng đường dẫn.
         var taken = new HashSet<string>(files.Select(file => file.Relative), StringComparer.OrdinalIgnoreCase);
         taken.UnionWith(languagePayloads.Select(payload => payload.Destination));
-        foreach (var chunk in playGo.Chunks.Where(chunk => !occupied.Contains(chunk.Id)))
+        // Chunk script không khai báo (bảng nguồn không nhãn, không ngôn ngữ) thì không thêm tệp vào đó.
+        foreach (var chunk in playGo.Chunks.Where(chunk => chunk.Declared && !occupied.Contains(chunk.Id)))
         {
             var destination = $"{SonySdkPlayGo.ChunkPayloadFolder}/{chunk.Id:000}.bin";
             for (var suffix = 2; taken.Contains(destination); suffix++)
@@ -1124,14 +1378,14 @@ public static partial class SonySdkProject
     /// engine tích hợp cũng được sửa trong gương. UCP không đọc được thì giữ nguyên và báo
     /// trong <paramref name="invalid"/>. Không có UCP lệch thì GP5 giống hệt script. Trả về chỉ số tệp → bản sửa.
     /// </summary>
-    private static Dictionary<int, string> PrepareUcpInputs(List<(string Relative, string FullPath, long Length)> files, string generatedRoot, List<string> lines, out IReadOnlyList<(string Relative, string Error)> invalid, CancellationToken cancellationToken)
+    private static Dictionary<int, string> PrepareUcpInputs(List<(string Relative, string FullPath, long Length)> files, string generatedRoot, List<string> lines, out IReadOnlyList<(string Relative, string Error)> invalid, ISet<int> handled, CancellationToken cancellationToken)
     {
         var repairs = new Dictionary<int, string>();
         var broken = new List<(string, string)>();
         for (var index = 0; index < files.Count; index++)
         {
             var (relative, fullPath, length) = files[index];
-            if (!UcpInspector.IsCandidate(relative) || length > UcpInspector.MaxSize)
+            if (handled.Contains(index) || !UcpInspector.IsCandidate(relative) || length > UcpInspector.MaxSize)
             {
                 continue;
             }
@@ -1449,6 +1703,13 @@ public static partial class SonySdkProject
                 }
 
                 var isDirectory = (attributes & FileAttributes.Directory) != 0;
+                if (isDirectory && prefix.Length == 0 && ExcludedRootDirectories.TryGetValue(PythonCaseFold.Fold(item.Name), out var rootReason))
+                {
+                    // fix15: decrypted/ của máy dump (bản sao đã giải mã).
+                    piece.Excluded.Add(relative + "/ (" + rootReason + ")");
+                    continue;
+                }
+
                 if (isDirectory && prefix.Length == 0 && PythonCaseFold.Fold(item.Name) == AssetsFolderName)
                 {
                     // Thư mục .gp5-assets của một lần chạy trước ngay trong nguồn (khi thư mục xuất từng nằm trong nguồn).

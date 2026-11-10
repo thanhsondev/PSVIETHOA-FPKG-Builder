@@ -44,8 +44,8 @@ public static class SonySdkToolchain
 
     public const string WineEnvironmentVariable = "PSVIETHOA_WINE";
 
-    /// <summary>Profile của bản vá SDK mà bước hậu xử lý được viết cho.</summary>
-    public const string Profile = "sdk279-plaintext-direct-v3";
+    /// <summary>Profile của bộ công cụ kèm theo (sdk-fpkg279-fix15): lớp PFS ngoài không mã hoá, chữ ký RIF development gốc, mục CNT được bảo vệ.</summary>
+    public const string Profile = "sdk279-plaintext-direct-v6";
 
     public const string VcRedistFileName = "vc_redist.x64.exe";
 
