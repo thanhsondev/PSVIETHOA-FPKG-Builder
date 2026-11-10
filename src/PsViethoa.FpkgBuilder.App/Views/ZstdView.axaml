@@ -1,0 +1,436 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PsViethoa.FpkgBuilder.App.ViewModels"
+             xmlns:models="using:PsViethoa.FpkgBuilder.Core.Models"
+             xmlns:conv="using:PsViethoa.FpkgBuilder.App.Converters"
+             xmlns:l="using:PsViethoa.FpkgBuilder.App.Localization"
+             xmlns:c="using:PsViethoa.FpkgBuilder.App.Controls"
+             xmlns:shell="using:PsViethoa.FpkgBuilder.App.ViewModels.Shell"
+             x:Class="PsViethoa.FpkgBuilder.App.Views.ZstdView"
+             x:DataType="vm:ZstdViewModel"
+             DragDrop.AllowDrop="True">
+
+    <!-- Bố cục như trang ZSTD của PSVIETHOA STUDIO 2.1.0, chữ và nút lớn hơn: vùng kéo thả · mức nén dựng sẵn · khung game + kế hoạch ·
+         nút chạy ngang trang · số liệu + nhật ký. Mỗi việc (Đóng / Giải / Vá) là một mục riêng trên thanh bên. -->
+    <UserControl.Styles>
+        <Style Selector="TextBlock.caps">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="LetterSpacing" Value="0.7" />
+            <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+        </Style>
+        <Style Selector="TextBox.field">
+            <Setter Property="MinHeight" Value="42" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.big">
+            <Setter Property="MinHeight" Value="42" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Padding" Value="16,0" />
+        </Style>
+        <Style Selector="Button.tint">
+            <Setter Property="Foreground" Value="{DynamicResource ZstdInkBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ZstdLineBrush}" />
+        </Style>
+
+        <Style Selector="Button.dropzone">
+            <Setter Property="Background" Value="{DynamicResource ZstdDropBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="CornerRadius" Value="14" />
+        </Style>
+        <Style Selector="Button.dropzone:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource ZstdSoftBrush}" />
+        </Style>
+
+        <Style Selector="ToggleButton.preset">
+            <Setter Property="Background" Value="{DynamicResource MutedBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="14,12" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="VerticalContentAlignment" Value="Top" />
+            <Setter Property="MinHeight" Value="78" />
+        </Style>
+        <Style Selector="ToggleButton.preset:checked /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource ZstdSoftBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ZstdInkBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource FgBrush}" />
+        </Style>
+        <Style Selector="ToggleButton.preset:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource ZstdSoftBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ZstdInkBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource FgBrush}" />
+        </Style>
+        <Style Selector="ToggleButton.preset TextBlock.ptitle">
+            <Setter Property="FontSize" Value="15.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="ToggleButton.preset TextBlock.pdesc">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="ToggleButton.preset:checked PathIcon">
+            <Setter Property="Foreground" Value="{DynamicResource ZstdInkBrush}" />
+        </Style>
+
+        <Style Selector="Border.infobadge">
+            <Setter Property="Background" Value="{DynamicResource ZstdSoftBrush}" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="12,10" />
+        </Style>
+        <Style Selector="Border.infobadge > TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource ZstdInkBrush}" />
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="Border.infobadge.ok">
+            <Setter Property="Background" Value="{DynamicResource SuccessSoftBrush}" />
+        </Style>
+        <Style Selector="Border.infobadge.ok > TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+        </Style>
+        <Style Selector="Border.infobadge.warn">
+            <Setter Property="Background" Value="{DynamicResource WarningSoftBrush}" />
+        </Style>
+        <Style Selector="Border.infobadge.warn > TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+        </Style>
+        <Style Selector="Border.headchip">
+            <Setter Property="Background" Value="{DynamicResource ZstdSoftBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ZstdLineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Padding" Value="12,5" />
+        </Style>
+        <Style Selector="Border.headchip TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource ZstdInkBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="LetterSpacing" Value="0.4" />
+        </Style>
+
+        <Style Selector="TextBlock.metric">
+            <Setter Property="FontSize" Value="19" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
+        </Style>
+        <Style Selector="ProgressBar.zstd /template/ Border#PART_Indicator">
+            <Setter Property="Background" Value="{DynamicResource ZstdInkBrush}" />
+        </Style>
+        <Style Selector="Button.go">
+            <Setter Property="MinHeight" Value="54" />
+            <Setter Property="FontSize" Value="15" />
+        </Style>
+    </UserControl.Styles>
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="ZstdSoftBrush" Color="#103A2A" />
+                    <SolidColorBrush x:Key="ZstdInkBrush" Color="#4ADE80" />
+                    <SolidColorBrush x:Key="ZstdLineBrush" Color="#1F6B45" />
+                    <SolidColorBrush x:Key="ZstdDropBrush" Color="#0B1426" />
+                    <SolidColorBrush x:Key="ZstdDashBrush" Color="#33456B" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="ZstdSoftBrush" Color="#DCFCE7" />
+                    <SolidColorBrush x:Key="ZstdInkBrush" Color="#15803D" />
+                    <SolidColorBrush x:Key="ZstdLineBrush" Color="#86EFAC" />
+                    <SolidColorBrush x:Key="ZstdDropBrush" Color="#F8FAFC" />
+                    <SolidColorBrush x:Key="ZstdDashBrush" Color="#CBD5E1" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" c:ViewportFill.MinContentHeight="860">
+    <Grid Margin="26,10,26,12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" MinHeight="470" />
+            <RowDefinition Height="14" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="210" />
+        </Grid.RowDefinitions>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="440" />
+                <ColumnDefinition Width="18" />
+                <ColumnDefinition Width="*" MinWidth="380" />
+            </Grid.ColumnDefinitions>
+
+            <!-- ============ TRÁI: NGUỒN + TUỲ CHỌN ============ -->
+            <Border Classes="card" Padding="20,18,8,18">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel IsEnabled="{Binding !IsBusy}" Margin="0,0,12,0">
+                        <TextBlock Classes="caps" Text="{Binding SourceLabel}" />
+                        <Button Classes="dropzone" Command="{Binding BrowseSourceCommand}" ToolTip.Tip="{l:T Zstd.Ui.DropTip}">
+                            <Panel>
+                                <Rectangle RadiusX="14" RadiusY="14" Stroke="{DynamicResource ZstdDashBrush}" StrokeThickness="1.5" StrokeDashArray="5,4" />
+                                <StackPanel HorizontalAlignment="Center" Spacing="8" Margin="16,18">
+                                    <c:PlatformBadge Platform="{x:Static shell:Platform.Ps5}" Size="52" Interactive="False" HorizontalAlignment="Center" />
+                                    <TextBlock Text="{Binding DropTitle}" FontSize="17" FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding DropSubtitle}" FontSize="13" Foreground="{DynamicResource FgMutedBrush}" TextAlignment="Center" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Panel>
+                        </Button>
+                        <Grid ColumnDefinitions="*,10,Auto" Margin="0,12,0,18">
+                            <TextBox Classes="field mono" Text="{Binding SourcePath, Mode=TwoWay}" Watermark="{l:T Zstd.Ui.Source.Watermark}" />
+                            <Button Grid.Column="2" Classes="big" Command="{Binding InspectCommand}">
+                                <StackPanel Classes="btn">
+                                    <PathIcon Data="{StaticResource IconRefresh}" />
+                                    <TextBlock Text="{l:T Zstd.Ui.Reload}" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+
+                        <StackPanel IsVisible="{Binding IsPatch}" Margin="0,0,0,18">
+                            <TextBlock Classes="caps" Text="{l:T Zstd.Ui.PatchFolder}" />
+                            <Grid ColumnDefinitions="*,10,Auto">
+                                <TextBox Classes="field mono" Text="{Binding PatchFolder, Mode=TwoWay}" Watermark="{l:T Zstd.Ui.PatchFolder.Watermark}" />
+                                <Button Grid.Column="2" Classes="big tint" Command="{Binding BrowsePatchCommand}">
+                                    <StackPanel Classes="btn">
+                                        <PathIcon Data="{StaticResource IconFolderOpen}" />
+                                        <TextBlock Text="{l:T Zstd.Ui.PickFolder}" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                            <TextBlock Classes="small muted" Text="{l:T Zstd.Ui.PatchFolder.Hint}" TextWrapping="Wrap" Margin="0,8,0,0" />
+                        </StackPanel>
+
+                        <StackPanel IsVisible="{Binding !IsUnpack}">
+                            <TextBlock Classes="caps" Text="{l:T Zstd.Ui.Options}" />
+                            <UniformGrid Columns="2" Margin="-5,0,-5,0">
+                                <ToggleButton Classes="preset" Margin="5" IsChecked="{Binding IsPresetFast, Mode=OneWay}" Command="{Binding SetPresetCommand}" CommandParameter="1">
+                                    <StackPanel Spacing="6">
+                                        <StackPanel Orientation="Horizontal" Spacing="7">
+                                            <PathIcon Data="{StaticResource IconBolt}" Width="16" Height="16" />
+                                            <TextBlock Classes="ptitle" Text="{l:T Zstd.Ui.Preset.Fast}" />
+                                        </StackPanel>
+                                        <TextBlock Classes="pdesc" Text="{l:T Zstd.Ui.Preset.Fast.Desc}" />
+                                    </StackPanel>
+                                </ToggleButton>
+                                <ToggleButton Classes="preset" Margin="5" IsChecked="{Binding IsPresetBalanced, Mode=OneWay}" Command="{Binding SetPresetCommand}" CommandParameter="5">
+                                    <StackPanel Spacing="6">
+                                        <StackPanel Orientation="Horizontal" Spacing="7">
+                                            <PathIcon Data="{StaticResource IconTune}" Width="16" Height="16" />
+                                            <TextBlock Classes="ptitle" Text="{l:T Zstd.Ui.Preset.Balanced}" />
+                                        </StackPanel>
+                                        <TextBlock Classes="pdesc" Text="{l:T Zstd.Ui.Preset.Balanced.Desc}" />
+                                    </StackPanel>
+                                </ToggleButton>
+                                <ToggleButton Classes="preset" Margin="5" IsChecked="{Binding IsPresetSmall, Mode=OneWay}" Command="{Binding SetPresetCommand}" CommandParameter="12">
+                                    <StackPanel Spacing="6">
+                                        <StackPanel Orientation="Horizontal" Spacing="7">
+                                            <PathIcon Data="{StaticResource IconZip}" Width="16" Height="16" />
+                                            <TextBlock Classes="ptitle" Text="{l:T Zstd.Ui.Preset.Small}" />
+                                        </StackPanel>
+                                        <TextBlock Classes="pdesc" Text="{l:T Zstd.Ui.Preset.Small.Desc}" />
+                                    </StackPanel>
+                                </ToggleButton>
+                                <ToggleButton Classes="preset" Margin="5" IsChecked="{Binding IsPresetSmallest, Mode=OneWay}" Command="{Binding SetPresetCommand}" CommandParameter="19">
+                                    <StackPanel Spacing="6">
+                                        <StackPanel Orientation="Horizontal" Spacing="7">
+                                            <PathIcon Data="{StaticResource IconSparkle}" Width="16" Height="16" />
+                                            <TextBlock Classes="ptitle" Text="{l:T Zstd.Ui.Preset.Smallest}" />
+                                        </StackPanel>
+                                        <TextBlock Classes="pdesc" Text="{l:T Zstd.Ui.Preset.Smallest.Desc}" />
+                                    </StackPanel>
+                                </ToggleButton>
+                            </UniformGrid>
+                            <TextBlock Classes="small muted" Text="{Binding PresetHint}" TextWrapping="Wrap" Margin="0,8,0,14" />
+                        </StackPanel>
+
+                        <StackPanel IsVisible="{Binding IsPatch}" Orientation="Horizontal" Spacing="10" Margin="0,0,0,14">
+                            <Button Classes="big tint" Command="{Binding PlanCommand}">
+                                <StackPanel Classes="btn">
+                                    <PathIcon Data="{StaticResource IconFileTree}" />
+                                    <TextBlock Text="{l:T Zstd.Ui.Plan}" />
+                                </StackPanel>
+                            </Button>
+                            <Button Classes="big" Command="{Binding UndoCommand}" ToolTip.Tip="{l:T Zstd.Ui.Undo.Tip}">
+                                <StackPanel Classes="btn">
+                                    <PathIcon Data="{StaticResource IconSwap}" />
+                                    <TextBlock Text="{l:T Zstd.Ui.Undo}" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+
+                        <CheckBox IsChecked="{Binding KeepRuntime, Mode=TwoWay}" Content="{l:T Zstd.Ui.KeepRuntime}" FontSize="14" IsVisible="{Binding IsUnpack}" ToolTip.Tip="{l:T Zstd.Ui.KeepRuntime.Tip}" Margin="0,0,0,12" />
+
+                        <Expander Header="{Binding AdvancedHeader}" HorizontalAlignment="Stretch" Margin="0,0,0,16">
+                            <StackPanel Spacing="12" Margin="0,6,0,4">
+                                <Grid ColumnDefinitions="Auto,24,*">
+                                    <StackPanel IsVisible="{Binding !IsUnpack}">
+                                        <TextBlock Classes="caps" Text="{l:T Zstd.Ui.Level}" />
+                                        <NumericUpDown Value="{Binding Level, Mode=TwoWay}" Minimum="1" Maximum="22" Increment="1" FormatString="0" Width="140" MinHeight="40" ToolTip.Tip="{l:T Zstd.Ui.Level.Tip}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Classes="caps" Text="{l:T Zstd.Ui.Threads}" />
+                                        <ComboBox ItemsSource="{Binding ThreadChoices}" SelectedIndex="{Binding ThreadIndex, Mode=TwoWay}" MinWidth="240" MinHeight="40" />
+                                    </StackPanel>
+                                </Grid>
+                                <CheckBox IsChecked="{Binding Verify, Mode=TwoWay}" Content="{l:T Zstd.Ui.Verify}" FontSize="14" IsVisible="{Binding IsPack}" ToolTip.Tip="{l:T Zstd.Ui.Verify.Tip}" />
+                            </StackPanel>
+                        </Expander>
+
+                        <StackPanel IsVisible="{Binding ShowOutput}">
+                            <TextBlock Classes="caps" Text="{Binding OutputLabel}" />
+                            <Grid ColumnDefinitions="*,10,Auto">
+                                <TextBox Classes="field mono" Text="{Binding OutputFolder, Mode=TwoWay}" Watermark="{l:T Zstd.Ui.Output.Watermark}" />
+                                <Button Grid.Column="2" Classes="big tint" Command="{Binding BrowseOutputCommand}">
+                                    <StackPanel Classes="btn">
+                                        <PathIcon Data="{StaticResource IconFolderOpen}" />
+                                        <TextBlock Text="{l:T Zstd.Ui.PickFolder}" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- ============ PHẢI: GAME + KẾ HOẠCH ============ -->
+            <Border Grid.Column="2" Classes="card" Padding="20,18">
+                <Grid RowDefinitions="Auto,14,Auto,8,*,Auto">
+                    <Grid ColumnDefinitions="Auto,*">
+                        <Border Width="104" Height="104" CornerRadius="22" ClipToBounds="True" VerticalAlignment="Top" Margin="0,0,18,0">
+                            <Panel>
+                                <Viewbox Stretch="Uniform" IsVisible="{Binding !HasHeroIcon}"><c:PlatformBadge Platform="{x:Static shell:Platform.Ps5}" Size="48" Interactive="False" /></Viewbox>
+                                <Image Source="{Binding HeroIcon}" Stretch="UniformToFill" IsVisible="{Binding HasHeroIcon}" />
+                            </Panel>
+                        </Border>
+                        <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
+                            <Border Classes="headchip" HorizontalAlignment="Left"><TextBlock Text="{Binding HeaderChip}" TextWrapping="Wrap" /></Border>
+                            <TextBlock Text="{Binding InfoTitle}" FontSize="22" LineHeight="30" FontWeight="Bold" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding HeroSubtitle}" FontSize="13.5" Foreground="{DynamicResource FgMutedBrush}" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding InfoRuntime}" FontSize="13" Foreground="{DynamicResource FgMutedBrush}" TextWrapping="Wrap" IsVisible="{Binding InfoRuntime, Converter={x:Static conv:AppConverters.NotEmpty}}" />
+                        </StackPanel>
+                    </Grid>
+                    <Border Grid.Row="2" Classes="infobadge" Classes.ok="{Binding InfoOk}" Classes.warn="{Binding InfoWarn}">
+                        <TextBlock Text="{Binding InfoBadge}" />
+                    </Border>
+                    <Grid Grid.Row="4" RowDefinitions="Auto,*" Margin="0,8,0,0">
+                        <TextBlock Classes="caps" Text="{Binding PreviewHeading}" />
+                        <Border Grid.Row="1" Background="{DynamicResource LogBgBrush}" CornerRadius="10" Padding="14,12">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                                <SelectableTextBlock Classes="mono" FontSize="13" LineHeight="20" Text="{Binding PreviewText}" />
+                            </ScrollViewer>
+                        </Border>
+                    </Grid>
+                    <ProgressBar Grid.Row="5" IsIndeterminate="True" Classes="thin zstd" IsVisible="{Binding IsInspecting}" Margin="0,8,0,0" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ============ NÚT CHẠY ============ -->
+        <Grid Grid.Row="2" ColumnDefinitions="*,12,Auto,12,Auto,12,Auto">
+            <Button Classes="primary go" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding StartCommand}">
+                <StackPanel Classes="btn">
+                    <PathIcon Data="{StaticResource IconPlay}" Width="18" Height="18" />
+                    <TextBlock Text="{Binding StartText}" FontWeight="Bold" FontSize="16" />
+                </StackPanel>
+            </Button>
+            <Button Grid.Column="2" Classes="danger go" MinWidth="130" HorizontalContentAlignment="Center" Command="{Binding StopCommand}">
+                <StackPanel Classes="btn">
+                    <PathIcon Data="{StaticResource IconStop}" />
+                    <TextBlock Text="{l:T Common.Stop}" />
+                </StackPanel>
+            </Button>
+            <Button Grid.Column="4" Classes="go" HorizontalContentAlignment="Center" Command="{Binding ReindexCommand}" IsVisible="{Binding CanReindex}" ToolTip.Tip="{l:T Zstd.Ui.Reindex.Tip}">
+                <StackPanel Classes="btn">
+                    <PathIcon Data="{StaticResource IconShieldCheck}" />
+                    <TextBlock Text="{l:T Zstd.Ui.Reindex}" />
+                </StackPanel>
+            </Button>
+            <Button Grid.Column="6" Classes="go tint" HorizontalContentAlignment="Center" Command="{Binding OpenResultCommand}">
+                <StackPanel Classes="btn">
+                    <PathIcon Data="{StaticResource IconFolderOpen}" />
+                    <TextBlock Text="{l:T Zstd.Ui.OpenResult}" />
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <!-- ============ TRẠNG THÁI ============ -->
+        <Grid Grid.Row="4" RowDefinitions="Auto,8,Auto">
+            <Grid ColumnDefinitions="Auto,*,Auto" MinHeight="34">
+                <Ellipse Classes="dot" Classes.working="{Binding IsBusy}" Classes.success="{Binding Succeeded}" Classes.error="{Binding Failed}" Margin="2,0,10,0" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" FontSize="14" Text="{Binding StatusLine}" ToolTip.Tip="{Binding StatusLine}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Foreground="{DynamicResource FgMutedBrush}" />
+                <TextBlock Grid.Column="2" FontSize="22" FontWeight="Bold" Foreground="{DynamicResource ZstdInkBrush}" Text="{Binding Percent, StringFormat={}{0:0.0}%}" VerticalAlignment="Center" MinWidth="80" TextAlignment="Right" LineHeight="30" />
+            </Grid>
+            <ProgressBar Grid.Row="2" Classes="zstd" Minimum="0" Maximum="100" Value="{Binding Percent}" Height="7" />
+        </Grid>
+
+        <!-- ============ SỐ LIỆU + NHẬT KÝ ============ -->
+        <Grid Grid.Row="6" ColumnDefinitions="*,18,*">
+            <Border Classes="card" Padding="20,16">
+                <UniformGrid Columns="3" Rows="2">
+                    <StackPanel Margin="0,0,10,12">
+                        <TextBlock Classes="caps" Text="{l:T Zstd.Ui.Metric.Speed}" />
+                        <TextBlock Classes="metric" Text="{Binding SpeedText}" />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,10,12">
+                        <TextBlock Classes="caps" Text="{l:T Zstd.Ui.Metric.Elapsed}" />
+                        <TextBlock Classes="metric" Text="{Binding ElapsedText}" />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,10,12">
+                        <TextBlock Classes="caps" Text="{l:T Zstd.Ui.Metric.Remaining}" />
+                        <TextBlock Classes="metric" Text="{Binding RemainingText}" />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,10,0">
+                        <TextBlock Classes="caps" Text="{l:T Zstd.Ui.Metric.Processed}" />
+                        <TextBlock Classes="metric" FontSize="15" Text="{Binding ProcessedText}" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,10,0">
+                        <TextBlock Classes="caps" Text="{Binding RatioLabel}" />
+                        <TextBlock Classes="metric" Text="{Binding RatioText}" />
+                    </StackPanel>
+                </UniformGrid>
+            </Border>
+            <Border Grid.Column="2" Classes="card" Padding="14,10">
+                <Grid RowDefinitions="Auto,*">
+                    <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" Margin="0,0,0,8">
+                        <TextBlock FontSize="14" FontWeight="SemiBold" Text="{l:T Common.Log}" VerticalAlignment="Center" />
+                        <Border Grid.Column="1" Classes="chip" Margin="10,0,0,0"><TextBlock Classes="mono" Text="{Binding LogCountText}" /></Border>
+                        <TextBox Grid.Column="3" Width="170" Text="{Binding LogFilter, Mode=TwoWay}" Watermark="{l:T Save.Log.Filter}" Margin="0,0,6,0" />
+                        <Button Grid.Column="4" Classes="icon" Command="{Binding CopyLogCommand}" ToolTip.Tip="{l:T Save.Log.Copy}">
+                            <PathIcon Data="{StaticResource IconCopy}" />
+                        </Button>
+                        <Button Grid.Column="5" Classes="icon" Command="{Binding ClearLogCommand}" ToolTip.Tip="{l:T Save.Log.Clear}" Margin="4,0,0,0">
+                            <PathIcon Data="{StaticResource IconTrash}" />
+                        </Button>
+                    </Grid>
+                    <Border Grid.Row="1" Background="{DynamicResource LogBgBrush}" CornerRadius="8" Padding="6,4">
+                        <Panel>
+                            <ListBox Name="LogList" Classes="log" ItemsSource="{Binding VisibleLog}" SelectionMode="Multiple">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="models:LogEntry">
+                                        <Grid ColumnDefinitions="Auto,*">
+                                            <TextBlock Classes="logtime" Text="{Binding TimeText}" />
+                                            <TextBlock Grid.Column="1" Classes="logmsg" Classes.warn="{Binding IsWarning}" Classes.err="{Binding IsError}" Classes.ok="{Binding IsSuccess}" Text="{Binding Message}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <TextBlock Classes="small faint" Text="{l:T Zstd.Ui.Log.Empty}" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Margin="20"
+                                       IsVisible="{Binding VisibleLog.Count, Converter={x:Static conv:AppConverters.IsZero}}" />
+                        </Panel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+    </ScrollViewer>
+</UserControl>

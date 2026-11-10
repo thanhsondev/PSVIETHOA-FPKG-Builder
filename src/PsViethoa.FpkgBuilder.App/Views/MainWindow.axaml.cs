@@ -27,7 +27,7 @@ public partial class MainWindow : Window
         DataContextChanged += (_, _) => AttachViewModel();
         Opened += OnOpened;
         // Cửa sổ hẹp (MacBook 13", laptop 1366×768): chip "Khoá debug" chỉ còn biểu tượng để tên ứng dụng không bị đè.
-        SizeChanged += (_, e) => UpdateHeaderDensity(e.NewSize.Width);
+        SizeChanged += (_, e) => UpdateHeaderDensity(e.NewSize.Width, e.NewSize.Height);
         Closing += OnClosing;
 
         // Cột phải trang tạo gói PS5: nhật ký luôn giữ tối thiểu LogMinHeight, phần dư thì cuộn (xem UpdateRightColumn).
@@ -154,7 +154,7 @@ public partial class MainWindow : Window
     /// <summary>Dưới mức này thanh bên tự thu gọn (chỉ biểu tượng) để trang Tạo gói vẫn đủ hai cột.</summary>
     private const double NarrowSidebarWidth = 1200;
 
-    private void UpdateHeaderDensity(double width)
+    private void UpdateHeaderDensity(double width, double height = 900)
     {
         var full = width >= CompactHeaderWidth;
         KeysReadyText.IsVisible = full;
@@ -162,6 +162,8 @@ public partial class MainWindow : Window
         if (ViewModel != null)
         {
             ViewModel.SidebarNarrow = width < NarrowSidebarWidth;
+            // Thanh bên co giãn theo cửa sổ: 1× ở 1400 px, to dần tới 1,4× (cửa sổ ~1960 px trở lên).
+            ViewModel.SidebarScale = Math.Round(Math.Clamp(Math.Min(width / 1400.0, height / 900.0 * 1.25), 1.0, 1.4), 2);
         }
     }
 
@@ -210,6 +212,22 @@ public partial class MainWindow : Window
                 if (ViewModel != null)
                 {
                     ViewModel.CurrentPage = startPage;
+
+                    // Trang ZSTD: PSVIETHOA_ZSTD_SOURCE / _OUTPUT / _PATCH = đường dẫn (kèm PSVIETHOA_ZSTD_AUTOSTART=1 để chạy rồi chụp).
+                    if (Environment.GetEnvironmentVariable("PSVIETHOA_ZSTD_SOURCE") is { Length: > 0 } zstdSource)
+                    {
+                        ViewModel.Zstd.SourcePath = zstdSource;
+                    }
+
+                    if (Environment.GetEnvironmentVariable("PSVIETHOA_ZSTD_OUTPUT") is { Length: > 0 } zstdOutput)
+                    {
+                        ViewModel.Zstd.OutputFolder = zstdOutput;
+                    }
+
+                    if (Environment.GetEnvironmentVariable("PSVIETHOA_ZSTD_PATCH") is { Length: > 0 } zstdPatch)
+                    {
+                        ViewModel.Zstd.PatchFolder = zstdPatch;
+                    }
 
                     // Điền sẵn nguồn PS4 để chụp phần xem trước game: PSVIETHOA_PS4_SOURCE=/đường/dẫn, PSVIETHOA_PS4_BASE=/đường/dẫn
                     if (Environment.GetEnvironmentVariable("PSVIETHOA_PS4_SOURCE") is { Length: > 0 } ps4Source)
@@ -450,6 +468,13 @@ public partial class MainWindow : Window
                 await Task.Delay(TimeSpan.FromSeconds(1.5));
             }
 
+            if (ViewModel != null && Environment.GetEnvironmentVariable("PSVIETHOA_ZSTD_AUTOSTART") == "1")
+            {
+                ViewModel.Zstd.SkipConfirm = true;
+                await ViewModel.Zstd.StartCommand.ExecuteAsync(null);
+                await Task.Delay(TimeSpan.FromSeconds(1.5));
+            }
+
             if (ViewModel != null && Environment.GetEnvironmentVariable("PSVIETHOA_SAVE_START") == "1")
             {
                 await ViewModel.Save.StartCommand.ExecuteAsync(null);
@@ -596,6 +621,17 @@ public partial class MainWindow : Window
             e.Handled = true;
             ShowHelp();
         }
+        else if (e.Key == Key.K && (e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta)))
+        {
+            // Ctrl+K / Cmd+K: tìm công cụ trên thanh bên (mở rộng thanh bên nếu đang thu gọn).
+            e.Handled = true;
+            if (ViewModel != null)
+            {
+                ViewModel.SidebarCollapsed = false;
+            }
+
+            this.FindControl<SidebarView>("Sidebar")?.FocusSearch();
+        }
     }
 
     // ===================== Kéo–thả =====================
@@ -622,7 +658,7 @@ public partial class MainWindow : Window
                 return path;
             }
 
-            if (File.Exists(path) && (SourceLocator.HasGp5Extension(path) || SourceLocator.HasImageExtension(path) || ExFatImage.IsExFatFile(path) || UfsImage.IsUfsFile(path)))
+            if (File.Exists(path) && (SourceLocator.HasGp5Extension(path) || SourceLocator.HasImageExtension(path) || ExFatImage.IsExFatFile(path) || UfsImage.IsUfsFile(path) || PfsContainer.IsContainer(path)))
             {
                 return path;
             }

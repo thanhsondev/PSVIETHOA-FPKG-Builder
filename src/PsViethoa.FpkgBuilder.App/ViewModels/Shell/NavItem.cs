@@ -11,6 +11,9 @@ public enum AppPage
     Ps5Update,
     Ps5Extract,
     Ps5Queue,
+    ZstdPack,
+    ZstdUnpack,
+    ZstdPatch,
     Ps4Extract,
     Ps4Base,
     Ps4Patch,
@@ -87,6 +90,41 @@ public sealed partial class NavItem : ObservableObject
     public BoxShadows RailGlow => ShellBrushes.Glow(Platform);
 
     [ObservableProperty] private bool _isSelected;
+
+    /// <summary>Mục có hiện trên thanh bên không (Vá ZSTD chỉ hiện với giao diện tiếng Việt).</summary>
+    [ObservableProperty] private bool _isShown = true;
+
+    /// <summary>Hiện trong lưới thanh bên: được phép (<see cref="IsShown"/>) và khớp ô tìm công cụ.</summary>
+    [ObservableProperty] private bool _isListed = true;
+
+    /// <summary>Khớp chuỗi tìm (tiêu đề, mô tả, gợi ý, tên nhóm; không phân biệt dấu / hoa thường).</summary>
+    public bool Matches(string filter, string groupTitle)
+    {
+        if (string.IsNullOrWhiteSpace(filter))
+        {
+            return true;
+        }
+
+        var needle = Fold(filter.Trim());
+        return Fold(Title).Contains(needle, StringComparison.Ordinal) || Fold(Subtitle).Contains(needle, StringComparison.Ordinal)
+            || Fold(Tip).Contains(needle, StringComparison.Ordinal) || Fold(groupTitle).Contains(needle, StringComparison.Ordinal);
+    }
+
+    /// <summary>Bỏ dấu tiếng Việt + chữ thường để "dong" khớp "Đóng".</summary>
+    private static string Fold(string text)
+    {
+        var normalized = text.Replace('đ', 'd').Replace('Đ', 'D').Normalize(System.Text.NormalizationForm.FormD);
+        var builder = new System.Text.StringBuilder(normalized.Length);
+        foreach (var c in normalized)
+        {
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)
+            {
+                builder.Append(char.ToLowerInvariant(c));
+            }
+        }
+
+        return builder.ToString();
+    }
 
     /// <summary>Trang này đang chạy việc nền (tạo gói, truyền tệp…): chấm nhấp nháy bên cạnh tiêu đề.</summary>
     [ObservableProperty] private bool _isBusy;
@@ -172,17 +210,57 @@ public static class ShellBrushes
     }
 }
 
-/// <summary>Một nhóm trên thanh bên: huy hiệu hệ máy, tên nhóm và các mục.</summary>
+/// <summary>Một hàng của lưới hai cột trên thanh bên; mục lẻ cuối nhóm chiếm cả hàng.</summary>
+public sealed class NavRow(NavItem first, NavItem? second)
+{
+    public NavItem First { get; } = first;
+
+    public NavItem? Second { get; } = second;
+
+    public bool HasSecond => Second != null;
+
+    public int FirstSpan => Second == null ? 3 : 1;
+}
+
+/// <summary>Một nhóm trên thanh bên: huy hiệu hệ máy, tên nhóm và các mục (lưới hai cột như PSVIETHOA STUDIO).</summary>
 public sealed partial class NavGroup : ObservableObject
 {
-    public NavGroup(Platform platform, string titleKey, IReadOnlyList<NavItem> items)
+    public NavGroup(Platform platform, string titleKey, IReadOnlyList<NavItem> items, Platform? secondPlatform = null)
     {
         Platform = platform;
         TitleKey = titleKey;
         Items = items;
+        SecondPlatform = secondPlatform ?? platform;
+        HasSecondPlatform = secondPlatform != null;
+        RebuildRows();
     }
 
     public Platform Platform { get; }
+
+    /// <summary>Huy hiệu thứ hai ở đầu nhóm gộp (Kết nối PS5 · Save).</summary>
+    public Platform SecondPlatform { get; }
+
+    public bool HasSecondPlatform { get; }
+
+    /// <summary>Các hàng của lưới (chỉ mục đang hiện).</summary>
+    public IReadOnlyList<NavRow> Rows { get; private set; } = Array.Empty<NavRow>();
+
+    /// <summary>Nhóm còn mục để hiện (ô tìm công cụ có thể lọc hết).</summary>
+    [ObservableProperty] private bool _hasVisibleItems = true;
+
+    public void RebuildRows()
+    {
+        var listed = Items.Where(item => item.IsListed).ToList();
+        var rows = new List<NavRow>();
+        for (var i = 0; i < listed.Count; i += 2)
+        {
+            rows.Add(new NavRow(listed[i], i + 1 < listed.Count ? listed[i + 1] : null));
+        }
+
+        Rows = rows;
+        OnPropertyChanged(nameof(Rows));
+        HasVisibleItems = listed.Count > 0;
+    }
 
     public string TitleKey { get; }
 

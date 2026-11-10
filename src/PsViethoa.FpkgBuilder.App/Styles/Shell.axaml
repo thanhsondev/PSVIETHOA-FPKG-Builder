@@ -149,6 +149,71 @@
         </Style.Animations>
     </Style>
 
+    <!-- ===== Lưới công cụ hai cột (3.0.1, như PSVIETHOA STUDIO) ===== -->
+    <Style Selector="RadioButton.navcell">
+        <Setter Property="Margin" Value="0" />
+    </Style>
+    <Style Selector="RadioButton.navcell Border.navcellbg">
+        <Setter Property="Background" Value="#0F1729" />
+        <Setter Property="BorderBrush" Value="#1E2A45" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.16" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="RadioButton.navcell:pointerover Border.navcellbg">
+        <Setter Property="BorderBrush" Value="#33456B" />
+    </Style>
+    <Style Selector="RadioButton.navcell PathIcon.navglyph">
+        <Setter Property="Width" Value="17" />
+        <Setter Property="Height" Value="17" />
+    </Style>
+    <Style Selector="RadioButton.navcell TextBlock.navtitle">
+        <Setter Property="FontSize" Value="13.5" />
+    </Style>
+    <Style Selector="TextBlock.navgroup">
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="LetterSpacing" Value="1" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Opacity" Value="0.95" />
+    </Style>
+    <Style Selector="Border.navsearch">
+        <Setter Property="Background" Value="#0F1729" />
+        <Setter Property="BorderBrush" Value="#22304A" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Height" Value="40" />
+    </Style>
+    <Style Selector="TextBox.navsearch">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Foreground" Value="#E2E8F0" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Padding" Value="8,0" />
+        <Setter Property="MinHeight" Value="38" />
+    </Style>
+    <Style Selector="TextBox.navsearch:pointerover /template/ Border#PART_BorderElement, TextBox.navsearch:focus /template/ Border#PART_BorderElement">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="TextBox.navsearch:focus">
+        <Setter Property="Foreground" Value="#F8FAFC" />
+    </Style>
+    <Style Selector="Border.kbd">
+        <Setter Property="Background" Value="#141C30" />
+        <Setter Property="BorderBrush" Value="#2A3A5C" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="5" />
+        <Setter Property="Padding" Value="5,1" />
+    </Style>
+    <Style Selector="Border.kbd TextBlock">
+        <Setter Property="FontSize" Value="10.5" />
+        <Setter Property="Foreground" Value="#8EA2C3" />
+    </Style>
+
     <!-- ===== Nút nhỏ ở chân thanh bên ===== -->
     <Style Selector="Button.side">
         <Setter Property="Background" Value="#121A2D" />

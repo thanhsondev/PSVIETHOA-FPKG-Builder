@@ -72,7 +72,7 @@ public static class SourceLocator
             return SourceKind.UfsImage;
         }
 
-        if (HasExFatExtension(path) || HasPfsContainerExtension(path) || ExFatImage.IsExFatFile(path))
+        if (HasExFatExtension(path) || HasPfsContainerExtension(path) || ExFatImage.IsExFatFile(path) || PfsContainer.IsContainer(path))
         {
             return SourceKind.ExFatImage;
         }
@@ -85,7 +85,8 @@ public static class SourceLocator
 
     /// <summary>Đuôi .ffpfsc — container PFS chứa ảnh exFAT nén.</summary>
     public static bool HasPfsContainerExtension(string path) =>
-        string.Equals(Path.GetExtension(path), PfsContainer.Extension, StringComparison.OrdinalIgnoreCase);
+        string.Equals(Path.GetExtension(path), PfsContainer.Extension, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Path.GetExtension(path), PfsContainer.RawExtension, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Đuôi .ffpkg — ảnh UFS2 của FreeBSD.</summary>
     public static bool HasUfsExtension(string path) => UfsImage.HasExtension(path);

@@ -59,6 +59,7 @@ public static class MetadataReader
         using var image = ExFatImage.Open(imagePath);
         metadata.VolumeLabel = image.VolumeLabel;
         metadata.IsPfsContainer = image.IsPfsContainer;
+        metadata.IsPfsFileSystem = image.IsPfsFileSystem;
         metadata.ContainerEntryName = image.ContainerEntryName;
         metadata.ContainerStoredLength = image.ContainerStoredLength;
 

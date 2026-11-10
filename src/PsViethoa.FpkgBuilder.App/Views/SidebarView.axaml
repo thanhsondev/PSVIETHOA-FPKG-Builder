@@ -8,6 +8,26 @@
              x:Class="PsViethoa.FpkgBuilder.App.Views.SidebarView"
              x:DataType="vm:MainViewModel">
 
+    <UserControl.Resources>
+        <!-- Một ô công cụ của lưới: biểu tượng + tên, viền mảnh; đang mở thì tô màu hệ máy + vạch sáng bên trái. -->
+        <DataTemplate x:Key="NavCellTemplate" x:DataType="shell:NavItem">
+            <RadioButton Classes="nav navcell" GroupName="nav" IsChecked="{Binding IsSelected, Mode=TwoWay}" ToolTip.Tip="{Binding Tip}" AutomationProperties.Name="{Binding Title}">
+                <Panel Height="42">
+                    <Border Classes="navcellbg" CornerRadius="10" BorderThickness="1" />
+                    <Border Classes="navhover" CornerRadius="10" Background="#0FFFFFFF" />
+                    <Border Classes="navsel" CornerRadius="10" Background="{Binding SelectedBrush}" BorderBrush="{Binding AccentBrush}" BorderThickness="1" />
+                    <Border Classes="navrail" Width="3.5" Height="20" CornerRadius="2" HorizontalAlignment="Left" Margin="-1,0,0,0" Background="{Binding AccentBrush}" BoxShadow="{Binding RailGlow}" />
+                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="10,0,6,0">
+                        <PathIcon Classes="navglyph" Data="{Binding Icon}" VerticalAlignment="Center" IsVisible="{Binding !IsSelected}" />
+                        <PathIcon Classes="navglyph" Data="{Binding Icon}" Foreground="{Binding AccentBrush}" VerticalAlignment="Center" IsVisible="{Binding IsSelected}" />
+                        <TextBlock Grid.Column="1" Classes="navtitle" Text="{Binding Title}" Margin="9,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        <Ellipse Grid.Column="2" Classes="busydot" Width="7" Height="7" Fill="{Binding AccentBrush}" VerticalAlignment="Center" Margin="6,0,0,0" IsVisible="{Binding IsBusy}" />
+                    </Grid>
+                </Panel>
+            </RadioButton>
+        </DataTemplate>
+    </UserControl.Resources>
+
     <!-- Thanh bên luôn tối ở cả hai theme. Lớp nền: dải màu đứng + quầng sáng logo + hạt sáng mờ. -->
     <Border BorderBrush="#1A2440" BorderThickness="0,0,1,0" ClipToBounds="True">
         <Border.Background>
@@ -29,6 +49,11 @@
                 </Ellipse.Fill>
             </Ellipse>
 
+            <!-- Co giãn theo cửa sổ: SidebarContentScale = 1 ở 1400 px, tối đa 1,4 (MainWindow.UpdateHeaderDensity). -->
+            <LayoutTransformControl>
+                <LayoutTransformControl.LayoutTransform>
+                    <ScaleTransform ScaleX="{Binding SidebarContentScale}" ScaleY="{Binding SidebarContentScale}" />
+                </LayoutTransformControl.LayoutTransform>
             <DockPanel Margin="14,16,14,14">
 
                 <!-- ===== Logo + tên ===== -->
@@ -55,6 +80,15 @@
                         </StackPanel>
                     </StackPanel>
                 </Grid>
+
+                <!-- ===== Tìm công cụ (Ctrl+K) ===== -->
+                <Border DockPanel.Dock="Top" Classes="navsearch" Margin="0,0,0,12" IsVisible="{Binding !IsSidebarCompact}">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <PathIcon Data="{StaticResource IconFilter}" Width="15" Height="15" Foreground="#7D8DA8" Margin="12,0,0,0" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Name="NavSearch" Classes="navsearch" Text="{Binding NavFilter, Mode=TwoWay}" Watermark="{l:T Shell.Search}" />
+                        <Border Grid.Column="2" Classes="kbd" Margin="0,0,8,0" VerticalAlignment="Center"><TextBlock Text="Ctrl K" /></Border>
+                    </Grid>
+                </Border>
 
                 <!-- ===== Chân: ngôn ngữ, theme, cập nhật, hướng dẫn, thu gọn ===== -->
                 <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,10,0,0">
@@ -90,63 +124,66 @@
                     </Button>
                 </StackPanel>
 
-                <!-- ===== Nhóm và mục ===== -->
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,2,0">
-                    <ItemsControl ItemsSource="{Binding NavGroups}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="shell:NavGroup">
-                                <StackPanel Margin="0,0,0,10">
-                                    <!-- Đầu nhóm: huy hiệu hệ máy + tên + vạch -->
-                                    <Grid ColumnDefinitions="Auto,Auto,*" Margin="6,0,2,6">
-                                        <c:PlatformBadge Platform="{Binding Platform}" Size="24" IsBusy="{Binding IsBusy}" />
-                                        <TextBlock Grid.Column="1" Text="{Binding Title}" Margin="10,0,10,0" FontSize="11" FontWeight="Bold" LetterSpacing="1.1"
-                                                   Foreground="{Binding AccentBrush}" Opacity="0.95" VerticalAlignment="Center" IsVisible="{Binding !$parent[UserControl].((vm:MainViewModel)DataContext).IsSidebarCompact}" />
-                                        <Border Grid.Column="2" Height="1" VerticalAlignment="Center" Background="#1A2440" IsVisible="{Binding !$parent[UserControl].((vm:MainViewModel)DataContext).IsSidebarCompact}" />
-                                    </Grid>
-                                    <ItemsControl ItemsSource="{Binding Items}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate x:DataType="shell:NavItem">
-                                                <RadioButton Classes="nav" GroupName="nav" IsChecked="{Binding IsSelected, Mode=TwoWay}" ToolTip.Tip="{Binding Tip}" AutomationProperties.Name="{Binding Title}">
-                                                    <Panel Height="44">
-                                                        <Border Classes="navhover" CornerRadius="12" Background="#0FFFFFFF" />
-                                                        <Border Classes="navsel" CornerRadius="12" Background="{Binding SelectedBrush}" BorderBrush="{Binding SelectedBorderBrush}" BorderThickness="1" />
-                                                        <Border Classes="navrail" Width="3.5" Height="22" CornerRadius="2" HorizontalAlignment="Left" Margin="-1,0,0,0"
-                                                                Background="{Binding AccentBrush}" BoxShadow="{Binding RailGlow}" />
-                                                        <Panel Classes="navbody">
-                                                            <Grid ColumnDefinitions="Auto,*,Auto" Margin="9,0,8,0">
-                                                                <Panel Width="32" Height="32" VerticalAlignment="Center">
-                                                                    <Border Classes="navtile" CornerRadius="10" BorderThickness="1" />
-                                                                    <Border Classes="navtilefill" CornerRadius="10" Background="{Binding TileBrush}" />
-                                                                    <PathIcon Classes="navglyph" Data="{Binding Icon}" IsVisible="{Binding !IsSelected}" />
-                                                                    <PathIcon Classes="navglyph" Data="{Binding Icon}" Foreground="{Binding TileInkBrush}" IsVisible="{Binding IsSelected}" />
-                                                                </Panel>
-                                                                <StackPanel Grid.Column="1" Margin="11,0,6,0" VerticalAlignment="Center" Spacing="1" IsVisible="{Binding !$parent[UserControl].((vm:MainViewModel)DataContext).IsSidebarCompact}">
-                                                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                                                        <TextBlock Classes="navtitle" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
-                                                                        <Ellipse Classes="busydot" Width="7" Height="7" Fill="{Binding AccentBrush}" VerticalAlignment="Center" IsVisible="{Binding IsBusy}" />
-                                                                    </StackPanel>
-                                                                    <TextBlock Classes="navsub" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" />
-                                                                </StackPanel>
-                                                                <Border Grid.Column="2" Classes="navindex" CornerRadius="6" BorderThickness="1" Padding="5,1" VerticalAlignment="Center"
-                                                                        IsVisible="{Binding !$parent[UserControl].((vm:MainViewModel)DataContext).IsSidebarCompact}">
-                                                                    <Panel>
-                                                                        <TextBlock Classes="navindex mono" Text="{Binding Index}" FontSize="10.5" FontWeight="SemiBold" IsVisible="{Binding !IsSelected}" />
-                                                                        <TextBlock Classes="mono" Text="{Binding Index}" FontSize="10.5" FontWeight="Bold" Foreground="{Binding AccentBrush}" IsVisible="{Binding IsSelected}" />
-                                                                    </Panel>
-                                                                </Border>
-                                                            </Grid>
+                <!-- ===== Nhóm và mục: lưới hai cột như PSVIETHOA STUDIO; thu gọn thì chỉ còn biểu tượng ===== -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,10,0">
+                    <Panel>
+                        <ItemsControl ItemsSource="{Binding NavGroups}" IsVisible="{Binding !IsSidebarCompact}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="shell:NavGroup">
+                                    <StackPanel Margin="0,0,0,12" IsVisible="{Binding HasVisibleItems}">
+                                        <Grid ColumnDefinitions="Auto,Auto,Auto,*" Margin="2,0,2,8">
+                                            <c:PlatformBadge Platform="{Binding Platform}" Size="22" IsBusy="{Binding IsBusy}" />
+                                            <c:PlatformBadge Grid.Column="1" Platform="{Binding SecondPlatform}" Size="22" Margin="5,0,0,0" IsVisible="{Binding HasSecondPlatform}" />
+                                            <TextBlock Grid.Column="2" Classes="navgroup" Text="{Binding Title}" Foreground="{Binding AccentBrush}" Margin="9,0,10,0" />
+                                            <Border Grid.Column="3" Height="1" VerticalAlignment="Center" Background="#1A2440" />
+                                        </Grid>
+                                        <ItemsControl ItemsSource="{Binding Rows}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="shell:NavRow">
+                                                    <Grid ColumnDefinitions="*,6,*" Margin="0,0,0,6">
+                                                        <ContentControl Grid.ColumnSpan="{Binding FirstSpan}" Content="{Binding First}" ContentTemplate="{StaticResource NavCellTemplate}" />
+                                                        <ContentControl Grid.Column="2" Content="{Binding Second}" ContentTemplate="{StaticResource NavCellTemplate}" IsVisible="{Binding HasSecond}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <ItemsControl ItemsSource="{Binding NavGroups}" IsVisible="{Binding IsSidebarCompact}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="shell:NavGroup">
+                                    <StackPanel Margin="0,0,0,10">
+                                        <c:PlatformBadge Platform="{Binding Platform}" Size="24" IsBusy="{Binding IsBusy}" Margin="6,0,2,6" HorizontalAlignment="Left" />
+                                        <ItemsControl ItemsSource="{Binding Items}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="shell:NavItem">
+                                                    <RadioButton Classes="nav" GroupName="navcompact" IsVisible="{Binding IsShown}" IsChecked="{Binding IsSelected, Mode=TwoWay}" ToolTip.Tip="{Binding Title}" AutomationProperties.Name="{Binding Title}">
+                                                        <Panel Height="44">
+                                                            <Border Classes="navhover" CornerRadius="12" Background="#0FFFFFFF" />
+                                                            <Border Classes="navsel" CornerRadius="12" Background="{Binding SelectedBrush}" BorderBrush="{Binding SelectedBorderBrush}" BorderThickness="1" />
+                                                            <Border Classes="navrail" Width="3.5" Height="22" CornerRadius="2" HorizontalAlignment="Left" Margin="-1,0,0,0" Background="{Binding AccentBrush}" BoxShadow="{Binding RailGlow}" />
+                                                            <Panel Width="32" Height="32" Margin="9,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                                                <Border Classes="navtile" CornerRadius="10" BorderThickness="1" />
+                                                                <Border Classes="navtilefill" CornerRadius="10" Background="{Binding TileBrush}" />
+                                                                <PathIcon Classes="navglyph" Data="{Binding Icon}" IsVisible="{Binding !IsSelected}" />
+                                                                <PathIcon Classes="navglyph" Data="{Binding Icon}" Foreground="{Binding TileInkBrush}" IsVisible="{Binding IsSelected}" />
+                                                            </Panel>
                                                         </Panel>
-                                                    </Panel>
-                                                </RadioButton>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </StackPanel>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                                                    </RadioButton>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Panel>
                 </ScrollViewer>
             </DockPanel>
+            </LayoutTransformControl>
         </Panel>
     </Border>
 </UserControl>

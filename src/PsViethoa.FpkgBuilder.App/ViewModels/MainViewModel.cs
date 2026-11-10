@@ -1463,6 +1463,7 @@ public sealed partial class MainViewModel : ObservableObject
     public string FooterStatusText =>
         IsPs4Page ? Ps4.StatusText
         : IsFtpPage ? Ftp.StatusText
+        : IsZstdPage ? Zstd.StatusText
         : IsSavePage ? Save.StatusText
         : IsQueueMode && !string.IsNullOrWhiteSpace(Queue.HeadlineText) ? Queue.HeadlineText
         : IsExtractMode && !string.IsNullOrWhiteSpace(Extraction.HeadlineText) ? Extraction.HeadlineText
@@ -2218,7 +2219,7 @@ public sealed partial class MainViewModel : ObservableObject
         var file = await _dialogs.PickFileAsync(
             Loc.T("Pick.Ffpfsc"),
             initial,
-            new FilePickerFileType(Loc.T("Pick.FfpfscFilter")) { Patterns = ["*.ffpfsc"] },
+            new FilePickerFileType(Loc.T("Pick.FfpfscFilter")) { Patterns = ["*.ffpfsc", "*.ffpfs", "pfs_image.dat"] },
             new FilePickerFileType(Loc.T("Pick.AllFiles")) { Patterns = ["*"] });
         if (file != null)
         {
@@ -2580,7 +2581,9 @@ public sealed partial class MainViewModel : ObservableObject
         IsUfsSource = metadata.IsUfs;
         IsPfsContainerSource = metadata.IsPfsContainer;
         var volumeLabel = string.IsNullOrWhiteSpace(metadata.VolumeLabel) ? "—" : metadata.VolumeLabel;
-        MetaExFatChip = metadata.IsPfsContainer
+        MetaExFatChip = metadata.IsPfsFileSystem
+            ? Loc.F("Meta.PfsFsChip", metadata.ContainerEntryName ?? "—", metadata.ContainerStoredLength is { } fsStored ? Formatters.Size(fsStored) : "—")
+            : metadata.IsPfsContainer
             ? Loc.F("Meta.PfsChip", volumeLabel, metadata.ContainerStoredLength is { } stored ? Formatters.Size(stored) : "—")
             : metadata.IsExFat ? Loc.F("Meta.ExFatChip", volumeLabel) : string.Empty;
         MetaExFatRoot = metadata.IsExFat

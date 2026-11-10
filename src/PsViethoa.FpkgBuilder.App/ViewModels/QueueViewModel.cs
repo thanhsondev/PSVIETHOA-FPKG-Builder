@@ -146,7 +146,7 @@ public sealed partial class QueueViewModel : ObservableObject
         var file = await _dialogs.PickFileAsync(
             Loc.T("Queue.AddImageTitle"),
             _settings.SourcePath,
-            new FilePickerFileType(Loc.T("Queue.ImageFilter")) { Patterns = new[] { "*.exfat", "*.ffpfsc", "*.ffpkg", "*.gp5" } });
+            new FilePickerFileType(Loc.T("Queue.ImageFilter")) { Patterns = new[] { "*.exfat", "*.ffpfsc", "*.ffpfs", "*.ffpkg", "*.gp5" } });
         if (file != null)
         {
             await AddPathsAsync(new[] { file });

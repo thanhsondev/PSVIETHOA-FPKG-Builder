@@ -1161,6 +1161,9 @@
             <Panel Grid.Row="1" Name="Ps4Page" IsVisible="{Binding IsPs4Page}">
                 <views:Ps4View DataContext="{Binding Ps4}" />
             </Panel>
+            <Panel Grid.Row="1" Name="ZstdPage" IsVisible="{Binding IsZstdPage}">
+                <views:ZstdView DataContext="{Binding Zstd}" />
+            </Panel>
             <Panel Grid.Row="1" Name="FtpPage" IsVisible="{Binding IsFtpPage}">
                 <views:FtpView DataContext="{Binding Ftp}" />
             </Panel>
