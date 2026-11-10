@@ -135,6 +135,15 @@ public sealed class AppSettings
     /// <summary>PS4 PKG: thư mục xuất dùng chung cho năm chức năng.</summary>
     public string? Ps4OutputFolder { get; set; }
 
+    /// <summary>Trang ZSTD PS5 (beta): thư mục game, thư mục xuất, mức nén, thẻ đang mở.</summary>
+    public string? ZstdSourcePath { get; set; }
+
+    public string? ZstdOutputFolder { get; set; }
+
+    public int ZstdLevel { get; set; } = 5;
+
+    public string? ZstdMode { get; set; }
+
     /// <summary>PS4 PKG: chế độ đầy đủ (digest + kiểm tra toàn vẹn khi đóng gói, đọc lại kiểm tra khi xả).</summary>
     public bool Ps4FullVerify { get; set; }
 

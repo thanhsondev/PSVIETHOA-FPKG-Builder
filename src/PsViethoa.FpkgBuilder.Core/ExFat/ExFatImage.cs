@@ -91,6 +91,18 @@ public sealed class ExFatImage : IDisposable
         ReadVolumeLabel();
     }
 
+    /// <summary>Chế độ PFS: cây thư mục lấy từ ảnh PFS, không có cấu trúc exFAT.</summary>
+    private ExFatImage(string path, PfsFileSystem pfs)
+    {
+        Path = path;
+        _reader = pfs;
+        _fileLength = pfs.Length;
+        VolumeLengthBytes = pfs.Length;
+        Root = new ExFatEntry(string.Empty, string.Empty, true, 0, 0, pfs.RootId, false, 0x10, null);
+    }
+
+    private PfsFileSystem? Pfs => _reader as PfsFileSystem;
+
     public string Path { get; }
 
     public long VolumeOffset { get; }
@@ -142,6 +154,12 @@ public sealed class ExFatImage : IDisposable
 
     public static ExFatImage Open(string path)
     {
+        // Ảnh PFS chứa thẳng tệp game (.ffpfsc có pfs_image.dat, .ffpfs, pfs_image.dat): đọc qua lớp PFS, không có exFAT.
+        if (PfsContainer.IsContainer(path) && PfsFileSystem.TryOpen(path) is { } pfs)
+        {
+            return new ExFatImage(path, pfs);
+        }
+
         var handle = OpenReader(path);
         try
         {
@@ -190,13 +208,16 @@ public sealed class ExFatImage : IDisposable
     }
 
     /// <summary>Ảnh này nằm trong một container PFS (.ffpfsc) chứ không phải tệp exFAT thuần.</summary>
-    public bool IsPfsContainer => _reader is PfsEntryReader;
+    public bool IsPfsContainer => _reader is PfsEntryReader or PfsFileSystem;
+
+    /// <summary>Ảnh PFS chứa thẳng tệp game (không có exFAT bên trong).</summary>
+    public bool IsPfsFileSystem => _reader is PfsFileSystem;
 
     /// <summary>Tên tệp exFAT bên trong container PFS (null với ảnh .exfat thuần).</summary>
-    public string? ContainerEntryName => (_reader as PfsEntryReader)?.EntryName;
+    public string? ContainerEntryName => (_reader as PfsEntryReader)?.EntryName ?? Pfs?.EntryName;
 
     /// <summary>Kích thước lưu trữ (đã nén) của tệp exFAT bên trong container PFS; null với ảnh thuần.</summary>
-    public long? ContainerStoredLength => (_reader as PfsEntryReader)?.StoredLength;
+    public long? ContainerStoredLength => (_reader as PfsEntryReader)?.StoredLength ?? Pfs?.StoredLength;
 
     // ===================== Định vị volume =====================
 
@@ -511,6 +532,12 @@ public sealed class ExFatImage : IDisposable
             throw new ArgumentException("Not a directory", nameof(directory));
         }
 
+        return Pfs is { } pfs ? pfs.Enumerate(directory) : EnumerateExFat(directory);
+    }
+
+    private IEnumerable<ExFatEntry> EnumerateExFat(ExFatEntry directory)
+    {
+
         var data = ReadAllExtents(directory);
         var pos = 0;
         var nameBuilder = new StringBuilder(255);
@@ -650,7 +677,7 @@ public sealed class ExFatImage : IDisposable
             throw new ArgumentException("Not a file", nameof(file));
         }
 
-        return new ExFatFileStream(this, file, GetExtents(file));
+        return Pfs is { } pfs ? pfs.OpenRead(file) : new ExFatFileStream(this, file, GetExtents(file));
     }
 
     public byte[] ReadAllBytes(ExFatEntry file, long maxBytes = 64L * 1024 * 1024)

@@ -1,5 +1,20 @@
 # Changelog
 
+## 3.0.1 — 2026-11-10
+
+Fixes ported from PSVIETHOA STUDIO 2.1.0 (Ngô Phi Phương) and a new ZSTD PS5 section (beta). The Switch parts of the Studio are not included.
+
+- **PS5 Build PKG: PFS sources.** `.ffpfsc` files that hold a raw PFS image (`pfs_image.dat`) instead of an exFAT image — the layout ShadowMountPlus recommends, made by MkPFS `--raw`, ps5-ffpfs-cli, ps5-exfat-builder… — failed with "not a valid exFAT image". They now open, as do uncompressed `.ffpfs` images and a bare `pfs_image.dat`: the app reads the game files straight from the (nested) PFS through LibProsperoPkg (`ExFat/PfsFileSystem.cs`), so inspect, build, extraction to the temp folder and the Dokan drive work as for exFAT. The pickers and drag & drop accept them; the source chip / `fpkg-cli inspect` say "PFS image". Tested with MkPFS 1.1.0 images (exFAT-in-PFS, raw-in-PFS, `.ffpfs`, `pfs_image.dat`): every package's files match the one built from the folder (only `param.json` `creationDate` differs).
+- **PS4 PKG: faster extraction.** Files are extracted in parallel (large files decrypted in 4 MiB segments on several threads, then written and hashed in order; small files several at a time). LibOrbisPkg gets the Studio's two fixes: AES-XTS with one ECB call per sector (`XtsDecryptReader.cs`) and `ChunkedMemoryReader` reading only the part of each chunk (it read the whole request before). Output byte-identical (Ninja Gaiden Σ CUSA25891, 581 files, compared with PSVIETHOA STUDIO 2.1.0).
+- **New sidebar section: ZSTD PS5 (beta)** — *Pack ZSTD*, *Unpack ZSTD* and *Patch ZSTD*:
+  - ps5-dump-forge ZSTD packs (`ampr_zstd.index` + `ampr_zstd-NNN.pak`, 256 KiB chunks) with the **ampr-emu-ng 0.3.4** runtime (`libs/ampr`, GPL-3.0-or-later). About half the size; the source folder is never modified.
+  - *Patch ZSTD* adds / replaces files (translations) in a packed game without unpacking it — overwritten in place when a file fits, the pack tail rewritten otherwise, an undo folder for every patch. Shown only with the Vietnamese UI.
+  - `ampr_emu.index` check and repair (games whose index lists wrong sizes cannot see those files).
+  - Same rules as ps5-dump-forge 0.5.5: `*.ini` (e.g. `dlc_emu.ini`) is never packed.
+  - Layout as in the Studio, larger: drop zone, Fast / Balanced / Small / Smallest presets, game card with the packing plan, speed / elapsed / remaining / processed / ratio, log. Every string in Vietnamese and English.
+  - CLI: `zstd-info`, `zstd-list`, `zstd-pack`, `zstd-unpack`, `zstd-reindex`, `zstd-patch`, `zstd-undo`.
+- Test hooks: `PSVIETHOA_PAGE=ZstdPack|ZstdUnpack|ZstdPatch`, `PSVIETHOA_ZSTD_SOURCE / _OUTPUT / _PATCH`, `PSVIETHOA_ZSTD_AUTOSTART=1`.
+
 ## 3.0.0 — 2026-11-02
 
 A big update: the app grows from a PS5 FPKG builder into a toolbox for PS4 packages, PS5 file transfer and save resigning. The PS5 FPKG pages keep the 2.2.7 mechanism unchanged.

@@ -16,6 +16,9 @@ public sealed class PfsContainer : IDisposable
 {
     public const string Extension = ".ffpfsc";
 
+    /// <summary>Đuôi .ffpfs — ảnh PFS không nén chứa thẳng thư mục game.</summary>
+    public const string RawExtension = ".ffpfs";
+
     private const long PfsVersion2 = 2;
     private const long PfsMagic = 0x1332A0B;
 
@@ -68,7 +71,8 @@ public sealed class PfsContainer : IDisposable
             }
 
             using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            return TryLocateSuperblock(handle, string.Equals(System.IO.Path.GetExtension(path), Extension, StringComparison.OrdinalIgnoreCase), out _);
+            var ext = System.IO.Path.GetExtension(path);
+            return TryLocateSuperblock(handle, string.Equals(ext, Extension, StringComparison.OrdinalIgnoreCase) || string.Equals(ext, RawExtension, StringComparison.OrdinalIgnoreCase), out _);
         }
         catch (Exception)
         {
@@ -115,6 +119,27 @@ public sealed class PfsContainer : IDisposable
         }
 
         return false;
+    }
+
+    /// <summary>Vị trí superblock PFS của tệp (dò ngược từ cuối với đuôi .ffpfsc / .ffpfs).</summary>
+    internal static bool TryLocate(string path, out long offset)
+    {
+        offset = 0;
+        try
+        {
+            using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var ext = System.IO.Path.GetExtension(path);
+            var scan = string.Equals(ext, Extension, StringComparison.OrdinalIgnoreCase) || string.Equals(ext, RawExtension, StringComparison.OrdinalIgnoreCase);
+            return TryLocateSuperblock(handle, scan, out offset);
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     /// <summary>Mở container và chọn tệp exFAT bên trong (ưu tiên đuôi .exfat, không có thì lấy tệp lớn nhất).</summary>

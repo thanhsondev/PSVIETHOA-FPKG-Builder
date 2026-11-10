@@ -154,6 +154,13 @@ internal static class CommandLine
                 "ps4-patch" => await Ps4Commands.PatchAsync(arguments),
                 "ps4-dlc" => await Ps4Commands.DlcAsync(arguments),
                 "ps4-merge" => await Ps4Commands.MergeAsync(arguments),
+                "zstd-info" => ZstdCommands.Info(arguments),
+                "zstd-list" => ZstdCommands.List(arguments),
+                "zstd-pack" => ZstdCommands.Pack(arguments),
+                "zstd-unpack" => ZstdCommands.Unpack(arguments),
+                "zstd-reindex" => ZstdCommands.Reindex(arguments),
+                "zstd-patch" => ZstdCommands.Patch(arguments),
+                "zstd-undo" => ZstdCommands.Undo(arguments),
                 _ => Unknown(command),
             };
         }
@@ -354,7 +361,9 @@ internal static class CommandLine
         }
         else if (metadata.IsExFat)
         {
-            Console.WriteLine(metadata.IsPfsContainer
+            Console.WriteLine(metadata.IsPfsFileSystem
+                ? Loc.F("Cli.SourcePfsFs", Path.GetFullPath(source), metadata.ContainerEntryName ?? "—", metadata.ContainerStoredLength is { } fsStored ? Formatters.Size(fsStored) : "—", metadata.AppRootInImage)
+                : metadata.IsPfsContainer
                 ? Loc.F("Cli.SourcePfs", Path.GetFullPath(source), metadata.ContainerEntryName ?? "—", metadata.ContainerStoredLength is { } stored ? Formatters.Size(stored) : "—", metadata.VolumeLabel ?? "—", metadata.AppRootInImage)
                 : Loc.F("Cli.SourceExFat", Path.GetFullPath(source), metadata.VolumeLabel ?? "—", metadata.AppRootInImage));
         }

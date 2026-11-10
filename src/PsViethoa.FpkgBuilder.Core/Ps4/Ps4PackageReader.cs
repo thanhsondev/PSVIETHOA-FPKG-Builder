@@ -279,38 +279,112 @@ public static class Ps4PackageReader
         long completed = 0;
         var index = 0;
         var phase = Loc.T("Ps4.Phase.Extracting");
-        foreach (var file in files)
+        // Xả song song (từ PSVIETHOA STUDIO 2.1.0). Chuỗi đọc PFS (MemoryMapped → XTS theo luồng → PFSC) không giữ trạng thái chung:
+        // tệp lớn giải mã nhiều đoạn 4 MiB cùng lúc rồi ghi + băm đúng thứ tự; tệp nhỏ xả nhiều tệp cùng lúc.
+        var gate = new object();
+        var workers = Math.Clamp(Environment.ProcessorCount, 2, 16);
+        const int Segment = 4 << 20;
+        void Report(string relative)
+        {
+            lock (gate)
+            {
+                if (watch.Elapsed.TotalSeconds - lastReport < 0.2)
+                {
+                    return;
+                }
+
+                var done = Interlocked.Read(ref completed);
+                var rate = meter.Update(done, total);
+                job.Progress(new Ps4Progress(phase, relative, (request.Verify ? 80 : 97) * done / (double)Math.Max(1, total), done, total, rate.Speed, rate.Eta));
+                lastReport = watch.Elapsed.TotalSeconds;
+            }
+        }
+
+        void Finish(string relative, long size, byte[] sha)
+        {
+            var i = Interlocked.Increment(ref index);
+            lock (gate)
+            {
+                records[relative] = new Ps4ManifestFile(relative, size, Convert.ToHexString(sha).ToLowerInvariant());
+            }
+
+            job.Log(Loc.F("Ps4.Core.FileExtracted", i, files.Length, relative, size.ToString("N0", CultureInfo.InvariantCulture)));
+        }
+
+        string Prepare(PfsReader.File file)
+        {
+            var destination = Ps4Files.SafeChild(image, Relative(file));
+            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(destination)!);
+            return destination;
+        }
+
+        var options = new ParallelOptions { MaxDegreeOfParallelism = workers, CancellationToken = job.Token };
+        var segments = Enumerable.Range(0, workers).Select(_ => new byte[Segment]).ToArray();
+        foreach (var file in files.Where(f => f.size > Segment * 2L))
         {
             job.Token.ThrowIfCancellationRequested();
             var relative = Relative(file);
-            var destination = Ps4Files.SafeChild(image, relative);
-            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(destination)!);
+            var destination = Prepare(file);
             using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            using (var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.Read, buffer.Length))
+            using (var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.Read, 1 << 20))
             using (var view = file.GetView())
             {
+                output.SetLength(file.size);
                 for (long position = 0; position < file.size;)
                 {
-                    job.Token.ThrowIfCancellationRequested();
-                    var length = (int)Math.Min(buffer.Length, file.size - position);
-                    view.Read(position, buffer, 0, length);
-                    output.Write(buffer, 0, length);
-                    hash.AppendData(buffer, 0, length);
-                    position += length;
-                    if (watch.Elapsed.TotalSeconds - lastReport >= 0.2)
+                    var batchStart = position;
+                    var count = (int)Math.Min(workers, (file.size - position + Segment - 1) / Segment);
+                    Parallel.For(0, count, options, k =>
                     {
-                        var done = completed + position;
-                        var rate = meter.Update(done, total);
-                        job.Progress(new Ps4Progress(phase, relative, (request.Verify ? 80 : 97) * done / (double)Math.Max(1, total), done, total, rate.Speed, rate.Eta));
-                        lastReport = watch.Elapsed.TotalSeconds;
+                        var at = batchStart + (long)k * Segment;
+                        view.Read(at, segments[k], 0, (int)Math.Min(Segment, file.size - at));
+                    });
+                    for (var k = 0; k < count; k++)
+                    {
+                        var length = (int)Math.Min(Segment, file.size - position);
+                        output.Write(segments[k], 0, length);
+                        hash.AppendData(segments[k], 0, length);
+                        position += length;
+                        Interlocked.Add(ref completed, length);
                     }
+
+                    Report(relative);
                 }
             }
 
-            completed += file.size;
-            index++;
-            records[relative] = new Ps4ManifestFile(relative, file.size, Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant());
-            job.Log(Loc.F("Ps4.Core.FileExtracted", index, files.Length, relative, file.size.ToString("N0", CultureInfo.InvariantCulture)));
+            Finish(relative, file.size, hash.GetHashAndReset());
+        }
+
+        try
+        {
+            Parallel.ForEach(files.Where(f => f.size <= Segment * 2L), options, () => new byte[1 << 20], (file, _, local) =>
+            {
+                var relative = Relative(file);
+                var destination = Prepare(file);
+                using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                using (var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.Read, 1 << 16))
+                using (var view = file.GetView())
+                {
+                    for (long position = 0; position < file.size;)
+                    {
+                        job.Token.ThrowIfCancellationRequested();
+                        var length = (int)Math.Min(local.Length, file.size - position);
+                        view.Read(position, local, 0, length);
+                        output.Write(local, 0, length);
+                        hash.AppendData(local, 0, length);
+                        position += length;
+                        Interlocked.Add(ref completed, length);
+                        Report(relative);
+                    }
+                }
+
+                Finish(relative, file.size, hash.GetHashAndReset());
+                return local;
+            }, _ => { });
+        }
+        catch (AggregateException ae)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ae.Flatten().InnerExceptions[0]).Throw();
         }
 
         foreach (var meta in pkg.Metas.Metas.Where(m => (uint)m.id >= 0x400))

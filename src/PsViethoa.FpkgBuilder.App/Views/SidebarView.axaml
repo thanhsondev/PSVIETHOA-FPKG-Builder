@@ -106,7 +106,7 @@
                                     <ItemsControl ItemsSource="{Binding Items}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="shell:NavItem">
-                                                <RadioButton Classes="nav" GroupName="nav" IsChecked="{Binding IsSelected, Mode=TwoWay}" ToolTip.Tip="{Binding Tip}" AutomationProperties.Name="{Binding Title}">
+                                                <RadioButton Classes="nav" GroupName="nav" IsVisible="{Binding IsShown}" IsChecked="{Binding IsSelected, Mode=TwoWay}" ToolTip.Tip="{Binding Tip}" AutomationProperties.Name="{Binding Title}">
                                                     <Panel Height="44">
                                                         <Border Classes="navhover" CornerRadius="12" Background="#0FFFFFFF" />
                                                         <Border Classes="navsel" CornerRadius="12" Background="{Binding SelectedBrush}" BorderBrush="{Binding SelectedBorderBrush}" BorderThickness="1" />

@@ -211,6 +211,22 @@ public partial class MainWindow : Window
                 {
                     ViewModel.CurrentPage = startPage;
 
+                    // Trang ZSTD: PSVIETHOA_ZSTD_SOURCE / _OUTPUT / _PATCH = đường dẫn (kèm PSVIETHOA_ZSTD_AUTOSTART=1 để chạy rồi chụp).
+                    if (Environment.GetEnvironmentVariable("PSVIETHOA_ZSTD_SOURCE") is { Length: > 0 } zstdSource)
+                    {
+                        ViewModel.Zstd.SourcePath = zstdSource;
+                    }
+
+                    if (Environment.GetEnvironmentVariable("PSVIETHOA_ZSTD_OUTPUT") is { Length: > 0 } zstdOutput)
+                    {
+                        ViewModel.Zstd.OutputFolder = zstdOutput;
+                    }
+
+                    if (Environment.GetEnvironmentVariable("PSVIETHOA_ZSTD_PATCH") is { Length: > 0 } zstdPatch)
+                    {
+                        ViewModel.Zstd.PatchFolder = zstdPatch;
+                    }
+
                     // Điền sẵn nguồn PS4 để chụp phần xem trước game: PSVIETHOA_PS4_SOURCE=/đường/dẫn, PSVIETHOA_PS4_BASE=/đường/dẫn
                     if (Environment.GetEnvironmentVariable("PSVIETHOA_PS4_SOURCE") is { Length: > 0 } ps4Source)
                     {
@@ -450,6 +466,13 @@ public partial class MainWindow : Window
                 await Task.Delay(TimeSpan.FromSeconds(1.5));
             }
 
+            if (ViewModel != null && Environment.GetEnvironmentVariable("PSVIETHOA_ZSTD_AUTOSTART") == "1")
+            {
+                ViewModel.Zstd.SkipConfirm = true;
+                await ViewModel.Zstd.StartCommand.ExecuteAsync(null);
+                await Task.Delay(TimeSpan.FromSeconds(1.5));
+            }
+
             if (ViewModel != null && Environment.GetEnvironmentVariable("PSVIETHOA_SAVE_START") == "1")
             {
                 await ViewModel.Save.StartCommand.ExecuteAsync(null);
@@ -622,7 +645,7 @@ public partial class MainWindow : Window
                 return path;
             }
 
-            if (File.Exists(path) && (SourceLocator.HasGp5Extension(path) || SourceLocator.HasImageExtension(path) || ExFatImage.IsExFatFile(path) || UfsImage.IsUfsFile(path)))
+            if (File.Exists(path) && (SourceLocator.HasGp5Extension(path) || SourceLocator.HasImageExtension(path) || ExFatImage.IsExFatFile(path) || UfsImage.IsUfsFile(path) || PfsContainer.IsContainer(path)))
             {
                 return path;
             }

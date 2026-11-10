@@ -42,6 +42,7 @@
 |---|---|---|
 | <img src="https://img.shields.io/badge/PS5-FPKG-3B82F6" /> | **Build PKG · Build Update PKG · Extract PKG · Queue** | PS5 FPKG (FIH debug) from an app folder, an `.exfat` / `.ffpfsc` / `.ffpkg` image or a `.gp5` project — through **Sony's Publishing Tools 2.79** (default) or Drakmor's **LibProsperoPkg** engine. Delta updates against an installed base, package inspection / extraction, parallel build queue. *Unchanged from 2.2.7.* |
 | <img src="https://img.shields.io/badge/PS4-PKG-6366F1" /> | **Extract PKG · Build Base · Build Update · Build DLC · Merge Base + Update** | PS4 fake PKGs with **orbis-pub-cmd 3.87** (CyB1K patch) and **LibOrbisPkg**, following the PSVIETHOA STUDIO workflow. Live preview of the game (icon, title, Content ID, version), `param.sfo` editor, per-file extraction. |
+| <img src="https://img.shields.io/badge/ZSTD-PS5-22C55E" /> | **Pack ZSTD · Unpack ZSTD · Patch ZSTD** *(beta)* | ps5-dump-forge ZSTD packs with the **ampr-emu-ng 0.3.4** runtime: the game shrinks to about half, unpacks byte-exact, and translations can be patched into a packed game without unpacking it (Vietnamese UI). |
 | <img src="https://img.shields.io/badge/PS5-FTP-14B8A6" /> | **PS5 FTP** | Two-pane file manager for the PS5's FTP server (ftpsrv, etaHEN…): drag files between the panes or from Finder / Explorer, multi-connection transfers with resume, rename / delete / new folder, saved consoles. |
 | <img src="https://img.shields.io/badge/SAVE-Resign-F59E0B" /> | **Resign Save** | Re-own PS4 / PS5 saves to your Account ID. Decrypted saves are fixed right on the computer; encrypted ones go through **garlic-savemgr** on the PS5 (the app loads it for you). |
 
@@ -162,6 +163,7 @@ libs/                               third-party, replaced only as a whole:
   LibOrbisPkg/                        PS4 PKG / PFS / SFO (Maxton, LGPL-3.0, source included)
   orbis-pub/                          PS4 Fake PKG Tools 3.87 (CyB1K), original + fast engine
   garlic-savemgr/                     PS5 save payload (earthonion), source included
+  ampr/                               ampr-emu-ng 0.3.4 + ampr_emu 0.4.2.1 runtimes for ZSTD packs (GPL-3.0-or-later)
 ```
 </details>
 
@@ -190,6 +192,7 @@ libs/                               third-party, replaced only as a whole:
 - **Maxton** — [LibOrbisPkg](https://github.com/maxton/LibOrbisPkg) (LGPL-3.0; the DLL is linked as a separate assembly and its source ships in `libs/LibOrbisPkg`).
 - **CyB1K** — PS4 Fake PKG Tools 3.87 (`orbis-pub-cmd`).
 - **earthonion** — garlic-savemgr (PS5 save payload).
+- **quer3q** — [ps5-dump-forge](https://github.com/quer3q/ps5-dump-forge) (ZSTD pack format) and [ampr-emu-ng](https://github.com/quer3q/ampr-emu-ng); **drakmor** — [ampr_emu](https://github.com/drakmor/ampr_emu). All GPL-3.0-or-later; the runtimes ship unmodified in `libs/ampr`.
 - [Wine](https://www.winehq.org/) (LGPL-2.1) runs the Windows toolkits on macOS / Linux; [Dokan](https://github.com/dokan-dev/dokany) mounts images on Windows.
 - Fonts: JetBrains Mono & Inter (SIL OFL). Icons: Material Design Icons (Apache 2.0).
 

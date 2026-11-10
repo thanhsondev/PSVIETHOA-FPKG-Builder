@@ -19,6 +19,9 @@ public sealed class SourceMetadata
     /// <summary>Ảnh exFAT nằm trong container PFS (.ffpfsc).</summary>
     public bool IsPfsContainer { get; set; }
 
+    /// <summary>Ảnh PFS chứa thẳng tệp game (.ffpfsc có pfs_image.dat, .ffpfs) — không có exFAT bên trong.</summary>
+    public bool IsPfsFileSystem { get; set; }
+
     /// <summary>Tên tệp exFAT bên trong container và kích thước lưu trữ (đã nén).</summary>
     public string? ContainerEntryName { get; set; }
 

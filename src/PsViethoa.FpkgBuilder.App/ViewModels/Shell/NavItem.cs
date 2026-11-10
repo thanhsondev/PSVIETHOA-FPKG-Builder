@@ -11,6 +11,9 @@ public enum AppPage
     Ps5Update,
     Ps5Extract,
     Ps5Queue,
+    ZstdPack,
+    ZstdUnpack,
+    ZstdPatch,
     Ps4Extract,
     Ps4Base,
     Ps4Patch,
@@ -87,6 +90,9 @@ public sealed partial class NavItem : ObservableObject
     public BoxShadows RailGlow => ShellBrushes.Glow(Platform);
 
     [ObservableProperty] private bool _isSelected;
+
+    /// <summary>Mục có hiện trên thanh bên không (Vá ZSTD chỉ hiện với giao diện tiếng Việt).</summary>
+    [ObservableProperty] private bool _isShown = true;
 
     /// <summary>Trang này đang chạy việc nền (tạo gói, truyền tệp…): chấm nhấp nháy bên cạnh tiêu đề.</summary>
     [ObservableProperty] private bool _isBusy;

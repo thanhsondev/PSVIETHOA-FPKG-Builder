@@ -23,6 +23,9 @@ public partial class MainViewModel
     /// <summary>Trang PS4 PKG: xả, đóng base / update / DLC, gộp base + update.</summary>
     public Ps4ViewModel Ps4 { get; private set; } = null!;
 
+    /// <summary>Trang ZSTD PS5 (beta): đóng / giải / vá gói ampr_zstd.</summary>
+    public ZstdViewModel Zstd { get; private set; } = null!;
+
     /// <summary>Trang FTP PS5.</summary>
     public FtpViewModel Ftp { get; private set; } = null!;
 
@@ -46,6 +49,11 @@ public partial class MainViewModel
     public bool IsPs4Page => CurrentPage is AppPage.Ps4Extract or AppPage.Ps4Base or AppPage.Ps4Patch or AppPage.Ps4Dlc or AppPage.Ps4Merge;
 
     public bool IsFtpPage => CurrentPage == AppPage.Ftp;
+
+    public bool IsZstdPage => CurrentPage is AppPage.ZstdPack or AppPage.ZstdUnpack or AppPage.ZstdPatch;
+
+    /// <summary>Vá ZSTD (thêm bản Việt hoá vào game đã đóng) chỉ có trong giao diện tiếng Việt.</summary>
+    private static bool ZstdPatchAllowed => Loc.Current.Language == Loc.Vietnamese;
 
     /// <summary>Màn hình Tạo gói / Tạo gói Update của PS5 đang hiện (chế độ cũ và đang ở nhóm PS5).</summary>
     public bool ShowPs5Build => IsPs5Page && ShowBuildView;
@@ -78,6 +86,7 @@ public partial class MainViewModel
     {
         Ps4 = new Ps4ViewModel(_settings, _dialogs);
         Ftp = new FtpViewModel(_settings, _dialogs);
+        Zstd = new ZstdViewModel(_settings, _dialogs);
         Save = new SaveViewModel(_settings, _dialogs);
 
         NavGroups =
@@ -89,21 +98,27 @@ public partial class MainViewModel
                 new NavItem(AppPage.Ps5Extract, Platform.Ps5, 3, "Nav.Ps5Extract", "Nav.Ps5Extract.Sub", "Nav.Ps5Extract.Tip", "IconPackageDown"),
                 new NavItem(AppPage.Ps5Queue, Platform.Ps5, 4, "Nav.Ps5Queue", "Nav.Ps5Queue.Sub", "Nav.Ps5Queue.Tip", "IconFileTree"),
             ]),
+            new NavGroup(Platform.Ps5, "Nav.Group.Zstd",
+            [
+                new NavItem(AppPage.ZstdPack, Platform.Ps5, 5, "Nav.ZstdPack", "Nav.ZstdPack.Sub", "Nav.ZstdPack.Tip", "IconZip"),
+                new NavItem(AppPage.ZstdUnpack, Platform.Ps5, 6, "Nav.ZstdUnpack", "Nav.ZstdUnpack.Sub", "Nav.ZstdUnpack.Tip", "IconFolderDownload"),
+                new NavItem(AppPage.ZstdPatch, Platform.Ps5, 7, "Nav.ZstdPatch", "Nav.ZstdPatch.Sub", "Nav.ZstdPatch.Tip", "IconPencil"),
+            ]),
             new NavGroup(Platform.Ps4, "Nav.Group.Ps4",
             [
-                new NavItem(AppPage.Ps4Extract, Platform.Ps4, 5, "Nav.Ps4Extract", "Nav.Ps4Extract.Sub", "Nav.Ps4Extract.Tip", "IconPackageDown"),
-                new NavItem(AppPage.Ps4Base, Platform.Ps4, 6, "Nav.Ps4Base", "Nav.Ps4Base.Sub", "Nav.Ps4Base.Tip", "IconPackage"),
-                new NavItem(AppPage.Ps4Patch, Platform.Ps4, 7, "Nav.Ps4Patch", "Nav.Ps4Patch.Sub", "Nav.Ps4Patch.Tip", "IconRefresh"),
-                new NavItem(AppPage.Ps4Dlc, Platform.Ps4, 8, "Nav.Ps4Dlc", "Nav.Ps4Dlc.Sub", "Nav.Ps4Dlc.Tip", "IconPuzzle"),
-                new NavItem(AppPage.Ps4Merge, Platform.Ps4, 9, "Nav.Ps4Merge", "Nav.Ps4Merge.Sub", "Nav.Ps4Merge.Tip", "IconMerge"),
+                new NavItem(AppPage.Ps4Extract, Platform.Ps4, 8, "Nav.Ps4Extract", "Nav.Ps4Extract.Sub", "Nav.Ps4Extract.Tip", "IconPackageDown"),
+                new NavItem(AppPage.Ps4Base, Platform.Ps4, 9, "Nav.Ps4Base", "Nav.Ps4Base.Sub", "Nav.Ps4Base.Tip", "IconPackage"),
+                new NavItem(AppPage.Ps4Patch, Platform.Ps4, 10, "Nav.Ps4Patch", "Nav.Ps4Patch.Sub", "Nav.Ps4Patch.Tip", "IconRefresh"),
+                new NavItem(AppPage.Ps4Dlc, Platform.Ps4, 11, "Nav.Ps4Dlc", "Nav.Ps4Dlc.Sub", "Nav.Ps4Dlc.Tip", "IconPuzzle"),
+                new NavItem(AppPage.Ps4Merge, Platform.Ps4, 12, "Nav.Ps4Merge", "Nav.Ps4Merge.Sub", "Nav.Ps4Merge.Tip", "IconMerge"),
             ]),
             new NavGroup(Platform.Ftp, "Nav.Group.Ftp",
             [
-                new NavItem(AppPage.Ftp, Platform.Ftp, 10, "Nav.Ftp", "Nav.Ftp.Sub", "Nav.Ftp.Tip", "IconLan"),
+                new NavItem(AppPage.Ftp, Platform.Ftp, 13, "Nav.Ftp", "Nav.Ftp.Sub", "Nav.Ftp.Tip", "IconLan"),
             ]),
             new NavGroup(Platform.Save, "Nav.Group.Save",
             [
-                new NavItem(AppPage.SaveResign, Platform.Save, 11, "Nav.SaveResign", "Nav.SaveResign.Sub", "Nav.SaveResign.Tip", "IconSave"),
+                new NavItem(AppPage.SaveResign, Platform.Save, 14, "Nav.SaveResign", "Nav.SaveResign.Sub", "Nav.SaveResign.Tip", "IconSave"),
             ]),
         ];
 
@@ -112,13 +127,31 @@ public partial class MainViewModel
             item.PropertyChanged += OnNavItemChanged;
         }
 
+        ApplyZstdPatchVisibility();
+
         PropertyChanged += OnShellSourceChanged;
         Extraction.PropertyChanged += OnShellSourceChanged;
         Queue.PropertyChanged += OnShellSourceChanged;
         Ps4.PropertyChanged += OnShellSourceChanged;
         Ftp.PropertyChanged += OnShellSourceChanged;
+        Zstd.PropertyChanged += OnShellSourceChanged;
         Save.PropertyChanged += OnShellSourceChanged;
         ApplyPageSelection();
+    }
+
+    /// <summary>Mục Vá ZSTD chỉ hiện khi giao diện tiếng Việt; đổi sang tiếng Anh khi đang ở đó thì về Đóng ZSTD.</summary>
+    private void ApplyZstdPatchVisibility()
+    {
+        var allowed = ZstdPatchAllowed;
+        foreach (var item in NavGroups.SelectMany(group => group.Items).Where(item => item.Page == AppPage.ZstdPatch))
+        {
+            item.IsShown = allowed;
+        }
+
+        if (!allowed && CurrentPage == AppPage.ZstdPatch && !Zstd.IsBusy)
+        {
+            CurrentPage = AppPage.ZstdPack;
+        }
     }
 
     /// <summary>Đặt trang đã mở lần trước (cài đặt), sau khi các chế độ PS5 đã nạp xong.</summary>
@@ -126,7 +159,7 @@ public partial class MainViewModel
     {
         if (Enum.TryParse<AppPage>(_settings.LastPage, out var page) && Enum.IsDefined(page))
         {
-            CurrentPage = page;
+            CurrentPage = page == AppPage.ZstdPatch && !ZstdPatchAllowed ? AppPage.ZstdPack : page;
         }
 
         SidebarCollapsed = _settings.SidebarCollapsed;
@@ -192,6 +225,26 @@ public partial class MainViewModel
                     case AppPage.Ftp:
                         Ftp.EnsureLoaded();
                         break;
+                    case AppPage.ZstdPatch when !ZstdPatchAllowed:
+                        // Vá ZSTD chỉ có trong giao diện tiếng Việt (thanh bên đã ẩn mục; đây chặn đường vào khác: cài đặt, móc kiểm thử).
+                        if (!Zstd.IsBusy)
+                        {
+                            Zstd.Mode = ZstdMode.Pack;
+                        }
+
+                        CurrentPage = AppPage.ZstdPack;
+                        return;
+                    case AppPage.ZstdPack or AppPage.ZstdUnpack or AppPage.ZstdPatch:
+                        var mode = value switch { AppPage.ZstdUnpack => ZstdMode.Unpack, AppPage.ZstdPatch => ZstdMode.Patch, _ => ZstdMode.Pack };
+                        if (Zstd.IsBusy && Zstd.Mode != mode)
+                        {
+                            // Đang chạy một việc ZSTD: giữ trang của việc đó (một trang dùng chung bộ tiến độ / nhật ký).
+                            CurrentPage = Zstd.Mode switch { ZstdMode.Unpack => AppPage.ZstdUnpack, ZstdMode.Patch => AppPage.ZstdPatch, _ => AppPage.ZstdPack };
+                            return;
+                        }
+
+                        Zstd.Mode = mode;
+                        break;
                 }
             }
             finally
@@ -244,6 +297,7 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(IsPs5Page));
         OnPropertyChanged(nameof(IsPs4Page));
         OnPropertyChanged(nameof(IsFtpPage));
+        OnPropertyChanged(nameof(IsZstdPage));
         OnPropertyChanged(nameof(IsSavePage));
         RaisePs5Visibility();
         RefreshPageHeader();
@@ -283,9 +337,14 @@ public partial class MainViewModel
             OnPropertyChanged(nameof(PageAccentBrush));
         }
 
-        if (sender is Ps4ViewModel or FtpViewModel or SaveViewModel && e.PropertyName == "StatusText")
+        if (sender is Ps4ViewModel or FtpViewModel or SaveViewModel or ZstdViewModel && e.PropertyName == "StatusText")
         {
             OnPropertyChanged(nameof(FooterStatusText));
+        }
+
+        if (sender is ZstdViewModel && e.PropertyName == nameof(ZstdViewModel.IsBusy))
+        {
+            UpdateBusyBadges();
         }
 
         if (e.PropertyName is nameof(IsBuilding) or nameof(ExtractionViewModel.IsBusy) or nameof(QueueViewModel.IsBusy)
@@ -318,6 +377,9 @@ public partial class MainViewModel
                     AppPage.Ps5Queue => Queue.IsBusy,
                     AppPage.Ps4Extract or AppPage.Ps4Base or AppPage.Ps4Patch or AppPage.Ps4Dlc or AppPage.Ps4Merge => Ps4.IsBusy && Ps4.BusyMode == Ps4ModeOf(item.Page),
                     AppPage.Ftp => Ftp.IsBusy,
+                    AppPage.ZstdPack => Zstd.IsBusy && Zstd.Mode == ZstdMode.Pack,
+                    AppPage.ZstdUnpack => Zstd.IsBusy && Zstd.Mode == ZstdMode.Unpack,
+                    AppPage.ZstdPatch => Zstd.IsBusy && Zstd.Mode == ZstdMode.Patch,
                     AppPage.SaveResign => Save.IsBusy,
                     _ => false,
                 };
@@ -340,6 +402,7 @@ public partial class MainViewModel
 
     private void RefreshShellTexts()
     {
+        ApplyZstdPatchVisibility();
         foreach (var group in NavGroups)
         {
             group.RefreshTexts();
