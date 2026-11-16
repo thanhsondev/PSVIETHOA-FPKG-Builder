@@ -189,6 +189,11 @@
                 <!-- Giáng sinh: làng tuyết cuối thanh bên, chỉ hiện khi danh sách công cụ còn chỗ (MainWindow.FitVillage) -->
                 <Border Name="VillageHost" DockPanel.Dock="Bottom" Height="150" Margin="-12,6,-12,-2" IsVisible="False" IsHitTestVisible="False" />
 
+                <!-- Khung Hệ thống (port từ PSVIETHOA STUDIO): tên CPU, tải / nhiệt CPU, nhiệt độ và đọc/ghi từng ổ. Chỉ Windows. -->
+                <Border Name="SystemHost" DockPanel.Dock="Bottom" Margin="0,6,0,0" IsVisible="{Binding !IsSidebarCompact}">
+                    <c:SystemPanel />
+                </Border>
+
                 <!-- ===== Nhóm và mục: lưới hai cột như PSVIETHOA STUDIO; thu gọn thì chỉ còn biểu tượng ===== -->
                 <ScrollViewer Name="NavScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,3,0">
                     <Panel>
