@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:PsViethoa.FpkgBuilder.App.ViewModels"
+             xmlns:c="using:PsViethoa.FpkgBuilder.App.Controls"
              xmlns:models="using:PsViethoa.FpkgBuilder.Core.Models"
              xmlns:conv="using:PsViethoa.FpkgBuilder.App.Converters"
              xmlns:l="using:PsViethoa.FpkgBuilder.App.Localization"
@@ -66,8 +67,8 @@
         </Style>
         <!-- Chip ổ đĩa (một dòng, gọn) -->
         <Style Selector="Button.drive">
-            <Setter Property="Padding" Value="10,0" />
-            <Setter Property="MinHeight" Value="36" />
+            <Setter Property="Padding" Value="9,6" />
+            <Setter Property="MinHeight" Value="52" />
             <Setter Property="Margin" Value="0,0,6,0" />
             <Setter Property="Background" Value="{DynamicResource MutedBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
@@ -298,10 +299,7 @@
                         <DataTemplate x:DataType="vm:DriveChoice">
                             <Button Classes="drive" Classes.on="{Binding IsSelected}" ToolTip.Tip="{Binding Tip}"
                                     Command="{Binding $parent[UserControl].((vm:RemotePkgViewModel)DataContext).PickDriveCommand}" CommandParameter="{Binding}">
-                                <StackPanel Orientation="Horizontal" Spacing="7">
-                                    <TextBlock Text="{Binding Letter}" FontWeight="Bold" FontSize="13.5" VerticalAlignment="Center" />
-                                    <TextBlock Text="{Binding Free}" FontSize="11.5" Opacity="0.8" VerticalAlignment="Center" />
-                                </StackPanel>
+                                <c:DriveTile />
                             </Button>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

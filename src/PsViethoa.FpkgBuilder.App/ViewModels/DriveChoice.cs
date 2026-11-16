@@ -20,6 +20,26 @@ public sealed partial class DriveChoice : ObservableObject
 
     public long FreeBytes { get; init; }
 
+    public long TotalBytes { get; init; }
+
+    /// <summary>Nhãn ổ (vd "DATA", "PS5"); trống thì hiện định dạng (NTFS, exFAT…).</summary>
+    public string Label { get; init; } = string.Empty;
+
+    /// <summary>"DATA (D:)" như This PC của Windows; trên macOS/Linux chỉ tên ổ.</summary>
+    public string Title => OperatingSystem.IsWindows() && Label.Length > 0 ? $"{Label} ({Letter})" : Letter;
+
+    /// <summary>"171 GB trống / 1,8 TB".</summary>
+    public string Capacity { get; init; } = string.Empty;
+
+    /// <summary>Phần trăm đã dùng (0..100) cho thanh mức đầy.</summary>
+    public double UsedPercent => TotalBytes > 0 ? Math.Clamp(100.0 * (TotalBytes - FreeBytes) / TotalBytes, 0, 100) : 0;
+
+    /// <summary>Màu thanh như Explorer: xanh dương; đỏ khi đã dùng trên 90 % (sắp đầy).</summary>
+    public Avalonia.Media.IBrush UsageBrush => UsedPercent > 90 ? Danger : Normal;
+
+    private static readonly Avalonia.Media.IBrush Normal = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#26A0DA"));
+    private static readonly Avalonia.Media.IBrush Danger = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#DA2626"));
+
     public string Tip { get; init; } = string.Empty;
 
     [ObservableProperty] private bool _isSelected;
@@ -73,6 +93,9 @@ public sealed partial class DriveChoice : ObservableObject
                     Letter = letter,
                     Free = free,
                     FreeBytes = drive.AvailableFreeSpace,
+                    TotalBytes = drive.TotalSize,
+                    Label = string.IsNullOrWhiteSpace(drive.VolumeLabel) ? drive.DriveFormat : drive.VolumeLabel.Trim(),
+                    Capacity = Loc.F("Drive.Capacity", free, Formatters.Size(drive.TotalSize)),
                     Detail = Loc.F("Drive.Free", free),
                     Tip = $"{root} · {label} · {drive.DriveFormat} · {free} / {Formatters.Size(drive.TotalSize)}",
                 });

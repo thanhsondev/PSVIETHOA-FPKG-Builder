@@ -383,6 +383,7 @@
   "Extract.FolderPlan.In": "in {0}",
   "Extract.FolderPlan.Pending": "Once a package is open, a \"<Game name> <PPSAxxxxx>\" folder is created {0}.",
   "Extract.FolderPlan.Ready": "Creates \"{0}\" {1}.",
+  "Drive.Capacity": "{0} free / {1}",
   "Drive.Free": "{0} free",
   "Drive.NextToPackage": "Next to package",
   "Drive.NextToPackage.Tip": "Create the \"<Game name> <PPSAxxxxx>\" folder right next to the .pkg",
