@@ -51,7 +51,45 @@ public partial class MainViewModel
     /// <summary>Bề rộng thanh bên ở hệ số 1 (lưới hai cột, chữ 13,5).</summary>
     private const double SidebarBaseWidth = 316;
 
-    public double SidebarWidth => IsSidebarCompact ? 76 : Math.Round(SidebarBaseWidth * SidebarScale);
+    /// <summary>Bề rộng người dùng kéo ở mép phải thanh bên (null = tự theo cỡ cửa sổ).</summary>
+    [ObservableProperty] private double? _sidebarUserWidth;
+
+    public const double SidebarMinWidth = 190, SidebarMaxWidth = 560;
+
+    /// <summary>Dưới bề rộng này (đã chia hệ số phóng) lưới công cụ chuyển sang một cột.</summary>
+    private const double SingleColumnBelow = 250;
+
+    public double SidebarWidth => IsSidebarCompact ? 76 : Math.Round(SidebarUserWidth ?? SidebarBaseWidth * SidebarScale);
+
+    /// <summary>Thanh bên đang hẹp: mỗi công cụ một hàng.</summary>
+    public bool SidebarSingleColumn => !IsSidebarCompact && SidebarWidth / Math.Max(0.5, SidebarScale) < SingleColumnBelow;
+
+    /// <summary>Kéo mép phải thanh bên.</summary>
+    public void ResizeSidebar(double width) => SidebarUserWidth = Math.Round(Math.Clamp(width, SidebarMinWidth, SidebarMaxWidth));
+
+    /// <summary>Nháy đúp mép phải: về bề rộng tự động.</summary>
+    public void ResetSidebarWidth() => SidebarUserWidth = null;
+
+    partial void OnSidebarUserWidthChanged(double? value)
+    {
+        _settings.SidebarUserWidth = value;
+        OnPropertyChanged(nameof(SidebarWidth));
+        UpdateNavColumns();
+    }
+
+    private void UpdateNavColumns()
+    {
+        OnPropertyChanged(nameof(SidebarSingleColumn));
+        if (NavGroups == null)
+        {
+            return;
+        }
+
+        foreach (var group in NavGroups)
+        {
+            group.SetSingleColumn(SidebarSingleColumn);
+        }
+    }
 
     /// <summary>Hệ số phóng nội dung thanh bên (thu gọn thì giữ 1).</summary>
     public double SidebarContentScale => IsSidebarCompact ? 1 : SidebarScale;
@@ -60,6 +98,7 @@ public partial class MainViewModel
     {
         OnPropertyChanged(nameof(SidebarWidth));
         OnPropertyChanged(nameof(SidebarContentScale));
+        UpdateNavColumns();
     }
 
     // ───────── ô Tìm công cụ (Ctrl+K) ─────────
@@ -220,6 +259,8 @@ public partial class MainViewModel
         }
 
         SidebarCollapsed = _settings.SidebarCollapsed;
+        SidebarUserWidth = _settings.SidebarUserWidth is { } savedWidth ? Math.Clamp(savedWidth, SidebarMinWidth, SidebarMaxWidth) : null;
+        UpdateNavColumns();
     }
 
     [RelayCommand]

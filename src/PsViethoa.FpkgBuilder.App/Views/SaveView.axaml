@@ -169,10 +169,12 @@
         </Grid.RowDefinitions>
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" MinWidth="290" MaxWidth="340" />
+                <ColumnDefinition Width="*" MinWidth="290" />
                 <ColumnDefinition Width="16" />
                 <ColumnDefinition Width="2*" MinWidth="440" />
             </Grid.ColumnDefinitions>
+            <!-- Kéo khe giữa hai cột để đổi bề rộng -->
+            <GridSplitter Grid.Column="1" Grid.RowSpan="99" Classes="colsplit" ResizeDirection="Columns" />
 
             <!-- ============ TÀI KHOẢN & MÁY PS5 ============ -->
             <Border Classes="card" Padding="18,16,8,16">

@@ -364,6 +364,7 @@ public partial class MainWindow : Window
 
         // Giáng sinh: trang trí + nhạc nền (MainWindow.Xmas.cs).
         InitXmas();
+        SetupSidebarResize();
     }
 
     private async Task AutoBuildAndExitAsync(string prefix)

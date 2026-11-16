@@ -1231,6 +1231,7 @@
   "Common.Log": "Log",
   "Shell.Product": "FPKG Builder",
   "Shell.Version": "Version {0}",
+  "Shell.ResizeTip": "Drag to resize the sidebar (narrow → one column, wide → two columns) · double-click for automatic",
   "Shell.Collapse": "Collapse the sidebar (icons only)",
   "Shell.Expand": "Expand the sidebar",
   "Shell.Credits": "© PSVIETHOA — Nguyễn Thanh Sơn & Ngô Phi Phương",

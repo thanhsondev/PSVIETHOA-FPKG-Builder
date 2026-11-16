@@ -163,6 +163,8 @@
                 <ColumnDefinition Width="14" />
                 <ColumnDefinition Width="1.25*" MinWidth="460" />
             </Grid.ColumnDefinitions>
+            <!-- Kéo khe giữa hai cột để đổi bề rộng -->
+            <GridSplitter Grid.Column="1" Grid.RowSpan="99" Classes="colsplit" ResizeDirection="Columns" />
 
             <!-- Danh sách game -->
             <Border Name="GamesCard" Classes="card" Padding="12,12,6,12">

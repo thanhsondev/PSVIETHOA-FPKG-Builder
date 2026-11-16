@@ -78,6 +78,9 @@
                     </Transitions>
                 </views:SidebarView.Transitions>
             </views:SidebarView>
+            <!-- Mép phải thanh bên: kéo để đổi bề rộng (hẹp → một cột, rộng → hai cột); nháy đúp = tự động -->
+            <Border Name="SidebarGrip" Grid.Column="0" Width="8" HorizontalAlignment="Right" Margin="0,0,-4,0" Background="Transparent"
+                    Cursor="SizeWestEast" ZIndex="20" IsVisible="{Binding !IsSidebarCompact}" ToolTip.Tip="{l:T Shell.ResizeTip}" />
 
         <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto">
 
@@ -123,10 +126,12 @@
             <!-- Chia theo tỉ lệ có chặn: cửa sổ hẹp thì cột cấu hình co tới 420, cột tiến trình/nhật ký luôn còn ≥ 360. -->
             <Grid Grid.Row="1" Name="Ps5BuildPage" Margin="26,14,26,12" IsVisible="{Binding ShowPs5Build}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="5*" MinWidth="420" MaxWidth="600" />
+                    <ColumnDefinition Width="5*" MinWidth="420" />
                     <ColumnDefinition Width="18" />
                     <ColumnDefinition Width="6*" MinWidth="360" />
                 </Grid.ColumnDefinitions>
+                <!-- Kéo khe giữa hai cột để đổi bề rộng -->
+                <GridSplitter Grid.Column="1" Grid.RowSpan="99" Classes="colsplit" ResizeDirection="Columns" />
 
                 <!-- ~~~ CỘT TRÁI: CẤU HÌNH ~~~ -->
                 <ScrollViewer Grid.Column="0" Name="SettingsScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsEnabled="{Binding CanEdit}">

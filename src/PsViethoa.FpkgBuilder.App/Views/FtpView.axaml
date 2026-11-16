@@ -222,6 +222,8 @@
 
         <!-- ============ HAI KHUNG DUYỆT ============ -->
         <Grid Grid.Row="2" ColumnDefinitions="*,12,*">
+            <!-- Kéo khe giữa hai khung để đổi bề rộng -->
+            <GridSplitter Grid.Column="1" Classes="colsplit" ResizeDirection="Columns" />
 
             <!-- Máy tính -->
             <Border Name="LocalPane" Classes="card pane" Padding="12,10" DragDrop.AllowDrop="True">

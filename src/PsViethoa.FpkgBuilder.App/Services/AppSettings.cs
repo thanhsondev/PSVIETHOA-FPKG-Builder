@@ -144,6 +144,9 @@ public sealed class AppSettings
     /// <summary>Thanh bên thu gọn chỉ còn biểu tượng.</summary>
     public bool SidebarCollapsed { get; set; }
 
+    /// <summary>Bề rộng thanh bên do người dùng kéo (px); null = tự theo cỡ cửa sổ.</summary>
+    public double? SidebarUserWidth { get; set; }
+
     /// <summary>PS4 PKG: thư mục xuất dùng chung cho năm chức năng.</summary>
     public string? Ps4OutputFolder { get; set; }
 
