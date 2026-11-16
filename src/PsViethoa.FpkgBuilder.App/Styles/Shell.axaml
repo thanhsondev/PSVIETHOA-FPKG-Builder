@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:xmas="using:PsViethoa.FpkgBuilder.App.Xmas">
 
     <!--
         Khung ứng dụng 3.0.0: thanh bên theo hệ máy (PS5 FPKG · PS4 PKG · Kết nối PS5 · Save game) và đầu trang.
@@ -154,6 +155,7 @@
         <Setter Property="Margin" Value="0" />
     </Style>
     <Style Selector="RadioButton.navcell Border.navcellbg">
+        <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Background" Value="#0F1729" />
         <Setter Property="BorderBrush" Value="#1E2A45" />
         <Setter Property="Transitions">
@@ -165,15 +167,16 @@
     <Style Selector="RadioButton.navcell:pointerover Border.navcellbg">
         <Setter Property="BorderBrush" Value="#33456B" />
     </Style>
+    <!-- Thanh bên gọn như Studio 2.1.0: ô 33 px, chữ 13, biểu tượng 15 -->
     <Style Selector="RadioButton.navcell PathIcon.navglyph">
         <Setter Property="Width" Value="17" />
         <Setter Property="Height" Value="17" />
     </Style>
     <Style Selector="RadioButton.navcell TextBlock.navtitle">
-        <Setter Property="FontSize" Value="13.5" />
+        <Setter Property="FontSize" Value="14" />
     </Style>
     <Style Selector="TextBlock.navgroup">
-        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="FontSize" Value="11" />
         <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="LetterSpacing" Value="1" />
         <Setter Property="VerticalAlignment" Value="Center" />
@@ -183,17 +186,17 @@
         <Setter Property="Background" Value="#0F1729" />
         <Setter Property="BorderBrush" Value="#22304A" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="10" />
-        <Setter Property="Height" Value="40" />
+        <Setter Property="CornerRadius" Value="9" />
+        <Setter Property="Height" Value="32" />
     </Style>
     <Style Selector="TextBox.navsearch">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Foreground" Value="#E2E8F0" />
-        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontSize" Value="13" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Padding" Value="8,0" />
-        <Setter Property="MinHeight" Value="38" />
+        <Setter Property="MinHeight" Value="30" />
     </Style>
     <Style Selector="TextBox.navsearch:pointerover /template/ Border#PART_BorderElement, TextBox.navsearch:focus /template/ Border#PART_BorderElement">
         <Setter Property="Background" Value="Transparent" />
@@ -222,7 +225,7 @@
         <Setter Property="Foreground" Value="#B9C6DA" />
         <Setter Property="CornerRadius" Value="10" />
         <Setter Property="Padding" Value="0" />
-        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="MinHeight" Value="30" />
         <Setter Property="HorizontalAlignment" Value="Stretch" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -245,9 +248,97 @@
         <Setter Property="Foreground" Value="#5B6B85" />
     </Style>
 
+    <!-- ===== Màu cố định của thanh bên (luôn tối) — tách thành lớp để Giáng sinh theme sáng ("xmasday") đổi được ===== -->
+    <Style Selector="TextBlock.sidebrand">
+        <Setter Property="Foreground" Value="#F8FAFC" />
+    </Style>
+    <Style Selector="TextBlock.sideproduct">
+        <Setter Property="Foreground" Value="#7DD3FC" />
+    </Style>
+    <Style Selector="Border.sideversion">
+        <Setter Property="Background" Value="#1A7DD3FC" />
+        <Setter Property="BorderBrush" Value="#337DD3FC" />
+    </Style>
+    <Style Selector="Border.sideversion TextBlock">
+        <Setter Property="Foreground" Value="#BAE6FD" />
+    </Style>
+    <Style Selector="PathIcon.sidesearchicon">
+        <Setter Property="Foreground" Value="#7D8DA8" />
+    </Style>
+    <Style Selector="Border.sideline">
+        <Setter Property="Background" Value="#1A2440" />
+    </Style>
+    <Style Selector="Border.sidelangbox">
+        <Setter Property="Background" Value="#0F1729" />
+        <Setter Property="BorderBrush" Value="#1E2A45" />
+    </Style>
+    <Style Selector="Image.sidelogolight">
+        <Setter Property="IsVisible" Value="False" />
+    </Style>
+
+    <!-- ===== Giáng sinh: nút Noel / Nhạc (đang bật = viền + chữ xanh như nút Outline của Studio) ===== -->
+    <Style Selector="Button.xmas">
+        <Setter Property="Padding" Value="9,0" />
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
+    <Style Selector="Button.xmas TextBlock">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="#B9C6DA" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.xmas PathIcon">
+        <Setter Property="Width" Value="13" />
+        <Setter Property="Height" Value="13" />
+    </Style>
+    <Style Selector="Button.xmas.on">
+        <Setter Property="Background" Value="#12301F" />
+        <Setter Property="BorderBrush" Value="#22C55E" />
+    </Style>
+    <Style Selector="Button.xmas.on:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#173D28" />
+        <Setter Property="BorderBrush" Value="#4ADE80" />
+    </Style>
+    <Style Selector="Button.xmas.on TextBlock">
+        <Setter Property="Foreground" Value="#4ADE80" />
+    </Style>
+    <Style Selector="Button.xmas.on PathIcon">
+        <Setter Property="Foreground" Value="#4ADE80" />
+    </Style>
+
+    <!-- ===== Nút ủng hộ Ko-fi (màu chính thức #FF5E5B, chữ trắng) ===== -->
+    <Style Selector="Button.kofi">
+        <Setter Property="Background" Value="#FF5E5B" />
+        <Setter Property="BorderBrush" Value="#FF5E5B" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="#FFFFFF" />
+        <Setter Property="CornerRadius" Value="9" />
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.kofi:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#FF7774" />
+        <Setter Property="BorderBrush" Value="#FFA3A1" />
+        <Setter Property="Foreground" Value="#FFFFFF" />
+    </Style>
+    <Style Selector="Button.kofi:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#E94E4B" />
+        <Setter Property="Foreground" Value="#FFFFFF" />
+    </Style>
+    <Style Selector="Button.kofi TextBlock">
+        <Setter Property="Foreground" Value="#FFFFFF" />
+    </Style>
+
     <Style Selector="RadioButton.sidelang">
-        <Setter Property="MinHeight" Value="30" />
-        <Setter Property="Padding" Value="0,4" />
+        <Setter Property="MinHeight" Value="26" />
+        <Setter Property="Padding" Value="0,2" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="Foreground" Value="#94A3B8" />
         <Setter Property="FontSize" Value="12" />
@@ -279,4 +370,187 @@
         <Setter Property="LetterSpacing" Value="1.2" />
     </Style>
 
+    <!-- ===== Giáng sinh (lớp xmas trên SidebarView): ô công cụ kiểu tuyết — bỏ khung viền, nền hơi trong ăn vào nền xanh thông, tuyết
+         đọng mép trên; ô đang chọn sáng hơn + tuyết dày hơn thay cho viền. Tắt Noel thì về kiểu thường. ===== -->
+    <Style Selector="xmas|SnowCap.navsnow">
+        <Setter Property="IsVisible" Value="False" />
+        <Setter Property="Height" Value="16" />
+    </Style>
+    <Style Selector=":is(UserControl).xmas xmas|SnowCap.navsnow">
+        <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector=":is(UserControl).xmas RadioButton.nav:checked xmas|SnowCap.navsnow">
+        <Setter Property="Thick" Value="True" />
+    </Style>
+    <Style Selector="Border.navselsnow">
+        <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector=":is(UserControl).xmas RadioButton.nav Border.navselsnow">
+        <Setter Property="IsVisible" Value="True" />
+        <Setter Property="Opacity" Value="0" />
+        <Setter Property="Background" Value="#8C2F7A50" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.22" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector=":is(UserControl).xmas RadioButton.nav:checked Border.navselsnow">
+        <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector=":is(UserControl).xmas RadioButton.nav Border.navsel">
+        <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector=":is(UserControl).xmas RadioButton.navcell Border.navcellbg">
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="#4D1E4A33" />
+    </Style>
+    <Style Selector=":is(UserControl).xmas RadioButton.navcell:pointerover Border.navcellbg">
+        <Setter Property="Background" Value="#73245A3E" />
+    </Style>
+    <Style Selector=":is(UserControl).xmas Border.navsearch">
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="#4D1E4A33" />
+    </Style>
+
+    <!-- ===== Giáng sinh · theme SÁNG ("ngày tuyết"): thanh bên sáng theo trang (lớp xmasday do MainWindow.Xmas đặt lên SidebarView) ===== -->
+    <Style Selector=":is(UserControl).xmasday TextBlock.sidebrand">
+        <Setter Property="Foreground" Value="#10261C" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday TextBlock.sideproduct">
+        <Setter Property="Foreground" Value="#0E7490" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday Border.sideversion">
+        <Setter Property="Background" Value="#140E7490" />
+        <Setter Property="BorderBrush" Value="#4D0E7490" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday Border.sideversion TextBlock">
+        <Setter Property="Foreground" Value="#0E7490" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday PathIcon.sidesearchicon">
+        <Setter Property="Foreground" Value="#5F7F70" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday Border.sideline">
+        <Setter Property="Background" Value="#C9DFD3" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday Border.sidelangbox">
+        <Setter Property="Background" Value="#FFFFFF" />
+        <Setter Property="BorderBrush" Value="#B7D5C6" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday Image.sidelogodark">
+        <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday Image.sidelogolight">
+        <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday Ellipse.sidelogoglow">
+        <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday RadioButton.nav PathIcon.navglyph">
+        <Setter Property="Foreground" Value="#4B6B5C" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday RadioButton.nav:pointerover PathIcon.navglyph">
+        <Setter Property="Foreground" Value="#10261C" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday RadioButton.nav TextBlock.navtitle">
+        <Setter Property="Foreground" Value="#23382E" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday RadioButton.nav:pointerover TextBlock.navtitle">
+        <Setter Property="Foreground" Value="#0B1D15" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday RadioButton.nav:checked TextBlock.navtitle">
+        <Setter Property="Foreground" Value="#0B1D15" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday RadioButton.nav Border.navhover">
+        <Setter Property="Background" Value="#0F14532D" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday RadioButton.navcell Border.navcellbg">
+        <Setter Property="Background" Value="#FFFFFF" />
+        <Setter Property="BorderBrush" Value="#B7D5C6" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday RadioButton.navcell:pointerover Border.navcellbg">
+        <Setter Property="BorderBrush" Value="#7FB49A" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday RadioButton.nav Border.navtile">
+        <Setter Property="Background" Value="#FFFFFF" />
+        <Setter Property="BorderBrush" Value="#B7D5C6" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday Border.navsearch">
+        <Setter Property="Background" Value="#FFFFFF" />
+        <Setter Property="BorderBrush" Value="#B7D5C6" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday TextBox.navsearch">
+        <Setter Property="Foreground" Value="#10261C" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday TextBox.navsearch:focus">
+        <Setter Property="Foreground" Value="#0B1D15" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday Border.kbd">
+        <Setter Property="Background" Value="#EEF6F2" />
+        <Setter Property="BorderBrush" Value="#B7D5C6" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday Border.kbd TextBlock">
+        <Setter Property="Foreground" Value="#4B6B5C" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday Button.side">
+        <Setter Property="Background" Value="#FFFFFF" />
+        <Setter Property="BorderBrush" Value="#B7D5C6" />
+        <Setter Property="Foreground" Value="#3A5A4B" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday Button.side:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#EAF4EF" />
+        <Setter Property="BorderBrush" Value="#7FB49A" />
+        <Setter Property="Foreground" Value="#0B1D15" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday Button.side PathIcon">
+        <Setter Property="Foreground" Value="#3A5A4B" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday Button.side:pointerover PathIcon">
+        <Setter Property="Foreground" Value="#0B1D15" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday Button.xmas TextBlock">
+        <Setter Property="Foreground" Value="#3A5A4B" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday Button.xmas.on">
+        <Setter Property="Background" Value="#DCFCE7" />
+        <Setter Property="BorderBrush" Value="#22C55E" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday Button.xmas.on:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#CBF5D9" />
+        <Setter Property="BorderBrush" Value="#16A34A" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday Button.xmas.on TextBlock">
+        <Setter Property="Foreground" Value="#15803D" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday Button.xmas.on PathIcon">
+        <Setter Property="Foreground" Value="#15803D" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday RadioButton.sidelang">
+        <Setter Property="Foreground" Value="#4B6B5C" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday RadioButton.sidelang:checked">
+        <Setter Property="Foreground" Value="#14532D" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday RadioButton.sidelang:pointerover /template/ Border#PART_Root">
+        <Setter Property="Background" Value="#EAF4EF" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday RadioButton.sidelang:checked /template/ Border#PART_Root">
+        <Setter Property="Background" Value="#DCFCE7" />
+        <Setter Property="BorderBrush" Value="#22C55E" />
+    </Style>
+
+    <Style Selector=":is(UserControl).xmasday RadioButton.navcell Border.navcellbg">
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="#B3DCEDE4" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday RadioButton.navcell:pointerover Border.navcellbg">
+        <Setter Property="Background" Value="#E6E4F2EB" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday RadioButton.nav Border.navselsnow">
+        <Setter Property="Background" Value="#D9C9F2D8" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday Border.navsearch">
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="#B3DCEDE4" />
+    </Style>
 </Styles>

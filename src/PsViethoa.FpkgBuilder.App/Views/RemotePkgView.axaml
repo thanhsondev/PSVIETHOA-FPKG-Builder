@@ -1,0 +1,364 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PsViethoa.FpkgBuilder.App.ViewModels"
+             xmlns:c="using:PsViethoa.FpkgBuilder.App.Controls"
+             xmlns:models="using:PsViethoa.FpkgBuilder.Core.Models"
+             xmlns:conv="using:PsViethoa.FpkgBuilder.App.Converters"
+             xmlns:l="using:PsViethoa.FpkgBuilder.App.Localization"
+             x:Class="PsViethoa.FpkgBuilder.App.Views.RemotePkgView"
+             x:DataType="vm:RemotePkgViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock.caps">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="LetterSpacing" Value="0.6" />
+            <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}" />
+        </Style>
+        <!-- Danh sách game -->
+        <Style Selector="ListBox.games">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        </Style>
+        <Style Selector="ListBox.games ListBoxItem">
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="Margin" Value="0,1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="ListBox.games ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource MutedBrush}" />
+        </Style>
+        <Style Selector="ListBox.games ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource RemoteSoftBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource RemoteInkBrush}" />
+        </Style>
+        <!-- Danh sách tệp: dòng cao, tên đậm + thư mục mờ, cỡ màu vàng -->
+        <Style Selector="ListBox.files">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        </Style>
+        <Style Selector="ListBox.files ListBoxItem">
+            <Setter Property="Padding" Value="6,4" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="ListBox.files ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource MutedBrush}" />
+        </Style>
+        <Style Selector="ListBox.files ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource RemoteSoftBrush}" />
+        </Style>
+        <Style Selector="ListBox.files CheckBox">
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+        <Style Selector="TextBlock.fsize">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource RemoteSizeBrush}" />
+        </Style>
+        <!-- Chip ổ đĩa (một dòng, gọn) -->
+        <Style Selector="Button.drive">
+            <Setter Property="Padding" Value="9,4" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Margin" Value="0,0,6,6" />
+            <Setter Property="Background" Value="{DynamicResource MutedBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.drive.on">
+            <Setter Property="BorderBrush" Value="{DynamicResource RemoteInkBrush}" />
+        </Style>
+        <Style Selector="Button.drive.on /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource RemoteSoftBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource RemoteInkBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource RemoteInkBrush}" />
+        </Style>
+        <Style Selector="Button.tool">
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="MinHeight" Value="36" />
+        </Style>
+        <Style Selector="Button.tool PathIcon">
+            <Setter Property="Width" Value="14" />
+            <Setter Property="Height" Value="14" />
+        </Style>
+        <!-- Chấm trạng thái -->
+        <Style Selector="Ellipse.dot">
+            <Setter Property="Fill" Value="{DynamicResource FgFaintBrush}" />
+        </Style>
+        <Style Selector="Ellipse.dot.info">
+            <Setter Property="Fill" Value="{DynamicResource InfoBrush}" />
+        </Style>
+        <Style Selector="Ellipse.dot.ok">
+            <Setter Property="Fill" Value="{DynamicResource SuccessBrush}" />
+        </Style>
+        <Style Selector="Ellipse.dot.warn">
+            <Setter Property="Fill" Value="{DynamicResource WarningBrush}" />
+        </Style>
+        <Style Selector="Ellipse.dot.danger">
+            <Setter Property="Fill" Value="{DynamicResource DangerBrush}" />
+        </Style>
+        <Style Selector="ProgressBar.remote /template/ Border#PART_Indicator">
+            <Setter Property="Background" Value="{DynamicResource RemoteInkBrush}" />
+        </Style>
+    </UserControl.Styles>
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="RemoteSoftBrush" Color="#163B38" />
+                    <SolidColorBrush x:Key="RemoteInkBrush" Color="#5EEAD4" />
+                    <SolidColorBrush x:Key="RemoteSizeBrush" Color="#FBBF24" />
+                    <SolidColorBrush x:Key="RemoteTileBrush" Color="#14223A" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="RemoteSoftBrush" Color="#CCFBF1" />
+                    <SolidColorBrush x:Key="RemoteInkBrush" Color="#0F766E" />
+                    <SolidColorBrush x:Key="RemoteSizeBrush" Color="#B45309" />
+                    <SolidColorBrush x:Key="RemoteTileBrush" Color="#E2E8F0" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="26,14,26,12" RowDefinitions="Auto,*,Auto">
+
+        <!-- ============ KẾT NỐI + TÌM ============ -->
+        <Border Name="TopCard" Classes="card" Padding="14,10">
+            <StackPanel Spacing="8">
+                <Grid ColumnDefinitions="Auto,170,Auto,84,Auto,*">
+                    <TextBlock Classes="caps" Text="{l:T Ftp.Host}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBox Grid.Column="1" Name="HostBox" Classes="mono" Text="{Binding Host, Mode=TwoWay}" Watermark="192.168.1.2" IsEnabled="{Binding IsIdle}" />
+                    <TextBlock Grid.Column="2" Classes="caps" Text="{l:T Ftp.Port}" VerticalAlignment="Center" Margin="12,0,8,0" />
+                    <TextBox Grid.Column="3" Classes="mono" Text="{Binding Port, Mode=TwoWay}" MaxLength="5" IsEnabled="{Binding IsIdle}" />
+                    <Button Grid.Column="4" Classes="primary" Margin="10,0,0,0" MinWidth="128" MinHeight="36" HorizontalContentAlignment="Center" Command="{Binding ScanCommand}" ToolTip.Tip="{l:T Remote.Scan.Tip}">
+                        <StackPanel Classes="btn">
+                            <PathIcon Data="{StaticResource IconRefresh}" />
+                            <TextBlock Text="{l:T Remote.Scan}" FontWeight="SemiBold" />
+                        </StackPanel>
+                    </Button>
+                    <TextBox Grid.Column="5" Margin="16,0,0,0" Text="{Binding SearchText, Mode=TwoWay}" Watermark="{l:T Remote.Search}" ToolTip.Tip="{l:T Remote.Search.Tip}" />
+                </Grid>
+                <StackPanel Orientation="Horizontal" Spacing="7">
+                    <PathIcon Classes="sm info" Data="{StaticResource IconInfo}" VerticalAlignment="Center" />
+                    <TextBlock Classes="small muted" Text="{Binding ScanInfo}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- ============ GAME | CHI TIẾT + TỆP ============ -->
+        <Grid Grid.Row="1" Name="BodyGrid" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="0.75*" MinWidth="320" />
+                <ColumnDefinition Width="14" />
+                <ColumnDefinition Width="1.25*" MinWidth="460" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Danh sách game -->
+            <Border Name="GamesCard" Classes="card" Padding="12,12,6,12">
+                <Grid RowDefinitions="Auto,*">
+                    <TextBlock Classes="caps" Text="{l:T Remote.Games}" Margin="4,0,0,8" />
+                    <Panel Grid.Row="1">
+                        <StackPanel IsVisible="{Binding !HasGames}" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6" Margin="20">
+                            <PathIcon Data="{StaticResource IconServer}" Width="38" Height="38" Foreground="{DynamicResource FgFaintBrush}" HorizontalAlignment="Center" Margin="0,0,0,6" />
+                            <TextBlock Text="{l:T Remote.Games.Empty}" FontWeight="SemiBold" FontSize="14" HorizontalAlignment="Center" />
+                            <TextBlock Classes="small muted" Text="{l:T Remote.Games.EmptyHint}" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="340" HorizontalAlignment="Center" />
+                        </StackPanel>
+                        <ListBox Name="GameList" Classes="games" ItemsSource="{Binding VisibleGames}" SelectedItem="{Binding SelectedGame, Mode=TwoWay}"
+                                 IsVisible="{Binding HasGames}" IsHitTestVisible="{Binding IsIdle}" Opacity="{Binding ListOpacity}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:RemoteGameRow">
+                                    <Grid ColumnDefinitions="Auto,*" Background="Transparent" ToolTip.Tip="{Binding Tip}">
+                                        <Border Width="56" Height="56" CornerRadius="8" ClipToBounds="True" Margin="0,0,12,0" Background="{DynamicResource RemoteTileBrush}" VerticalAlignment="Center">
+                                            <Panel>
+                                                <TextBlock Text="PS5" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource FgMutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding !HasIcon}" />
+                                                <Image Source="{Binding Icon}" Stretch="UniformToFill" IsVisible="{Binding HasIcon}" />
+                                            </Panel>
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="14" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Classes="xs muted" Text="{Binding Meta}" TextTrimming="CharacterEllipsis" />
+                                            <WrapPanel Margin="0,2,0,0">
+                                                <Border Classes="chip info" Margin="0,0,6,0"><TextBlock Text="PS5" /></Border>
+                                                <Border Classes="chip" Margin="0,0,6,0"><TextBlock Text="{Binding LocationText}" /></Border>
+                                                <Border Classes="chip danger" IsVisible="{Binding IsRetail}"><TextBlock Text="Retail" /></Border>
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Panel>
+                </Grid>
+            </Border>
+
+            <!-- Chi tiết game (gọn một hàng) + danh sách tệp -->
+            <Border Grid.Column="2" Name="FilesCard" Classes="card" Padding="14,12">
+                <Grid RowDefinitions="Auto,Auto,*,Auto">
+                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,10">
+                        <Border Width="76" Height="76" CornerRadius="12" ClipToBounds="True" Margin="0,0,14,0" Background="{DynamicResource RemoteTileBrush}" VerticalAlignment="Center">
+                            <Panel>
+                                <PathIcon Data="{StaticResource IconGamepad}" Width="30" Height="30" Foreground="{DynamicResource FgFaintBrush}" IsVisible="{Binding !HasSelection}" />
+                                <TextBlock Text="PS5" FontWeight="Bold" FontSize="18" Foreground="{DynamicResource FgMutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           IsVisible="{Binding HasSelection}" />
+                                <Image Source="{Binding SelectedGame.Icon, FallbackValue={x:Null}}" Stretch="UniformToFill" />
+                            </Panel>
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
+                            <TextBlock Text="{Binding HeroTitle}" FontSize="18" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Classes="xs muted" Text="{Binding HeroSub}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding HeroTip}" />
+                            <WrapPanel IsVisible="{Binding HasSelection}" Margin="0,3,0,0">
+                                <Border Classes="chip info" Margin="0,0,6,0"><TextBlock Text="PS5" /></Border>
+                                <Border Classes="chip success" Margin="0,0,6,0" IsVisible="{Binding HasHeroVersion}"><TextBlock Text="{Binding HeroVersion}" /></Border>
+                                <Border Classes="chip warning" Margin="0,0,6,0"><TextBlock Text="{Binding HeroSize}" /></Border>
+                                <Border Classes="chip" Margin="0,0,6,0"><TextBlock Text="{Binding HeroLocation}" /></Border>
+                                <Border Classes="chip success" Classes.danger="{Binding HeroIsRetail}"><TextBlock Text="{Binding HeroKind}" /></Border>
+                            </WrapPanel>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="8" Margin="12,0,0,0">
+                            <Button Classes="primary" MinHeight="38" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding OpenCommand}" ToolTip.Tip="{l:T Remote.Open.Tip}">
+                                <StackPanel Classes="btn">
+                                    <PathIcon Data="{StaticResource IconFolderOpen}" />
+                                    <TextBlock Text="{l:T Remote.Open}" FontWeight="SemiBold" />
+                                </StackPanel>
+                            </Button>
+                            <Button MinHeight="34" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding ToggleExpandCommand}" ToolTip.Tip="{l:T Remote.Expand.Tip}">
+                                <StackPanel Classes="btn">
+                                    <Panel>
+                                        <PathIcon Data="{StaticResource IconExpand}" Width="14" Height="14" IsVisible="{Binding !IsExpanded}" />
+                                        <PathIcon Data="{StaticResource IconCollapse}" Width="14" Height="14" IsVisible="{Binding IsExpanded}" />
+                                    </Panel>
+                                    <TextBlock Text="{Binding ExpandText}" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+                        <TextBox Name="FileFilterBox" Text="{Binding FileFilter, Mode=TwoWay}" Watermark="{l:T Remote.Filter}" ToolTip.Tip="{l:T Remote.Filter.Tip}" IsEnabled="{Binding HasReader}" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="8,0,0,0" IsEnabled="{Binding HasReader}">
+                            <Button Classes="tool" Command="{Binding CheckFilteredCommand}">
+                                <StackPanel Classes="btn"><PathIcon Data="{StaticResource IconSelectAll}" /><TextBlock Text="{l:T Remote.CheckFiltered}" /></StackPanel>
+                            </Button>
+                            <Button Classes="tool" Command="{Binding UncheckAllCommand}">
+                                <StackPanel Classes="btn"><PathIcon Data="{StaticResource IconSelectNone}" /><TextBlock Text="{l:T Remote.UncheckAll}" /></StackPanel>
+                            </Button>
+                            <Button Classes="tool" Command="{Binding ToggleSortCommand}" ToolTip.Tip="{l:T Remote.Sort.Tip}">
+                                <StackPanel Classes="btn"><PathIcon Data="{StaticResource IconSwap}" /><TextBlock Text="{Binding SortText}" /></StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <Border Grid.Row="2" Classes="surface" Padding="0" ClipToBounds="True">
+                        <Panel>
+                            <TextBlock Classes="muted" Text="{Binding FilesEmptyText}" TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       MaxWidth="460" Margin="24" IsVisible="{Binding !HasVisibleFiles}" />
+                            <ListBox Name="FileList" Classes="files" ItemsSource="{Binding VisibleFiles}" SelectionMode="Multiple" IsVisible="{Binding HasVisibleFiles}"
+                                     IsHitTestVisible="{Binding IsIdle}" Opacity="{Binding ListOpacity}">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:RemoteFileRow">
+                                        <Grid ColumnDefinitions="Auto,Auto,*,Auto" Background="Transparent">
+                                            <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}" VerticalAlignment="Center" Margin="2,0,10,0" />
+                                            <PathIcon Grid.Column="1" Data="{Binding Icon}" Foreground="{Binding IconBrush}" Width="17" Height="17" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                            <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Classes="xs muted" Text="{Binding Dir}" TextTrimming="CharacterEllipsis" Margin="0,1,0,0" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="3" Classes="fsize" Text="{Binding SizeText}" VerticalAlignment="Center" Margin="12,0,6,0" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Panel>
+                    </Border>
+
+                    <TextBlock Grid.Row="3" Classes="xs muted" Text="{Binding FileSummary}" TextTrimming="CharacterEllipsis" Margin="2,6,0,0" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ============ TRÍCH VÀO + TIẾN ĐỘ + NHẬT KÝ ============ -->
+        <StackPanel Grid.Row="2" Name="BottomPanel" Margin="0,12,0,0" Spacing="8">
+            <Grid ColumnDefinitions="Auto,*">
+                <TextBlock Classes="caps" Text="{l:T Remote.Out.Label}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                <ItemsControl Grid.Column="1" ItemsSource="{Binding Drives}" IsEnabled="{Binding IsIdle}" VerticalAlignment="Center">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:DriveChoice">
+                            <Button Classes="drive" Classes.on="{Binding IsSelected}" ToolTip.Tip="{Binding Tip}"
+                                    Command="{Binding $parent[UserControl].((vm:RemotePkgViewModel)DataContext).PickDriveCommand}" CommandParameter="{Binding}">
+                                <c:DriveTile />
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Grid>
+            <Grid ColumnDefinitions="*,Auto,Auto">
+                <TextBox Grid.Column="0" MinWidth="200" Text="{Binding OutputFolder, Mode=TwoWay}" IsEnabled="{Binding CanEditOutput}" ToolTip.Tip="{Binding OutputPlanText}" />
+                <Button Grid.Column="1" Margin="8,0,0,0" MinHeight="36" Command="{Binding BrowseOutputCommand}" IsEnabled="{Binding IsIdle}" ToolTip.Tip="{l:T Remote.Out.Pick}">
+                    <StackPanel Classes="btn">
+                        <PathIcon Data="{StaticResource IconFolder}" />
+                        <TextBlock Text="{l:T Remote.Out.PickShort}" />
+                    </StackPanel>
+                </Button>
+                <CheckBox Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center" IsChecked="{Binding AutoFolder, Mode=TwoWay}" IsEnabled="{Binding IsIdle}" ToolTip.Tip="{l:T Remote.Out.AutoTip}">
+                    <TextBlock Text="{l:T Remote.Out.Auto}" FontSize="12.5" />
+                </CheckBox>
+            </Grid>
+
+            <Grid ColumnDefinitions="*,Auto,Auto">
+                <Button Classes="primary" MinHeight="44" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding ExtractCommand}" ToolTip.Tip="{l:T Remote.Extract.Tip}">
+                    <StackPanel Classes="btn">
+                        <PathIcon Classes="lg" Data="{StaticResource IconDownload}" />
+                        <TextBlock Text="{l:T Remote.Extract}" FontWeight="SemiBold" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="1" Margin="8,0,0,0" MinHeight="44" Command="{Binding CancelCommand}" ToolTip.Tip="Esc">
+                    <StackPanel Classes="btn">
+                        <PathIcon Data="{StaticResource IconStop}" />
+                        <TextBlock Text="{l:T Remote.Cancel}" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="2" Margin="8,0,0,0" MinHeight="44" Command="{Binding OpenOutputCommand}">
+                    <StackPanel Classes="btn">
+                        <PathIcon Data="{StaticResource IconOpenExternal}" />
+                        <TextBlock Text="{l:T Remote.OpenOutput}" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+
+            <ProgressBar Classes="thin remote" Minimum="0" Maximum="100" Value="{Binding Progress}" IsIndeterminate="{Binding IsIndeterminate}" />
+
+            <Grid ColumnDefinitions="Auto,*">
+                <Ellipse Classes="dot" Classes.info="{Binding IsStatusInfo}" Classes.ok="{Binding IsStatusOk}" Classes.warn="{Binding IsStatusWarn}" Classes.danger="{Binding IsStatusDanger}"
+                         Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock Grid.Column="1" Classes="small secondary" Text="{Binding StatusText}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding StatusText}" VerticalAlignment="Center" />
+            </Grid>
+
+            <Border Background="{DynamicResource LogBgBrush}" CornerRadius="8" Padding="4,2" Height="70">
+                <ListBox Name="LogList" Classes="log" ItemsSource="{Binding LogEntries}" SelectionMode="Multiple">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="models:LogEntry">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <TextBlock Classes="logtime" Text="{Binding TimeText}" />
+                                <TextBlock Grid.Column="1" Classes="logmsg" Classes.warn="{Binding IsWarning}" Classes.err="{Binding IsError}" Classes.ok="{Binding IsSuccess}" Text="{Binding Message}" TextWrapping="Wrap" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+        </StackPanel>
+    </Grid>
+</UserControl>

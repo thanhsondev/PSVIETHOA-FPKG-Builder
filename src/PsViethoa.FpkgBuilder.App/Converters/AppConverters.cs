@@ -17,7 +17,7 @@ public static class AppConverters
     public static readonly IValueConverter Empty = new FuncValueConverter<string?, bool>(string.IsNullOrWhiteSpace);
 
     /// <summary>Bề rộng logo đầu thanh bên: nhỏ lại khi thanh bên thu gọn.</summary>
-    public static readonly IValueConverter LogoWidth = new FuncValueConverter<bool, double>(compact => compact ? 46 : 84);
+    public static readonly IValueConverter LogoWidth = new FuncValueConverter<bool, double>(compact => compact ? 46 : 76);
 
     /// <summary>Số đếm bằng 0 → true (hiện trạng thái trống của danh sách).</summary>
     /// <summary>Ô bị khoá (do ứng dụng quản lý) hiện mờ hơn.</summary>

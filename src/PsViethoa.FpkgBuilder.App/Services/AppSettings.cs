@@ -244,11 +244,35 @@ public sealed class AppSettings
 
     public DateTime? LastUpdateCheckUtc { get; set; }
 
+    /// <summary>Giải nén gói: ổ / thư mục gốc để tự tạo "&lt;Tên game&gt; &lt;PPSAxxxxx&gt;" bên trong; trống = cạnh tệp .pkg.</summary>
+    public string ExtractBaseFolder { get; set; } = string.Empty;
+
+    /// <summary>FPKG trên PS5: ổ / thư mục gốc để trích tệp về; trống = Màn hình nền.</summary>
+    public string RemotePkgBaseFolder { get; set; } = string.Empty;
+
+    /// <summary>FPKG trên PS5: tự tạo thư mục "&lt;Tên game&gt; &lt;PPSAxxxxx&gt;" trong thư mục gốc (mặc định bật).</summary>
+    public bool RemotePkgAutoFolder { get; set; } = true;
+
+    /// <summary>FPKG trên PS5: thư mục gõ tay khi tắt tự tạo thư mục.</summary>
+    public string RemotePkgOutputFolder { get; set; } = string.Empty;
+
+    /// <summary>Giao diện Giáng sinh (nền xanh thông, dây đèn, tuyết, xe tuần lộc, mũ Noel…) — nút "Noel" ở thanh bên.</summary>
+    public bool XmasTheme { get; set; } = true;
+
+    /// <summary>Nhạc nền Giáng sinh tự phát khi mở app — nút "Nhạc" ở thanh bên.</summary>
+    public bool XmasMusic { get; set; } = true;
+
+    /// <summary>Âm lượng nhạc nền (0..1, âm lượng riêng của app).</summary>
+    public double XmasVolume { get; set; } = 0.35;
+
 }
 
 public static class SettingsService
 {
-    public static string Directory => JsonFileStore.AppDataDirectory(AppInfo.DataFolderName);
+    /// <summary>Thư mục dữ liệu; biến môi trường PSVIETHOA_FPKG_SETTINGS (một thư mục) tách cài đặt khi chạy thử / kiểm thử giao diện.</summary>
+    public static string Directory => Environment.GetEnvironmentVariable("PSVIETHOA_FPKG_SETTINGS") is { Length: > 0 } custom
+        ? custom
+        : JsonFileStore.AppDataDirectory(AppInfo.DataFolderName);
 
     public static string Path => System.IO.Path.Combine(Directory, "settings.json");
 

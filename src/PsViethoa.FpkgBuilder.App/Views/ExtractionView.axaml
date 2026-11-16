@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:PsViethoa.FpkgBuilder.App.ViewModels"
+             xmlns:c="using:PsViethoa.FpkgBuilder.App.Controls"
              xmlns:models="using:PsViethoa.FpkgBuilder.Core.Models"
              xmlns:conv="using:PsViethoa.FpkgBuilder.App.Converters"
              xmlns:l="using:PsViethoa.FpkgBuilder.App.Localization"
@@ -60,6 +61,23 @@
             <Setter Property="Foreground" Value="{DynamicResource FgMutedBrush}" />
             <Setter Property="TextAlignment" Value="Right" />
             <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <!-- Chip ổ đĩa ở ô Thư mục xuất -->
+        <Style Selector="Button.drive">
+            <Setter Property="Padding" Value="9,4" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Margin" Value="0,0,6,6" />
+            <Setter Property="Background" Value="{DynamicResource MutedBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Button.drive.on">
+            <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="Button.drive.on /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
         </Style>
         <!-- Tuỳ chọn ở bước 2 -->
         <Style Selector="CheckBox.option">
@@ -171,19 +189,51 @@
                             <Grid ColumnDefinitions="*,Auto">
                                 <TextBlock Classes="label" Text="{l:T Extract.OutputLabel}" />
                                 <CheckBox Grid.Column="1" IsChecked="{Binding AutoOutputFolder, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" Margin="0,-8,0,0" Padding="6,0,0,0" MinHeight="0" ToolTip.Tip="{l:T Extract.OutputAutoTip}">
-                                    <TextBlock Text="{l:T Extract.OutputAuto}" FontSize="12.5" />
+                                    <TextBlock Text="{l:T Extract.OutputAuto}" FontSize="12.5" TextWrapping="Wrap" />
                                 </CheckBox>
+                            </Grid>
+                            <!-- Chọn ổ → tự tạo "<Tên game> <PPSAxxxxx>" trong ổ đó (như PSVIETHOA STUDIO 2.1.0) -->
+                            <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+                                <WrapPanel IsEnabled="{Binding CanEdit}">
+                                    <Button Classes="drive" Classes.on="{Binding IsNextToPackageActive}" Command="{Binding NextToPackageCommand}" ToolTip.Tip="{l:T Drive.NextToPackage.Tip}">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <PathIcon Classes="sm" Data="{StaticResource IconFolder}" />
+                                            <TextBlock Text="{l:T Drive.NextToPackage}" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                    <ItemsControl ItemsSource="{Binding Drives}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:DriveChoice">
+                                                <Button Classes="drive" Classes.on="{Binding IsSelected}" ToolTip.Tip="{Binding Tip}"
+                                                        Command="{Binding $parent[UserControl].((vm:ExtractionViewModel)DataContext).PickDriveCommand}" CommandParameter="{Binding}">
+                                                    <c:DriveTile />
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </WrapPanel>
+                                <Button Grid.Column="1" Classes="icon" Width="32" Height="32" VerticalAlignment="Top" Command="{Binding RefreshDrivesCommand}"
+                                        ToolTip.Tip="{l:T Drive.Rescan}" AutomationProperties.Name="{l:T Drive.Rescan}">
+                                    <PathIcon Classes="sm" Data="{StaticResource IconRefresh}" />
+                                </Button>
                             </Grid>
                             <Grid ColumnDefinitions="*,8,Auto">
                                 <TextBox Name="OutputBox" Text="{Binding OutputFolder, Mode=TwoWay}" Watermark="{l:T Extract.OutputWatermark}" IsEnabled="{Binding CanEditOutput}" />
-                                <Button Grid.Column="2" Command="{Binding BrowseOutputCommand}" IsEnabled="{Binding CanEditOutput}">
+                                <Button Grid.Column="2" Command="{Binding BrowseOutputCommand}" IsEnabled="{Binding CanEdit}" ToolTip.Tip="{l:T Drive.PickTip}">
                                     <StackPanel Classes="btn">
                                         <PathIcon Data="{StaticResource IconFolder}" />
                                         <TextBlock Text="{l:T Common.PickFolder}" />
                                     </StackPanel>
                                 </Button>
                             </Grid>
-                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0" IsVisible="{Binding FreeSpaceText, Converter={x:Static conv:AppConverters.NotEmpty}}">
+                            <Grid ColumnDefinitions="Auto,*" Margin="0,8,0,0">
+                                <PathIcon Classes="sm accent" Data="{StaticResource IconFolderPlus}" VerticalAlignment="Top" Margin="0,2,8,0" />
+                                <TextBlock Grid.Column="1" Classes="small secondary" Text="{Binding FolderPlanText}" TextWrapping="Wrap" />
+                            </Grid>
+                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0" IsVisible="{Binding FreeSpaceText, Converter={x:Static conv:AppConverters.NotEmpty}}">
                                 <PathIcon Classes="sm diskicon" Data="{StaticResource IconDisk}" VerticalAlignment="Top" Margin="0,2,0,0" />
                                 <TextBlock Classes="small diskinfo" Text="{Binding FreeSpaceText}" TextWrapping="Wrap" MaxWidth="480" />
                             </StackPanel>

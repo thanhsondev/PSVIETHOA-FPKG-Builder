@@ -24,7 +24,7 @@
   <img src="screenshots/vi-ps4-patch-done.png" width="49%" alt="Đóng update PS4 thành công" />
 </p>
 <p align="center">
-  <img src="screenshots/vi-ftp.png" width="49%" alt="Truyền tệp FTP PS5" />
+  <img src="screenshots/vi-remote-pkg.png" width="49%" alt="FPKG trên PS5" />
   <img src="screenshots/vi-save.png" width="49%" alt="Hàng đợi Resign Save" />
 </p>
 
@@ -42,11 +42,21 @@
 |---|---|---|
 | <img src="https://img.shields.io/badge/PS5-FPKG-3B82F6" /> | **Tạo gói · Tạo gói Update · Giải nén gói · Hàng chờ** | FPKG PS5 (FIH debug) từ thư mục ứng dụng, ảnh `.exfat`, `.ffpfsc` / `.ffpfs` (exFAT hoặc PFS), `.ffpkg` hoặc dự án `.gp5` — bằng **Publishing Tools 2.79 của Sony** (mặc định) hoặc engine **LibProsperoPkg** của Drakmor. Gói update delta so với base đã cài, xem / giải nén gói, hàng chờ đóng gói song song. *Bộ công cụ SDK Sony `sdk-fpkg279-fix15`, giữ các bản sửa của 2.2.7.* |
 | <img src="https://img.shields.io/badge/PS4-PKG-6366F1" /> | **Xả PKG · Đóng Base · Đóng Update · Đóng DLC · Gộp Base + Update** | Gói fake PKG cho PS4 bằng **orbis-pub-cmd 3.87** (bản vá CyB1K) và **LibOrbisPkg**, theo đúng quy trình của PSVIETHOA STUDIO. Xem trước game ngay (icon, tên, Content ID, phiên bản), sửa `param.sfo`, xả từng tệp. |
-| <img src="https://img.shields.io/badge/ZSTD-PS5-22C55E" /> | **Đóng ZSTD · Giải ZSTD · Vá ZSTD** *(beta)* | Gói ZSTD của ps5-dump-forge với runtime **ampr-emu-ng 0.3.4**: game còn khoảng một nửa, giải ra đúng từng byte, và vá Việt hoá vào game đã đóng mà không cần giải ra. |
+| <img src="https://img.shields.io/badge/ZSTD-PS5-22C55E" /> | **Đóng ZSTD · Giải ZSTD · Vá ZSTD** *(beta)* | Gói ZSTD của ps5-dump-forge với runtime **ampr-emu-ng 0.4.1**: game còn khoảng một nửa, giải ra đúng từng byte, và vá Việt hoá vào game đã đóng mà không cần giải ra. |
+| <img src="https://img.shields.io/badge/PS5-FPKG%20tr%C3%AAn%20PS5-14B8A6" /> | **FPKG trên PS5** | Quét các FPKG đã cài trên PS5 qua FTP (tên game, icon, phiên bản, ổ), mở gói ngay trên máy và chỉ trích các tệp bạn chọn — không tải cả gói, không ghi gì lên PS5. |
 | <img src="https://img.shields.io/badge/PS5-FTP-14B8A6" /> | **FTP PS5** | Trình quản lý tệp hai khung cho máy chủ FTP trên PS5 (ftpsrv, etaHEN…): kéo tệp qua lại giữa hai khung hoặc từ Finder / Explorer, truyền nhiều luồng có tiếp tục khi bị ngắt, đổi tên / xoá / tạo thư mục, nhớ máy đã kết nối. |
 | <img src="https://img.shields.io/badge/SAVE-Resign-F59E0B" /> | **Resign Save** | Đổi chủ save PS4 / PS5 sang Account ID của bạn. Save đã giải mã được sửa ngay trên máy tính; save mã hoá đi qua **garlic-savemgr** trên PS5 (ứng dụng tự nạp). |
 
 > Gói PS5 là **FPKG debug** (ảnh FIH, byte chữ ký `0x00`), gói PS4 là **fake PKG** — chỉ cài được trên máy chạy homebrew tương ứng. Thư mục, ảnh đĩa và gói nguồn bạn chọn chỉ luôn được **đọc**.
+
+## Có gì mới — bản Giáng sinh
+
+- **Giao diện Giáng sinh** cho cả nền sáng và tối — tuyết rơi, dây đèn, xe tuần lộc ông già Noel, làng tuyết trong chỗ trống — kèm nhạc nền tự lặp. Nút *Noel* / *Nhạc* ở thanh bên để tắt.
+- **FPKG trên PS5** — xem các FPKG đã cài trên máy theo tên game và lấy từng tệp về `<Tên game> <PPSAxxxxx>` trên PC.
+- **Giải nén gói** — chọn ổ là tự tạo thư mục `<Tên game> <PPSAxxxxx>`.
+- **Khung Hệ thống** — tải và nhiệt CPU, nhiệt độ và tốc độ đọc / ghi từng ổ (Windows).
+- **ZSTD PS5** — runtime ampr-emu-ng **0.4.1**.
+- **Ủng hộ nhóm** — nút psviethoa.com / Ko-fi ở thanh bên.
 
 ## Có gì mới ở 3.1
 
@@ -185,7 +195,7 @@ libs/                               thành phần bên thứ ba, chỉ thay nguy
   LibOrbisPkg/                        PKG / PFS / SFO PS4 (Maxton, LGPL-3.0, kèm mã nguồn)
   orbis-pub/                          PS4 Fake PKG Tools 3.87 (CyB1K), bản gốc + engine nhanh
   garlic-savemgr/                     payload save PS5 (earthonion), kèm mã nguồn
-  ampr/                               runtime ampr-emu-ng 0.3.4 + ampr_emu 0.4.2.1 cho gói ZSTD (GPL-3.0-or-later)
+  ampr/                               runtime ampr-emu-ng 0.4.1 + ampr_emu 0.4.2.1 cho gói ZSTD (GPL-3.0-or-later)
 ```
 </details>
 
@@ -202,6 +212,10 @@ libs/                               thành phần bên thứ ba, chỉ thay nguy
 | Resign save xong (tiếng Anh) | Giao diện sáng |
 |---|---|
 | ![](screenshots/en-save-done.png) | ![](screenshots/en-light.png) |
+
+| FPKG trên PS5 | FTP PS5 |
+|---|---|
+| ![](screenshots/vi-remote-pkg.png) | ![](screenshots/vi-ftp.png) |
 
 | Hướng dẫn — ghi công |
 |---|

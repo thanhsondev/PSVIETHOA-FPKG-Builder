@@ -54,14 +54,26 @@ public sealed partial class Ps4View : UserControl
         }
     }
 
-    private void OnLogChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
+    private bool _scrollQueued;
+
+    /// <summary>Nhiều dòng nhật ký tới dồn dập (truyền tệp, tiến độ) chỉ cuộn một lần, ở mức ưu tiên Background — không chặn vẽ khung hình.</summary>
+    private void OnLogChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (_scrollQueued)
+        {
+            return;
+        }
+
+        _scrollQueued = true;
         Dispatcher.UIThread.Post(() =>
         {
+            _scrollQueued = false;
             if (_logList.ItemCount > 0)
             {
                 _logList.ScrollIntoView(_logList.ItemCount - 1);
             }
         }, DispatcherPriority.Background);
+    }
 
     private void OnVersionKeyDown(object? sender, KeyEventArgs e)
     {

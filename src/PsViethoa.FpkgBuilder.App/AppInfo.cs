@@ -17,6 +17,11 @@ public static class AppInfo
 
     public const string AuthorUrl = "https://github.com/SvenGDK";
 
+    /// <summary>Trang ủng hộ nhóm (nút ở chân thanh bên — chỉ có ở bản GitHub): giao diện tiếng Việt mở psviethoa.com, tiếng Anh mở Ko-fi.</summary>
+    public const string DonateUrlVi = "https://psviethoa.com/donate?tab=donate";
+
+    public const string KofiUrl = "https://ko-fi.com/psviethoacom";
+
     public static string Version =>
         Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0]
         ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)
