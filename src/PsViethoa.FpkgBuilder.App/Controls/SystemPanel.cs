@@ -21,20 +21,17 @@ public sealed class SystemPanel : UserControl
 
     private sealed record DiskRow(TextBlock Name, TextBlock Temp, ProgressBar Busy, TextBlock Speed);
 
-    private static readonly IBrush Ink = new SolidColorBrush(Color.Parse("#E8EEF5"));
-    private static readonly IBrush Muted = new SolidColorBrush(Color.Parse("#93A4BA"));
-    private static readonly IBrush Faint = new SolidColorBrush(Color.Parse("#6F8197"));
+    // Màu theo theme (giao diện sáng: nền trắng hơi trong, chữ đậm; tối: như PSVIETHOA STUDIO). Đổi ngay khi người dùng đổi theme.
+    private readonly SolidColorBrush Ink = new(), Muted = new(), Faint = new(), Track = new(), Accent = new(), CardBg = new(), CardLine = new();
     private static readonly IBrush Ok = new SolidColorBrush(Color.Parse("#22C55E"));
     private static readonly IBrush Warn = new SolidColorBrush(Color.Parse("#F59E0B"));
     private static readonly IBrush Danger = new SolidColorBrush(Color.Parse("#EF4444"));
-    private static readonly IBrush Accent = new SolidColorBrush(Color.Parse("#4ADE80"));
-    private static readonly IBrush Track = new SolidColorBrush(Color.Parse("#33475569"));
     private static readonly FontFamily Mono = new("Cascadia Mono, Consolas, Menlo, monospace");
 
     private readonly StackPanel _disks = new();
-    private readonly TextBlock _title = new() { FontSize = 10.5, FontWeight = FontWeight.Bold, Foreground = Faint, LetterSpacing = 0.8 };
-    private readonly TextBlock _rate = new() { FontSize = 9.5, Foreground = Faint, HorizontalAlignment = HorizontalAlignment.Right };
-    private readonly TextBlock _cpuName = new() { FontSize = 11, FontWeight = FontWeight.SemiBold, Foreground = Muted, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 0, 5) };
+    private readonly TextBlock _title = new() { FontSize = 10.5, FontWeight = FontWeight.Bold, LetterSpacing = 0.8 };
+    private readonly TextBlock _rate = new() { FontSize = 9.5, HorizontalAlignment = HorizontalAlignment.Right };
+    private readonly TextBlock _cpuName = new() { FontSize = 11, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 0, 5) };
     private readonly TextBlock _cpuLabel = new(), _tempLabel = new();
     private readonly Meter _cpuLoad, _cpuTemp;
     private readonly StackPanel _tempBox;
@@ -46,6 +43,10 @@ public sealed class SystemPanel : UserControl
 
     public SystemPanel()
     {
+        ApplyTheme(false);
+        _title.Foreground = Faint;
+        _rate.Foreground = Faint;
+        _cpuName.Foreground = Muted;
         IsVisible = OperatingSystem.IsWindows();
         Focusable = false;
         var head = new Grid();
@@ -61,8 +62,8 @@ public sealed class SystemPanel : UserControl
 
         Content = new Border
         {
-            Background = new SolidColorBrush(Color.Parse("#99102619")),
-            BorderBrush = new SolidColorBrush(Color.Parse("#40335F45")),
+            Background = CardBg,
+            BorderBrush = CardLine,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(9),
             Padding = new Thickness(10, 7, 10, 8),
@@ -71,8 +72,21 @@ public sealed class SystemPanel : UserControl
         Texts();
         Loc.Current.LanguageChanged += (_, _) => Dispatcher.UIThread.Post(() => { Texts(); _diskKey = ""; });
         _ui.Tick += (_, _) => Refresh();
-        AttachedToVisualTree += (_, _) => Start();
+        AttachedToVisualTree += (_, _) => { ApplyTheme(ActualThemeVariant == Avalonia.Styling.ThemeVariant.Light); Start(); };
+        ActualThemeVariantChanged += (_, _) => ApplyTheme(ActualThemeVariant == Avalonia.Styling.ThemeVariant.Light);
         DetachedFromVisualTree += (_, _) => Stop();
+    }
+
+    /// <summary>Đổi màu tại chỗ (các brush dùng chung nên mọi chữ / thanh cập nhật ngay).</summary>
+    private void ApplyTheme(bool light)
+    {
+        Ink.Color = Color.Parse(light ? "#10261C" : "#E8EEF5");
+        Muted.Color = Color.Parse(light ? "#3F5A4C" : "#93A4BA");
+        Faint.Color = Color.Parse(light ? "#5F7A6C" : "#6F8197");
+        Track.Color = Color.Parse(light ? "#26000000" : "#33475569");
+        Accent.Color = Color.Parse(light ? "#15803D" : "#4ADE80");
+        CardBg.Color = Color.Parse(light ? "#D9FFFFFF" : "#99102619");
+        CardLine.Color = Color.Parse(light ? "#B7D5C6" : "#40335F45");
     }
 
     private void Texts()
@@ -141,7 +155,7 @@ public sealed class SystemPanel : UserControl
         return (s, full);
     }
 
-    private static Meter MakeMeter(TextBlock label, out StackPanel box)
+    private Meter MakeMeter(TextBlock label, out StackPanel box)
     {
         label.FontSize = 9.5;
         label.FontWeight = FontWeight.Bold;
@@ -156,7 +170,7 @@ public sealed class SystemPanel : UserControl
         return new Meter(value, bar);
     }
 
-    private static void Set(Meter m, string text, double percent, IBrush tone)
+    private void Set(Meter m, string text, double percent, IBrush tone)
     {
         if (m.Value.Text != text) m.Value.Text = text;
         m.Bar.Value = Math.Clamp(percent, 0, 100);
