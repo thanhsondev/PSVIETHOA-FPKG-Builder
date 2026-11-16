@@ -49,7 +49,7 @@ public partial class MainViewModel
     [ObservableProperty] private double _sidebarScale = 1;
 
     /// <summary>Bề rộng thanh bên ở hệ số 1 (lưới hai cột, chữ 13,5).</summary>
-    private const double SidebarBaseWidth = 336;
+    private const double SidebarBaseWidth = 316;
 
     public double SidebarWidth => IsSidebarCompact ? 76 : Math.Round(SidebarBaseWidth * SidebarScale);
 

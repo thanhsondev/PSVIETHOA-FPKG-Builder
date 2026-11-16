@@ -1240,7 +1240,7 @@
   "Nav.Ps5Build": "Build PKG",
   "Nav.Ps5Build.Sub": "Folder · .exfat · .gp5",
   "Nav.Ps5Build.Tip": "Build a PS5 FPKG (FIH debug) from an app folder, an .exfat / .ffpfsc / .ffpkg image or a .gp5 project",
-  "Nav.Ps5Update": "Build Update PKG",
+  "Nav.Ps5Update": "Update PKG",
   "Nav.Ps5Update.Sub": "SDK delta patch",
   "Nav.Ps5Update.Tip": "Build a PS5 update (delta patch) with the Sony SDK against the base package installed on the console",
   "Nav.Ps5Extract": "Extract PKG",
