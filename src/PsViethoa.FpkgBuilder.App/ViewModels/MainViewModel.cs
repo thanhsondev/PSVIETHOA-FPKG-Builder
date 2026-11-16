@@ -1648,6 +1648,8 @@ public sealed partial class MainViewModel : ObservableObject
     {
         App.ApplyTheme(value);
         OnPropertyChanged(nameof(ThemeTooltip));
+        OnPropertyChanged(nameof(ThemeDark));
+        OnPropertyChanged(nameof(ThemeLight));
     }
 
     partial void OnSourcePathChanged(string value)

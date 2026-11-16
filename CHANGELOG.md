@@ -1,5 +1,49 @@
 # Changelog
 
+## 3.2.0 — 2026-11-16
+
+The Christmas update from Ngô Phi Phương, ported from PSVIETHOA STUDIO: a Christmas theme with background music, a new *FPKG on PS5* page, drive chips that create the `<Game> <PPSAxxxxx>` folder, a System panel and the ampr-emu-ng 0.4.1 runtime. On top of it, a new **Appearance** window (theme, sidebar size and style, every effect can be turned off — issue #12) and fixes for HiDPI screens and macOS. Package building (Sony SDK and built-in engine) is unchanged.
+
+- **Appearance window** (palette button at the bottom of the sidebar). Every choice applies to the main window at once and is saved; *Restore defaults* resets them.
+  - **Theme:** dark / light.
+  - **Sidebar button and text size:** Small (0.85×), Medium (1×, the new default), Large (1.15×) or *Fit window* (0.9–1.3× with the window size, as in 3.1). Fixes "very big buttons" on large windows (#12).
+  - **Tool list style:** *Detailed (like 3.0)*, the new default — one tool per row with its icon tile, a short description and its number — or Automatic (two columns when the sidebar is wide enough, one when narrow), Two columns, One column. *Automatic width* undoes a dragged sidebar width.
+  - **System panel** on / off (Windows).
+  - **Motion effects** on / off: page transitions, badge pops and the Christmas animation (the art then stays still). The `Animations` setting existed but had no switch.
+  - **Christmas:** the theme itself, falling snow, string lights and baubles, Santa's sleigh, the village / tree scenes (sidebar and logs), snow on the sidebar buttons, background music and its volume — each one separately. The *Xmas* / *Music* buttons in the sidebar stay as quick switches.
+  - Defaults: dark theme, Medium, Detailed (like 3.0), every effect on, music off. Saved as `SidebarSize`, `SidebarLayout`, `ShowSystemPanel`, `Animations`, `XmasSnow`, `XmasLights`, `XmasSleigh`, `XmasScenes`, `XmasSnowCaps`.
+- **Fixes:**
+  - **HiDPI screens** (Retina Macs, Windows at 125–200 %, scaled Linux desktops): the Christmas layers were drawn twice too large and cropped — the string lights became a dark band over the page header, the baubles covered the page description, the sidebar village and the snow on the buttons were oversized. Their bitmaps now always declare 96 DPI, so they are scaled into place.
+  - **macOS: crash at startup.** *Extract PKG* and *FPKG on PS5* listed the drives on two threads at once; .NET's `DriveInfo.GetDrives()` uses `getmntinfo()`, which shares one static buffer, and the app died with an `AccessViolationException`. Every drive listing (drive chips, the FTP page) now goes through the locked `DiskSpaceAdvisor.AllDrives`; a test keeps direct calls out.
+  - **macOS / Linux drive chips:** the system disk is shown as its real name (*Macintosh HD*) or *Home* and points to the home folder — the macOS system volume is read-only, so "/" could not be used. Read-only and hidden volumes (Recovery, mounted `.dmg` images, NTFS drives on macOS, CDs) are no longer offered.
+  - macOS: the search box shows ⌘K.
+  - Linux: the *Music* button and volume slider are hidden (there is no music player on Linux).
+  - The background-music error messages are translated.
+
+- **Christmas theme** (*Xmas* button in the sidebar, on by default). The Studio / DiskHealth artwork runs on Windows and macOS through a small GDI+-compatible layer over SkiaSharp (`Xmas/Gdi.cs`):
+  - dark theme: a pine-green night with a moon and pine ridge, string lights, baubles in the title area, Santa's sleigh crossing every 30–65 s, falling snow, a Santa hat on the logo, a greeting, a snowy village at the bottom of the sidebar when there is room, and village / tree scenes in the empty space of logs and lists;
+  - light theme: a "snow day" (ice-blue sky, a pale sun, snowflakes, slightly translucent white cards, a light sidebar);
+  - switching theme while it is on updates every layer at once; turning it off restores the previous colours and the classic window icon (`Assets/classic`);
+  - every layer runs on one shared 25 Hz tick (12.5 Hz in the background), stops while minimised and ignores the mouse.
+- **Background music** (*Music* button; scroll on it to change the volume). **Off by default** — it starts with the app only after you turn it on. The mp3 is embedded in the app. Windows decodes it with Media Foundation and loops it with `PlaySound`; macOS uses `afplay`; Linux has no music. Saved as `XmasTheme`, `XmasMusic`, `XmasVolume`. `PSVIETHOA_NO_MUSIC=1` mutes it for test runs.
+- **New page: FPKG on PS5** (PS5 Connect group). Reads the console over FTP and never writes to it:
+  - scans `/user/app`, `/mnt/ext*` and `/mnt/usb*` over four connections and lists PS5 FPKGs only (PS4 packages, NPXS apps and `app.pkg` under 64 KB are skipped), with titles from `appmeta` `param.json`, icons, versions and drives;
+  - opens an installed `app.pkg` in place (`FtpRangeStream`: random reads in 1 MiB blocks, a 64-block LRU cache, automatic reconnect) — only the parts needed are downloaded; Native (encrypted outer layer) packages cannot be read this way;
+  - a virtualised file list (check with Space / double-click, filter, check all shown, sort by name / size, *Expand*), and *EXTRACT TO PC* into `<Game name> <PPSAxxxxx>` on the chosen drive, with a free-space check, progress, network speed and a log;
+  - `PackageReader.Open(Func<Stream>, …)` is now public (the Studio used reflection);
+  - test hook: `PSVIETHOA_REMOTEPKG_TEST="TID|file|root|result file[|host:port]"`.
+- **Extract PKG: drive chips.** A row of drives like *This PC* (*Next to package*, `C:`, `D:`… with a fill bar and free space); the output folder becomes `<base>/<Game name> <PPSAxxxxx>`. Picking a game folder itself uses its parent; turning *Auto folder* off extracts straight into the folder. Saved as `ExtractBaseFolder`; a saved drive that is no longer there (unplugged USB / SSD) goes back to the default. `PSVIETHOA_FAKE_DRIVES=N` adds N fake drives to test the layout.
+- **System panel** in the sidebar (Windows only, hidden on macOS / Linux): CPU name, load and temperature (ASUS ATKACPI sensor, otherwise ACPI thermal zones; a zone that never moves is hidden), and per-drive temperature and read / write speed. PDH counters and IOCTLs, no admin rights or driver; sampled once a second, paused while minimised; colours follow the theme.
+- **Sidebar.**
+  - Drag its right edge to resize it: narrow gives one column, wide gives two; double-click returns to automatic. Saved as `SidebarUserWidth`. The gap between the two columns of each page can be dragged too.
+  - Larger tool buttons (34 px, 14 pt text, 17 px icons) without the extra frame when the Christmas theme is on; 316 px column; the English label is now "Update PKG" so it fits.
+  - *Support PSVIETHOA* button: psviethoa.com with the Vietnamese UI, Ko-fi with the English UI.
+- **ZSTD PS5: ampr-emu-ng 0.4.1 runtime** (was 0.3.4): a compact in-memory file index with no 48 MiB cap (Final Fantasy XVI, Demon's Souls and Returnal start again), faster pack reads with a 64 MiB decoded cache, save and folder-handle fixes. The pack format is unchanged; games packed with 0.3.2–0.4.0 are still recognised. `*.ini` always stays loose.
+- **Windows: `libScePubTools.dll` is embedded in the exe** (win-x64 only) and extracted to `%LOCALAPPDATA%\PSVIETHOA FPKG Builder\pubtools\<hash>\` the first time it is needed, so no loose DLL next to the exe. A DLL found next to the exe or in the chosen folder still wins. The publish scripts pass `-p:EmbedPubTools=true` and check the result: `RuntimeIdentifier` does not reach the Core library, so a Windows build made on macOS or Linux (as releases are) had no `libScePubTools.dll` at all.
+- New app icon for the season.
+- Log auto-scroll in the FTP, PS4 and Queue pages is batched and deferred to background priority (smoother with long logs).
+- `PSVIETHOA_FPKG_SETTINGS=<folder>` keeps `settings.json` in another folder for test runs.
+
 ## 3.1.0 — 2026-11-10
 
 Two updates in one: the PSVIETHOA STUDIO 2.1.0 fixes and a new ZSTD PS5 section (beta) from Ngô Phi Phương, and Sony SDK mode moving to Drakmor's `sdk-fpkg279-fix15` toolkit.

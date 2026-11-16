@@ -49,12 +49,15 @@
 
 > PS5 packages are **debug FPKGs** (FIH image, signature byte `0x00`) and PS4 packages are **fake PKGs** — they install only on consoles running the matching homebrew. The source folders, images and packages you pick are only ever **read**.
 
-## What's new — Christmas update
+## What's new in 3.2 — Christmas update
 
-- **Christmas theme** for light and dark mode — snow, string lights, Santa's sleigh, a snowy village in empty panels — and a looping soundtrack. *Noel* / *Music* in the sidebar turn them off.
+- **Christmas theme** for light and dark mode — snow, string lights, Santa's sleigh, a snowy village in empty panels — and an optional soundtrack (*Music*, off by default). *Noel* in the sidebar turns the theme off.
 - **FPKG on PS5** — browse the FPKGs installed on the console by name and pull single files to `<Game> <PPSAxxxxx>` on the PC.
 - **Extract PKG** — pick a drive and the `<Game> <PPSAxxxxx>` folder is created for you.
 - **System panel** — CPU load and temperature, drive temperatures and read / write speed (Windows).
+- **Resizable sidebar** — drag its right edge (narrow → one column, wide → two; double-click for automatic).
+- **Appearance window** — light / dark theme, sidebar size (Small / Medium / Large / Fit window) and style (the detailed list of 3.0 by default, two columns or one column), and every effect can be turned off one by one.
+- **Fixes** — Christmas art no longer drawn too large on Retina / HiDPI screens, a macOS startup crash, drive chips on macOS and Linux.
 - **ZSTD PS5** — ampr-emu-ng **0.4.1** runtime.
 - **Support us** — Ko-fi / psviethoa.com button in the sidebar.
 

@@ -1,0 +1,192 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:PsViethoa.FpkgBuilder.App.ViewModels"
+        xmlns:l="using:PsViethoa.FpkgBuilder.App.Localization"
+        x:Class="PsViethoa.FpkgBuilder.App.Views.AppearanceWindow"
+        x:DataType="vm:MainViewModel"
+        Title="{l:T Appearance.Title}"
+        Width="920" SizeToContent="Height" MaxHeight="900" MinWidth="760" MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+
+    <!-- Tuỳ chỉnh giao diện: mọi lựa chọn bind thẳng vào MainViewModel nên áp dụng ngay trên cửa sổ chính phía sau (xem trước trực tiếp)
+         và được lưu ngay. -->
+    <Window.Styles>
+        <Style Selector="TextBlock.section">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="LetterSpacing" Value="1.1" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="Border.seg">
+            <Setter Property="Background" Value="{DynamicResource MutedBrush}" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="4" />
+        </Style>
+        <Style Selector="RadioButton.seg">
+            <Setter Property="Padding" Value="6,8" />
+            <Setter Property="MinHeight" Value="38" />
+        </Style>
+        <Style Selector="RadioButton.seg TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+        <Style Selector="CheckBox.opt">
+            <Setter Property="Margin" Value="0,1" />
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="Auto,*,Auto">
+
+        <Border Grid.Row="0" Background="{DynamicResource HeaderBrush}" Padding="22,16">
+            <Grid ColumnDefinitions="Auto,14,*">
+                <Border Width="40" Height="40" CornerRadius="12" Background="{DynamicResource AccentBrush}" VerticalAlignment="Center">
+                    <PathIcon Data="{StaticResource IconPalette}" Width="21" Height="21" Foreground="{DynamicResource OnAccentBrush}" />
+                </Border>
+                <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Text="{l:T Appearance.Title}" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource FgBrush}" />
+                    <TextBlock Classes="small muted" Text="{l:T Appearance.Subtitle}" TextWrapping="Wrap" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <!-- Hai cột: trái = màu giao diện + thanh bên, phải = hiệu ứng + Giáng sinh (thấy hết không cần cuộn ở cỡ thường) -->
+            <Grid ColumnDefinitions="5*,12,4*" Margin="20,16,20,16">
+            <StackPanel Spacing="12">
+
+                <!-- ===== Màu giao diện ===== -->
+                <Border Classes="card">
+                    <StackPanel Spacing="10">
+                        <TextBlock Classes="section" Text="{l:T Appearance.Theme}" />
+                        <Border Classes="seg">
+                            <Grid ColumnDefinitions="*,4,*">
+                                <RadioButton Classes="seg" Theme="{StaticResource SegmentRadio}" GroupName="aptheme" IsChecked="{Binding ThemeDark, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                                    <StackPanel Orientation="Horizontal" Spacing="7" HorizontalAlignment="Center">
+                                        <PathIcon Data="{StaticResource IconMoon}" Width="14" Height="14" />
+                                        <TextBlock Text="{l:T Appearance.Theme.Dark}" />
+                                    </StackPanel>
+                                </RadioButton>
+                                <RadioButton Grid.Column="2" Classes="seg" Theme="{StaticResource SegmentRadio}" GroupName="aptheme" IsChecked="{Binding ThemeLight, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                                    <StackPanel Orientation="Horizontal" Spacing="7" HorizontalAlignment="Center">
+                                        <PathIcon Data="{StaticResource IconSun}" Width="14" Height="14" />
+                                        <TextBlock Text="{l:T Appearance.Theme.Light}" />
+                                    </StackPanel>
+                                </RadioButton>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- ===== Thanh bên ===== -->
+                <Border Classes="card">
+                    <StackPanel Spacing="10">
+                        <TextBlock Classes="section" Text="{l:T Appearance.Sidebar}" />
+
+                        <TextBlock Classes="label" Text="{l:T Appearance.Size}" />
+                        <Border Classes="seg">
+                            <Grid ColumnDefinitions="*,4,*,4,*,4,*">
+                                <RadioButton Classes="seg" Theme="{StaticResource SegmentRadio}" GroupName="apsize" IsChecked="{Binding SizeSmall, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                                    <TextBlock Text="{l:T Appearance.Size.Small}" />
+                                </RadioButton>
+                                <RadioButton Grid.Column="2" Classes="seg" Theme="{StaticResource SegmentRadio}" GroupName="apsize" IsChecked="{Binding SizeMedium, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                                    <TextBlock Text="{l:T Appearance.Size.Medium}" />
+                                </RadioButton>
+                                <RadioButton Grid.Column="4" Classes="seg" Theme="{StaticResource SegmentRadio}" GroupName="apsize" IsChecked="{Binding SizeLarge, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                                    <TextBlock Text="{l:T Appearance.Size.Large}" />
+                                </RadioButton>
+                                <RadioButton Grid.Column="6" Classes="seg" Theme="{StaticResource SegmentRadio}" GroupName="apsize" IsChecked="{Binding SizeAuto, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                                    <TextBlock Text="{l:T Appearance.Size.Auto}" />
+                                </RadioButton>
+                            </Grid>
+                        </Border>
+                        <TextBlock Classes="small muted" Text="{l:T Appearance.Size.Hint}" TextWrapping="Wrap" />
+
+                        <TextBlock Classes="label" Text="{l:T Appearance.Layout}" Margin="0,4,0,0" />
+                        <Border Classes="seg">
+                            <Grid ColumnDefinitions="*,4,*" RowDefinitions="Auto,4,Auto">
+                                <RadioButton Classes="seg" Theme="{StaticResource SegmentRadio}" GroupName="aplayout" IsChecked="{Binding LayoutAuto, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                                    <TextBlock Text="{l:T Appearance.Layout.Auto}" />
+                                </RadioButton>
+                                <RadioButton Grid.Column="2" Classes="seg" Theme="{StaticResource SegmentRadio}" GroupName="aplayout" IsChecked="{Binding LayoutGrid, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                                    <TextBlock Text="{l:T Appearance.Layout.Grid}" />
+                                </RadioButton>
+                                <RadioButton Grid.Row="2" Classes="seg" Theme="{StaticResource SegmentRadio}" GroupName="aplayout" IsChecked="{Binding LayoutSingle, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                                    <TextBlock Text="{l:T Appearance.Layout.Single}" />
+                                </RadioButton>
+                                <RadioButton Grid.Row="2" Grid.Column="2" Classes="seg" Theme="{StaticResource SegmentRadio}" GroupName="aplayout" IsChecked="{Binding LayoutList, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                                    <TextBlock Text="{l:T Appearance.Layout.List}" />
+                                </RadioButton>
+                            </Grid>
+                        </Border>
+                        <TextBlock Classes="small muted" Text="{l:T Appearance.Layout.Hint}" TextWrapping="Wrap" />
+
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0">
+                            <CheckBox Classes="opt" IsChecked="{Binding ShowSystemPanel, Mode=TwoWay}" IsVisible="{Binding SystemPanelSupported}" VerticalAlignment="Center">
+                                <TextBlock Text="{l:T Appearance.SystemPanel}" TextWrapping="Wrap" />
+                            </CheckBox>
+                            <Button Grid.Column="1" Classes="ghost" Command="{Binding AutoSidebarWidthCommand}" IsEnabled="{Binding HasCustomSidebarWidth}" ToolTip.Tip="{l:T Shell.ResizeTip}" VerticalAlignment="Center">
+                                <TextBlock Text="{l:T Appearance.Width.Reset}" />
+                            </Button>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Spacing="12">
+                <!-- ===== Hiệu ứng ===== -->
+                <Border Classes="card">
+                    <StackPanel Spacing="8">
+                        <TextBlock Classes="section" Text="{l:T Appearance.Effects}" />
+                        <CheckBox Classes="opt" IsChecked="{Binding AnimationsEnabled, Mode=TwoWay}">
+                            <TextBlock Text="{l:T Appearance.Animations}" FontWeight="SemiBold" />
+                        </CheckBox>
+                        <TextBlock Classes="small muted" Text="{l:T Appearance.Animations.Hint}" TextWrapping="Wrap" Margin="28,-4,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- ===== Giáng sinh ===== -->
+                <Border Classes="card">
+                    <StackPanel Spacing="8">
+                        <TextBlock Classes="section" Text="{l:T Appearance.Xmas}" />
+                        <CheckBox Classes="opt" IsChecked="{Binding XmasTheme, Mode=TwoWay}">
+                            <TextBlock Text="{l:T Appearance.Xmas.Theme}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        </CheckBox>
+                        <StackPanel Spacing="4" Margin="28,0,0,0" IsEnabled="{Binding XmasTheme}">
+                            <CheckBox Classes="opt" IsChecked="{Binding XmasSnow, Mode=TwoWay}" Content="{l:T Appearance.Xmas.Snow}" />
+                            <CheckBox Classes="opt" IsChecked="{Binding XmasLights, Mode=TwoWay}" Content="{l:T Appearance.Xmas.Lights}" />
+                            <CheckBox Classes="opt" IsChecked="{Binding XmasSleigh, Mode=TwoWay}" Content="{l:T Appearance.Xmas.Sleigh}" />
+                            <CheckBox Classes="opt" IsChecked="{Binding XmasScenes, Mode=TwoWay}" Content="{l:T Appearance.Xmas.Scenes}" />
+                            <CheckBox Classes="opt" IsChecked="{Binding XmasSnowCaps, Mode=TwoWay}" Content="{l:T Appearance.Xmas.SnowCaps}" />
+                        </StackPanel>
+                        <Border Classes="sep" Height="1" Background="{DynamicResource DividerBrush}" Margin="0,4" IsVisible="{Binding MusicSupported}" />
+                        <Grid ColumnDefinitions="Auto,14,Auto,8,*" IsVisible="{Binding MusicSupported}">
+                            <CheckBox Classes="opt" IsChecked="{Binding XmasMusicOn, Mode=TwoWay}" VerticalAlignment="Center">
+                                <TextBlock Text="{l:T Appearance.Xmas.Music}" FontWeight="SemiBold" />
+                            </CheckBox>
+                            <PathIcon Grid.Column="2" Data="{StaticResource IconMusic}" Width="14" Height="14" Foreground="{DynamicResource FgMutedBrush}" VerticalAlignment="Center" />
+                            <Slider Grid.Column="4" Minimum="0" Maximum="1" SmallChange="0.05" LargeChange="0.1" Value="{Binding XmasVolume, Mode=TwoWay}"
+                                    VerticalAlignment="Center" ToolTip.Tip="{l:T Xmas.Volume}" AutomationProperties.Name="{l:T Xmas.Volume}" />
+                        </Grid>
+                        <TextBlock Classes="small muted" Text="{l:T Xmas.MusicUnsupported}" TextWrapping="Wrap" IsVisible="{Binding !MusicSupported}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+            </Grid>
+        </ScrollViewer>
+
+        <Border Grid.Row="2" Background="{DynamicResource HeaderBrush}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Padding="20,12">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <Button Classes="ghost" Command="{Binding ResetAppearanceCommand}">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <PathIcon Data="{StaticResource IconRefresh}" Width="14" Height="14" />
+                        <TextBlock Text="{l:T Appearance.Reset}" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="2" Classes="primary" MinWidth="110" Name="CloseButton" Content="{l:T Common.Close}" IsDefault="True" IsCancel="True" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

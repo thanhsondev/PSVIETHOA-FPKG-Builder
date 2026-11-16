@@ -204,8 +204,9 @@ public static partial class DiskSpaceAdvisor
     /// <summary>
     /// DriveInfo.GetDrives() tuần tự hoá + nhớ 2 giây. Trên macOS .NET gọi getmntinfo(), hàm dùng chung một vùng đệm tĩnh: hai luồng
     /// gọi cùng lúc (hàng chờ chạy song song nhiều game) làm tiến trình sập với AccessViolationException — lỗi không bắt được.
+    /// Mọi chỗ cần danh sách ổ (kể cả giao diện: chip ổ đĩa, FTP) phải đi qua hàm này, không gọi thẳng DriveInfo.GetDrives().
     /// </summary>
-    internal static DriveInfo[] AllDrives(bool fresh = false)
+    public static DriveInfo[] AllDrives(bool fresh = false)
     {
         lock (DrivesGate)
         {

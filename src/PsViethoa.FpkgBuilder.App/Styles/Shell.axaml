@@ -396,7 +396,7 @@
         <Setter Property="IsVisible" Value="False" />
         <Setter Property="Height" Value="16" />
     </Style>
-    <Style Selector=":is(UserControl).xmas xmas|SnowCap.navsnow">
+    <Style Selector=":is(UserControl).xmascaps xmas|SnowCap.navsnow">
         <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector=":is(UserControl).xmas RadioButton.nav:checked xmas|SnowCap.navsnow">
@@ -565,6 +565,17 @@
     </Style>
     <Style Selector=":is(UserControl).xmasday RadioButton.navcell:pointerover Border.navcellbg">
         <Setter Property="Background" Value="#E6E4F2EB" />
+    </Style>
+    <!-- Kiểu "Chi tiết (như 3.0)" trên thanh bên sáng: ô số thứ tự và dòng phụ sáng theo nền -->
+    <Style Selector=":is(UserControl).xmasday RadioButton.nav Border.navindex">
+        <Setter Property="Background" Value="#F3FAF6" />
+        <Setter Property="BorderBrush" Value="#C9DFD3" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday RadioButton.nav TextBlock.navindex">
+        <Setter Property="Foreground" Value="#64748B" />
+    </Style>
+    <Style Selector=":is(UserControl).xmasday RadioButton.nav TextBlock.navsub">
+        <Setter Property="Foreground" Value="#64748B" />
     </Style>
     <Style Selector=":is(UserControl).xmasday RadioButton.nav Border.navselsnow">
         <Setter Property="Background" Value="#D9C9F2D8" />

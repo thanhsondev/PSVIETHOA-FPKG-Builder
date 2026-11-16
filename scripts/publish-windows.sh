@@ -17,17 +17,23 @@ mkdir -p "$OUT/app" "$OUT/fpkg-cli"
 dotnet publish "$ROOT/src/PsViethoa.FpkgBuilder.App/PsViethoa.FpkgBuilder.App.csproj" \
   -c Release -r "$RID" --self-contained true \
   -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
-  -p:PublishReadyToRun=$R2R -p:DebugType=none \
+  -p:PublishReadyToRun=$R2R -p:DebugType=none -p:EmbedPubTools=true \
   -o "$OUT/app"
 
 dotnet publish "$ROOT/src/PsViethoa.FpkgBuilder.Cli/PsViethoa.FpkgBuilder.Cli.csproj" \
   -c Release -r "$RID" --self-contained true \
   -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
-  -p:PublishReadyToRun=$R2R -p:DebugType=none \
+  -p:PublishReadyToRun=$R2R -p:DebugType=none -p:EmbedPubTools=true \
   -o "$OUT/fpkg-cli"
 
-# Oodle gốc (tuỳ chọn, chỉ Windows) đặt cạnh ứng dụng để chế độ "Tự động" dùng được.
-# libScePubTools.dll đã nhúng trong exe (PsViethoa.FpkgBuilder.Core), không cần chép tệp rời.
+# Oodle gốc (chỉ Windows) cho chế độ "Tự động": libScePubTools.dll được nhúng trong exe (-p:EmbedPubTools=true ở trên — thuộc tính này
+# truyền xuống PsViethoa.FpkgBuilder.Core, còn RuntimeIdentifier thì không khi build từ macOS / Linux), không cần chép tệp rời.
+for exe in "$OUT/app/PsViethoa.FpkgBuilder.App.exe" "$OUT/fpkg-cli/fpkg-cli.exe"; do
+  if ! LC_ALL=C grep -q -a 'PsViethoa.FpkgBuilder.Core.LibScePubTools.dll' "$exe"; then
+    echo "LỖI: $exe không có libScePubTools.dll nhúng" >&2
+    exit 1
+  fi
+done
 
 # Driver Dokan (LGPL/MIT, bộ cài MSI nguyên bản của dự án Dokany) kèm theo để ứng dụng tự cài khi người dùng bấm
 # "Bật gắn ảnh trực tiếp": ảnh .exfat/.ffpfsc được gắn thành ổ ảo thay vì giải nén. Tải một lần vào .cache/, kiểm SHA-256.

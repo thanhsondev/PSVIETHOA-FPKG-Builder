@@ -62,8 +62,14 @@ static partial class XmasArt
 /// <summary>Vẽ bằng lớp Gdi (Skia) thẳng vào bộ đệm của bitmap — không chép qua lại.</summary>
 internal static class XmasBitmap
 {
+    /// <summary>
+    /// Bitmap luôn khai báo 96 DPI (kích thước logic = số điểm ảnh); nơi vẽ tự co về khung bằng DrawImage / ImageBrush.
+    /// Khai báo 96 × hệ số (192 DPI trên Retina, 144 khi Windows 150 %) làm DrawImage(bitmap, khung) của Avalonia chỉ lấy góc trên trái
+    /// (kích thước logic) của bitmap rồi phóng to: quả châu, dây đèn, làng tuyết, tuyết đọng to gấp đôi và bị cắt. <paramref name="scale"/>
+    /// chỉ còn quyết định số điểm ảnh (nét trên màn HiDPI).
+    /// </summary>
     public static WriteableBitmap Create(int pixelWidth, int pixelHeight, double scale) =>
-        new(new PixelSize(pixelWidth, pixelHeight), new Vector(96 * scale, 96 * scale), PixelFormat.Bgra8888, AlphaFormat.Premul);
+        new(new PixelSize(pixelWidth, pixelHeight), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
 
     /// <summary>Xoá trong suốt, phóng theo <paramref name="scale"/> (DPI / lấy mẫu dày) rồi gọi hàm vẽ.</summary>
     public static void Paint(WriteableBitmap bitmap, float scale, Action<Graphics> paint)

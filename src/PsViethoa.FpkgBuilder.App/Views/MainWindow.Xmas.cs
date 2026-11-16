@@ -76,19 +76,22 @@ public partial class MainWindow
             return;
         }
 
-        var s = vm.XmasSettings;
-        XmasMusic.Volume = s.XmasVolume;
-        Sidebar.MusicVolumeSlider.Value = Math.Clamp(s.XmasVolume, 0, 1);
+        XmasMusic.Volume = vm.XmasVolume;
+        Sidebar.MusicVolumeSlider.Value = Math.Clamp(vm.XmasVolume, 0, 1);
         Sidebar.XmasToggleButton.Click += XmasToggle_Click;
         Sidebar.MusicToggleButton.Click += MusicToggle_Click;
         Sidebar.MusicToggleButton.AddHandler(PointerWheelChangedEvent, MusicToggle_Wheel, RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
         Sidebar.MusicVolumeSlider.PropertyChanged += (_, e) =>
         {
-            if (e.Property == RangeBase.ValueProperty)
+            if (e.Property == RangeBase.ValueProperty && ViewModel is { } model)
             {
-                MusicVolume_Changed(Sidebar.MusicVolumeSlider.Value);
+                model.XmasVolume = Sidebar.MusicVolumeSlider.Value;
             }
         };
+
+        // Linux không có trình phát nhạc nền: ẩn nút Nhạc và thanh âm lượng thay vì để một nút bấm không có tác dụng.
+        Sidebar.MusicToggleButton.IsVisible = XmasMusic.Supported;
+        Sidebar.MusicVolumeSlider.IsVisible = XmasMusic.Supported;
         Sidebar.NavScrollViewer.SizeChanged += (_, _) => FitVillage();
         Sidebar.NavScrollViewer.PropertyChanged += (_, e) =>
         {
@@ -97,13 +100,7 @@ public partial class MainWindow
                 FitVillage();
             }
         };
-        vm.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName is nameof(MainViewModel.IsSidebarCompact) or nameof(MainViewModel.SidebarWidth))
-            {
-                Dispatcher.UIThread.Post(FitVillage, DispatcherPriority.Background);
-            }
-        };
+        vm.PropertyChanged += OnAppearanceChanged;
         XmasMusic.StateChanged += () => Dispatcher.UIThread.Post(UpdateXmasButtons);
         Loc.Current.LanguageChanged += (_, _) => Dispatcher.UIThread.Post(UpdateXmasButtons);
         ActualThemeVariantChanged += (_, _) =>
@@ -116,12 +113,14 @@ public partial class MainWindow
         Closed += (_, _) => XmasMusic.Shutdown();
         _xmasReady = true;
 
-        ApplyXmas(s.XmasTheme);
+        ApplyXmas(vm.XmasTheme);
 
-        // Nhạc tự phát khi mở app (trừ lúc chạy thử / chụp màn hình: PSVIETHOA_NO_MUSIC=1 hoặc chế độ chụp tự động).
-        if (s.XmasMusic && !Motion.Suppressed && Environment.GetEnvironmentVariable("PSVIETHOA_NO_MUSIC") != "1")
+        // Nhạc tự phát khi mở app (trừ lúc chạy thử / chụp màn hình: PSVIETHOA_NO_MUSIC=1 hoặc chế độ chụp tự động). Tắt "Hiệu ứng
+        // chuyển động" không tắt nhạc — đó là nút Nhạc riêng.
+        if (vm.XmasMusicOn && XmasMusic.Supported && string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("PSVIETHOA_SCREENSHOT"))
+            && Environment.GetEnvironmentVariable("PSVIETHOA_NO_MUSIC") != "1")
         {
-            XmasMusic.StartDelayed(s.XmasVolume);
+            XmasMusic.StartDelayed(vm.XmasVolume);
         }
 
         UpdateXmasButtons();
@@ -163,10 +162,14 @@ public partial class MainWindow
         }
 
         bool day = XmasDay;
+        var vm = ViewModel;
+        // Từng hiệu ứng bật / tắt riêng trong cửa sổ Giao diện; nền + màu Giáng sinh đi theo nút Noel.
+        bool snow = on && vm?.XmasSnow != false, lights = on && vm?.XmasLights != false, sleigh = on && vm?.XmasSleigh != false;
+        bool scenes = on && vm?.XmasScenes != false, caps = on && vm?.XmasSnowCaps != false;
         XmasBackHost.IsVisible = on;
         XmasFrontHost.IsVisible = on;
-        OrnamentHost.IsVisible = on;
-        Sidebar.SetFestive(on, day);
+        OrnamentHost.IsVisible = lights;
+        Sidebar.SetFestive(on, day, caps);
         ApplyWindowIcon(on);
         if (_xmasBack != null)
         {
@@ -176,21 +179,32 @@ public partial class MainWindow
 
         if (_xmasSnow != null)
         {
-            _xmasSnow.Paused = !on;
+            _xmasSnow.IsVisible = snow;
+            _xmasSnow.Paused = !snow;
             _xmasSnow.Day = day;
         }
 
         XmasScenes.SetDay(day);
-        if (_xmasSleigh != null) _xmasSleigh.Paused = !on;
-        if (_xmasGarland != null) _xmasGarland.Paused = !on;
-        if (_xmasOrnaments != null) _xmasOrnaments.Paused = !on;
-        if (_xmasVillage != null) _xmasVillage.Paused = !on;
+        if (_xmasSleigh != null)
+        {
+            _xmasSleigh.IsVisible = sleigh;
+            _xmasSleigh.Paused = !sleigh;
+        }
+
+        if (_xmasGarland != null)
+        {
+            _xmasGarland.IsVisible = lights;
+            _xmasGarland.Paused = !lights;
+        }
+
+        if (_xmasOrnaments != null) _xmasOrnaments.Paused = !lights;
+        if (_xmasVillage != null) _xmasVillage.Paused = !scenes;
         Recolor(on);
         FitVillage();
         Dispatcher.UIThread.Post(FitVillage, DispatcherPriority.Background);   // sau lượt bố cục đầu tiên
 
         // Cảnh làng / cây thông + người tuyết trong chỗ trống của mọi khung log / danh sách (ảnh dùng chung, 8 khung/giây).
-        if (!on)
+        if (!scenes)
         {
             XmasScenes.Stop();
         }
@@ -270,7 +284,7 @@ public partial class MainWindow
         // Extent của ScrollViewer luôn ≥ khung nhìn (nội dung giãn hết chỗ) → đo chiều cao tự nhiên của danh sách công cụ.
         double content = nav.Content is Control list ? list.DesiredSize.Height : nav.Extent.Height;
         double room = nav.Viewport.Height - content + (host.IsVisible ? host.Bounds.Height + host.Margin.Top + host.Margin.Bottom : 0);
-        bool show = _xmasOn && ViewModel is { IsSidebarCompact: false } && room >= needed;
+        bool show = _xmasOn && ViewModel is { IsSidebarCompact: false, XmasScenes: true } && room >= needed;
         if (host.IsVisible != show)
         {
             host.IsVisible = show;
@@ -295,41 +309,105 @@ public partial class MainWindow
         ToolTip.SetTip(Sidebar.MusicToggleButton, tip);
     }
 
-    private void XmasToggle_Click(object? sender, RoutedEventArgs e)
+    /// <summary>Theo dõi cửa sổ Giao diện / nút ở thanh bên: Noel, từng hiệu ứng, chuyển động, nhạc, âm lượng, cỡ thanh bên.</summary>
+    private void OnAppearanceChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (ViewModel is not { } vm)
         {
             return;
         }
 
-        vm.XmasSettings.XmasTheme = !_xmasOn;
-        vm.SaveXmasSettings();
-        ApplyXmas(vm.XmasSettings.XmasTheme);
-        if (vm.XmasSettings.XmasTheme)
+        switch (e.PropertyName)
         {
-            _flight.FlyNow();
+            case nameof(MainViewModel.XmasTheme):
+                if (vm.XmasTheme != _xmasOn)
+                {
+                    ApplyXmas(vm.XmasTheme);
+                    if (vm.XmasTheme && vm.XmasSleigh)
+                    {
+                        _flight.FlyNow();
+                    }
+                }
+
+                break;
+            case nameof(MainViewModel.XmasSnow) or nameof(MainViewModel.XmasLights) or nameof(MainViewModel.XmasSleigh)
+                or nameof(MainViewModel.XmasScenes) or nameof(MainViewModel.XmasSnowCaps):
+                if (_xmasOn)
+                {
+                    ApplyXmas(true);
+                    if (e.PropertyName == nameof(MainViewModel.XmasSleigh) && vm.XmasSleigh)
+                    {
+                        _flight.FlyNow();
+                    }
+                }
+
+                break;
+            case nameof(MainViewModel.AnimationsEnabled):
+                if (_xmasOn)
+                {
+                    // Các lớp đọc Motion.Suppressed khi (bỏ) dừng: dừng hết rồi bật lại để áp dụng ngay (tắt = hình đứng yên).
+                    XmasScenes.Stop();
+                    ApplyXmas(true);
+                }
+
+                break;
+            case nameof(MainViewModel.XmasMusicOn):
+                SetMusic(vm.XmasMusicOn);
+                break;
+            case nameof(MainViewModel.XmasVolume):
+                MusicVolume_Changed(vm.XmasVolume);
+                break;
+            case nameof(MainViewModel.IsSidebarCompact) or nameof(MainViewModel.SidebarWidth) or nameof(MainViewModel.SidebarScale)
+                or nameof(MainViewModel.ShowNavList) or nameof(MainViewModel.ShowSystemHost):
+                Dispatcher.UIThread.Post(FitVillage, DispatcherPriority.Background);
+                break;
         }
     }
 
-    private async void MusicToggle_Click(object? sender, RoutedEventArgs e)
+    private void XmasToggle_Click(object? sender, RoutedEventArgs e)
+    {
+        if (ViewModel is { } vm)
+        {
+            vm.XmasTheme = !_xmasOn;
+        }
+    }
+
+    private void MusicToggle_Click(object? sender, RoutedEventArgs e)
     {
         if (ViewModel is not { } vm)
         {
             return;
         }
 
-        if (XmasMusic.Playing)
+        var target = !XmasMusic.Playing;
+        if (vm.XmasMusicOn == target)
         {
-            XmasMusic.Stop();
-            vm.XmasSettings.XmasMusic = false;
+            SetMusic(target);   // lựa chọn không đổi (vd lần phát trước lỗi): thử lại
         }
         else
         {
-            vm.XmasSettings.XmasMusic = true;
-            await XmasMusic.PlayAsync();
+            vm.XmasMusicOn = target;   // OnAppearanceChanged → SetMusic
+        }
+    }
+
+    private async void SetMusic(bool on)
+    {
+        try
+        {
+            if (on && !XmasMusic.Playing)
+            {
+                await XmasMusic.PlayAsync();
+            }
+            else if (!on && XmasMusic.Playing)
+            {
+                XmasMusic.Stop();
+            }
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write("Xmas music: " + ex.Message);
         }
 
-        vm.SaveXmasSettings();
         UpdateXmasButtons();
     }
 
@@ -339,6 +417,7 @@ public partial class MainWindow
         e.Handled = true;
     }
 
+    /// <summary>Âm lượng đổi (thanh trượt ở thanh bên hoặc trong cửa sổ Giao diện): đồng bộ hai thanh, đổi âm lượng đang phát, lưu gom.</summary>
     private void MusicVolume_Changed(double value)
     {
         if (!_xmasReady || ViewModel is not { } vm)
@@ -346,8 +425,12 @@ public partial class MainWindow
             return;
         }
 
+        if (Math.Abs(Sidebar.MusicVolumeSlider.Value - value) > 0.001)
+        {
+            Sidebar.MusicVolumeSlider.Value = value;
+        }
+
         XmasMusic.Volume = value;
-        vm.XmasSettings.XmasVolume = Math.Round(value, 2);
         if (_volumeSave == null)
         {
             _volumeSave = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };

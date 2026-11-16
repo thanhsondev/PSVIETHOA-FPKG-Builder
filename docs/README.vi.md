@@ -49,12 +49,15 @@
 
 > Gói PS5 là **FPKG debug** (ảnh FIH, byte chữ ký `0x00`), gói PS4 là **fake PKG** — chỉ cài được trên máy chạy homebrew tương ứng. Thư mục, ảnh đĩa và gói nguồn bạn chọn chỉ luôn được **đọc**.
 
-## Có gì mới — bản Giáng sinh
+## Có gì mới ở 3.2 — bản Giáng sinh
 
-- **Giao diện Giáng sinh** cho cả nền sáng và tối — tuyết rơi, dây đèn, xe tuần lộc ông già Noel, làng tuyết trong chỗ trống — kèm nhạc nền tự lặp. Nút *Noel* / *Nhạc* ở thanh bên để tắt.
+- **Giao diện Giáng sinh** cho cả nền sáng và tối — tuyết rơi, dây đèn, xe tuần lộc ông già Noel, làng tuyết trong chỗ trống — kèm nhạc nền (nút *Nhạc*, mặc định tắt). Nút *Noel* ở thanh bên để tắt giao diện Giáng sinh.
 - **FPKG trên PS5** — xem các FPKG đã cài trên máy theo tên game và lấy từng tệp về `<Tên game> <PPSAxxxxx>` trên PC.
 - **Giải nén gói** — chọn ổ là tự tạo thư mục `<Tên game> <PPSAxxxxx>`.
 - **Khung Hệ thống** — tải và nhiệt CPU, nhiệt độ và tốc độ đọc / ghi từng ổ (Windows).
+- **Kéo đổi bề rộng thanh bên** — kéo mép phải (hẹp → một cột, rộng → hai cột; nháy đúp để tự động).
+- **Tuỳ chỉnh giao diện** — theme sáng / tối, cỡ thanh bên (Nhỏ / Vừa / Lớn / Theo cửa sổ) và kiểu (mặc định danh sách chi tiết như 3.0, hai cột hoặc một cột), tắt được từng hiệu ứng.
+- **Sửa lỗi** — hình Giáng sinh không còn bị phóng to trên màn Retina / HiDPI, app không còn văng khi mở trên macOS, chip ổ đĩa trên macOS và Linux.
 - **ZSTD PS5** — runtime ampr-emu-ng **0.4.1**.
 - **Ủng hộ nhóm** — nút psviethoa.com / Ko-fi ở thanh bên.
 

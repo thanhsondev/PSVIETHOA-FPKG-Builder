@@ -262,11 +262,37 @@ public sealed class AppSettings
     /// <summary>Giao diện Giáng sinh (nền xanh thông, dây đèn, tuyết, xe tuần lộc, mũ Noel…) — nút "Noel" ở thanh bên.</summary>
     public bool XmasTheme { get; set; } = true;
 
-    /// <summary>Nhạc nền Giáng sinh tự phát khi mở app — nút "Nhạc" ở thanh bên.</summary>
-    public bool XmasMusic { get; set; } = true;
+    /// <summary>Nhạc nền Giáng sinh tự phát khi mở app — nút "Nhạc" ở thanh bên. Mặc định tắt (người dùng tự bật).</summary>
+    public bool XmasMusic { get; set; }
 
     /// <summary>Âm lượng nhạc nền (0..1, âm lượng riêng của app).</summary>
     public double XmasVolume { get; set; } = 0.35;
+
+    // ───── Tuỳ chỉnh giao diện (cửa sổ Giao diện ở chân thanh bên) ─────
+
+    /// <summary>Cỡ nút / chữ thanh bên: Small (0,85×), Medium (1×), Large (1,15×), Auto (theo cửa sổ 0,9–1,3× như 3.1).</summary>
+    public string SidebarSize { get; set; } = "Medium";
+
+    /// <summary>Kiểu danh sách công cụ: List (chi tiết như 3.0, mặc định), Auto (hai cột khi đủ rộng), Grid (luôn hai cột), Single (một cột).</summary>
+    public string SidebarLayout { get; set; } = "List";
+
+    /// <summary>Khung Hệ thống ở thanh bên (chỉ Windows).</summary>
+    public bool ShowSystemPanel { get; set; } = true;
+
+    /// <summary>Giáng sinh: tuyết rơi.</summary>
+    public bool XmasSnow { get; set; } = true;
+
+    /// <summary>Giáng sinh: dây đèn mép trên + quả châu ở vùng tiêu đề.</summary>
+    public bool XmasLights { get; set; } = true;
+
+    /// <summary>Giáng sinh: ông già Noel cưỡi xe tuần lộc bay ngang.</summary>
+    public bool XmasSleigh { get; set; } = true;
+
+    /// <summary>Giáng sinh: làng tuyết cuối thanh bên + cảnh làng / cây thông trong chỗ trống khung log / danh sách.</summary>
+    public bool XmasScenes { get; set; } = true;
+
+    /// <summary>Giáng sinh: tuyết đọng trên nút thanh bên và ô tìm công cụ.</summary>
+    public bool XmasSnowCaps { get; set; } = true;
 
 }
 

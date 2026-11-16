@@ -14,12 +14,12 @@ New-Item -ItemType Directory -Force -Path "$Out\app", "$Out\fpkg-cli" | Out-Null
 dotnet publish "$Root\src\PsViethoa.FpkgBuilder.App\PsViethoa.FpkgBuilder.App.csproj" `
   -c Release -r $Rid --self-contained true `
   -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
-  -p:PublishReadyToRun=true -p:DebugType=none -o "$Out\app"
+  -p:PublishReadyToRun=true -p:DebugType=none -p:EmbedPubTools=true -o "$Out\app"
 
 dotnet publish "$Root\src\PsViethoa.FpkgBuilder.Cli\PsViethoa.FpkgBuilder.Cli.csproj" `
   -c Release -r $Rid --self-contained true `
   -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
-  -p:PublishReadyToRun=true -p:DebugType=none -o "$Out\fpkg-cli"
+  -p:PublishReadyToRun=true -p:DebugType=none -p:EmbedPubTools=true -o "$Out\fpkg-cli"
 
 # libScePubTools.dll đã nhúng trong exe (PsViethoa.FpkgBuilder.Core), không cần chép tệp rời.
 Get-ChildItem $Out -Recurse -Include *.pdb, LibProsperoPkg.xml | Remove-Item -Force

@@ -188,4 +188,48 @@ public sealed class CrossPlatformTests
         Assert.All(SonySdkBuilder.Artifacts(Path.GetTempPath(), contentId, version), path => Assert.DoesNotContain(Path.GetFileName(path), c => "<>:\"|?*".Contains(c)));
         Assert.True((name + SonySdkPatchReference.RemasteredSuffix).Length < 120);
     }
+
+    /// <summary>
+    /// macOS: DriveInfo.GetDrives() gọi getmntinfo() dùng chung một vùng đệm tĩnh — hai luồng gọi cùng lúc (lúc mở app, Giải nén gói và
+    /// FPKG trên PS5 cùng liệt kê ổ) làm tiến trình sập với AccessViolationException không bắt được. Mọi chỗ phải đi qua
+    /// DiskSpaceAdvisor.AllDrives (có khoá); phép thử quét mã nguồn để không ai gọi thẳng lại.
+    /// </summary>
+    [Fact]
+    public void DriveEnumeration_OnlyThroughTheLockedHelper()
+    {
+        var src = FindSourceRoot();
+        if (src == null)
+        {
+            return;   // chạy ngoài kho mã (gói test rời): không có mã nguồn để quét
+        }
+
+        var offenders = Directory.EnumerateFiles(src, "*.cs", SearchOption.AllDirectories)
+            .Where(path => !path.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+                           && !path.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+                           && !path.EndsWith("DiskSpaceAdvisor.cs", StringComparison.Ordinal))
+            .Where(path => File.ReadAllText(path).Contains("DriveInfo.GetDrives()", StringComparison.Ordinal))
+            .Select(path => Path.GetRelativePath(src, path))
+            .ToList();
+        Assert.Empty(offenders);
+
+        // Gọi song song nhiều lần vẫn không sập và luôn trả về danh sách.
+        Parallel.For(0, 32, _ => Assert.NotNull(DiskSpaceAdvisor.AllDrives(fresh: true)));
+    }
+
+    private static string? FindSourceRoot()
+    {
+        var current = AppContext.BaseDirectory;
+        for (var depth = 0; depth < 8 && current != null; depth++)
+        {
+            var candidate = Path.Combine(current, "src");
+            if (File.Exists(Path.Combine(current, "Directory.Build.props")) && Directory.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            current = Path.GetDirectoryName(current);
+        }
+
+        return null;
+    }
 }

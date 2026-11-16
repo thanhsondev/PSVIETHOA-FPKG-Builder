@@ -7,6 +7,13 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
+  <!-- Bản Windows nhúng libScePubTools.dll (EmbedPubTools=true, scripts/publish-windows.*): build vào obj/bin riêng để không dùng lại
+       Core.dll đã build không nhúng (build tăng dần coi là "mới" vì DLL nhúng cũ hơn) và không đè lên bản của macOS / Linux. -->
+  <PropertyGroup Condition="'$(EmbedPubTools)' == 'true'">
+    <IntermediateOutputPath>obj/$(Configuration)-pubtools/</IntermediateOutputPath>
+    <OutputPath>bin/$(Configuration)-pubtools/</OutputPath>
+  </PropertyGroup>
+
   <ItemGroup>
     <!-- Thư viện lõi PS5 PKG (managed .NET, chạy được trên macOS/Windows/Linux) -->
     <Reference Include="LibProsperoPkg">
@@ -28,9 +35,11 @@
     <EmbeddedResource Include="$(MSBuildThisFileDirectory)../../libs/garlic-savemgr/garlic-savemgr.elf" LogicalName="PsViethoa.FpkgBuilder.Core.GarlicSaveMgr.elf" />
     <!-- ZSTD PS5 (beta): runtime AMPR chạy trên PS5, ghi vào fakelib/libSceAmpr.sprx của game — nguyên byte, GPL-3.0-or-later (libs/ampr) -->
     <!-- libScePubTools.dll (Oodle gốc của Publishing Tools, chỉ Windows x64) nhúng vào exe: không cần tệp rời cạnh exe nữa.
-         PublishingToolsLocator giải nó ra thư mục dữ liệu ở lần đầu cần dùng. -->
+         PublishingToolsLocator giải nó ra thư mục dữ liệu ở lần đầu cần dùng.
+         EmbedPubTools=true do scripts/publish-windows.* truyền vào: RuntimeIdentifier KHÔNG được truyền xuống thư viện không phụ thuộc
+         RID (Core) khi publish App -r win-x64, nên bản Windows build trên macOS / Linux trước đây không có DLL này. -->
     <EmbeddedResource Include="$(MSBuildThisFileDirectory)../../libs/libScePubTools.dll" LogicalName="PsViethoa.FpkgBuilder.Core.LibScePubTools.dll"
-                      Condition="Exists('$(MSBuildThisFileDirectory)../../libs/libScePubTools.dll') And ('$(RuntimeIdentifier)' == 'win-x64' Or ('$(RuntimeIdentifier)' == '' And '$(OS)' == 'Windows_NT'))" />
+                      Condition="Exists('$(MSBuildThisFileDirectory)../../libs/libScePubTools.dll') And ('$(EmbedPubTools)' == 'true' Or '$(RuntimeIdentifier)' == 'win-x64' Or ('$(RuntimeIdentifier)' == '' And '$(OS)' == 'Windows_NT'))" />
     <EmbeddedResource Include="$(MSBuildThisFileDirectory)../../libs/ampr/ampr-emu-ng-0.4.1/libSceAmpr.sprx" LogicalName="PsViethoa.FpkgBuilder.Core.AmprEmuNg.sprx" />
     <EmbeddedResource Include="$(MSBuildThisFileDirectory)../../libs/ampr/ampr_emu-0.4.2.1/libSceAmpr.sprx" LogicalName="PsViethoa.FpkgBuilder.Core.AmprEmu.sprx" />
   </ItemGroup>

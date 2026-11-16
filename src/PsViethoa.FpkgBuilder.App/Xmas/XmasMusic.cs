@@ -110,7 +110,7 @@ internal static class XmasMusic
                 winPlaying = PlaySound(wavMemory, IntPtr.Zero, SndAsync | SndNoDefault | SndMemory | SndLoop);
                 if (!winPlaying)
                 {
-                    LastError = "PlaySound không phát được";
+                    LastError = PsViethoa.FpkgBuilder.Core.Localization.Loc.F("Xmas.MusicPlayFailed", "PlaySound");
                 }
             }
             else
@@ -256,7 +256,7 @@ internal static class XmasMusic
         });
         if (!p.Start())
         {
-            LastError = "Không chạy được afplay";
+            LastError = PsViethoa.FpkgBuilder.Core.Localization.Loc.F("Xmas.MusicPlayFailed", "afplay");
             p.Dispose();
             return;
         }

@@ -30,13 +30,18 @@ public sealed partial class DriveChoice : ObservableObject
     private static string Trim(string path) => path.Length > 1 ? path.TrimEnd('\\', '/') : path;
 
     /// <summary>
-    /// Các ổ ghi được: Windows lấy ổ cố định / tháo rời / mạng; macOS chỉ "/" và các ổ trong /Volumes; Linux "/" và /media, /mnt, /run/media
-    /// (bỏ hàng chục điểm gắn hệ thống). Chạy ở luồng nền.
+    /// Các ổ ghi được: Windows lấy ổ cố định / tháo rời / mạng; macOS ổ hệ thống và các ổ trong /Volumes; Linux "/" và /media, /mnt,
+    /// /run/media (bỏ hàng chục điểm gắn hệ thống). Chạy ở luồng nền.
+    /// <para>macOS / Linux: ổ hệ thống ("/") chỉ đọc (macOS) hoặc chỉ root ghi được (Linux), nên chip của nó trỏ vào thư mục người dùng
+    /// (~) và mang tên ổ thật ("Macintosh HD") / "Thư mục nhà". Ổ gắn chỉ đọc (NTFS trên macOS, ảnh .dmg, CD) và ổ ẩn của macOS
+    /// (Recovery, cờ nobrowse) bị bỏ — không trích được vào đó.</para>
     /// </summary>
     public static Task<List<DriveChoice>> ListAsync() => Task.Run(() =>
     {
         var list = new List<DriveChoice>();
-        foreach (var drive in DriveInfo.GetDrives())
+        var mounts = OperatingSystem.IsWindows() ? null : MountOptions();
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        foreach (var drive in DiskSpaceAdvisor.AllDrives(fresh: true))
         {
             try
             {
@@ -46,6 +51,7 @@ public sealed partial class DriveChoice : ObservableObject
                 }
 
                 var root = drive.RootDirectory.FullName;
+                var target = root;
                 string letter;
                 if (OperatingSystem.IsWindows())
                 {
@@ -53,11 +59,22 @@ public sealed partial class DriveChoice : ObservableObject
                 }
                 else if (root == "/")
                 {
-                    letter = "/";
+                    if (string.IsNullOrEmpty(home) || !Directory.Exists(home))
+                    {
+                        continue;
+                    }
+
+                    target = home;
+                    letter = OperatingSystem.IsMacOS() ? MacSystemVolumeName() : Loc.T("Drive.Home");
                 }
                 else if (root.StartsWith("/Volumes/", StringComparison.Ordinal) || root.StartsWith("/media/", StringComparison.Ordinal)
                          || root.StartsWith("/mnt/", StringComparison.Ordinal) || root.StartsWith("/run/media/", StringComparison.Ordinal))
                 {
+                    if (mounts != null && mounts.TryGetValue(root.TrimEnd('/'), out var options) && Hidden(options))
+                    {
+                        continue;
+                    }
+
                     letter = Path.GetFileName(root.TrimEnd('/'));
                 }
                 else
@@ -69,12 +86,12 @@ public sealed partial class DriveChoice : ObservableObject
                 var free = Formatters.Size(drive.AvailableFreeSpace);
                 list.Add(new DriveChoice
                 {
-                    Root = root,
+                    Root = target,
                     Letter = letter,
                     Free = free,
                     FreeBytes = drive.AvailableFreeSpace,
                     Detail = Loc.F("Drive.Free", free),
-                    Tip = $"{root} · {label} · {drive.DriveFormat} · {free} / {Formatters.Size(drive.TotalSize)}",
+                    Tip = $"{target} · {label} · {drive.DriveFormat} · {free} / {Formatters.Size(drive.TotalSize)}",
                 });
             }
             catch (Exception)
@@ -101,4 +118,82 @@ public sealed partial class DriveChoice : ObservableObject
 
         return list;
     });
+
+    /// <summary>Ổ chỉ đọc hoặc ẩn (macOS: Recovery, Preboot… có cờ nobrowse): không hiện thành chip.</summary>
+    private static bool Hidden(IReadOnlyCollection<string> options) =>
+        options.Contains("ro") || options.Contains("read-only") || options.Contains("nobrowse");
+
+    /// <summary>
+    /// Điểm gắn → tuỳ chọn gắn. Linux đọc /proc/mounts ("ro", "rw"…; khoảng trắng viết \040); macOS chạy <c>/sbin/mount</c>
+    /// ("/dev/disk3s3 on /Volumes/Recovery (apfs, local, journaled, nobrowse)"). Lỗi thì trả rỗng (không lọc gì).
+    /// </summary>
+    private static Dictionary<string, HashSet<string>> MountOptions()
+    {
+        var result = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        try
+        {
+            if (OperatingSystem.IsLinux() && File.Exists("/proc/mounts"))
+            {
+                foreach (var line in File.ReadLines("/proc/mounts"))
+                {
+                    var parts = line.Split(' ');
+                    if (parts.Length >= 4)
+                    {
+                        var point = parts[1].Replace("\\040", " ", StringComparison.Ordinal).TrimEnd('/');
+                        result[point] = parts[3].Split(',').ToHashSet(StringComparer.Ordinal);
+                    }
+                }
+            }
+            else if (OperatingSystem.IsMacOS() && File.Exists("/sbin/mount"))
+            {
+                using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("/sbin/mount")
+                {
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                });
+                if (process == null)
+                {
+                    return result;
+                }
+
+                var output = process.StandardOutput.ReadToEnd();
+                process.WaitForExit(3000);
+                foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    int on = line.IndexOf(" on ", StringComparison.Ordinal), open = line.LastIndexOf(" (", StringComparison.Ordinal);
+                    if (on > 0 && open > on && line.EndsWith(')'))
+                    {
+                        var point = line[(on + 4)..open].TrimEnd('/');
+                        result[point] = line[(open + 2)..^1].Split(',', StringSplitOptions.TrimEntries).ToHashSet(StringComparer.Ordinal);
+                    }
+                }
+            }
+        }
+        catch (Exception)
+        {
+        }
+
+        return result;
+    }
+
+    /// <summary>Tên ổ hệ thống của macOS như Finder hiện ("Macintosh HD"): liên kết trong /Volumes trỏ về "/".</summary>
+    private static string MacSystemVolumeName()
+    {
+        try
+        {
+            foreach (var entry in new DirectoryInfo("/Volumes").EnumerateFileSystemInfos())
+            {
+                if (entry.LinkTarget is "/")
+                {
+                    return entry.Name;
+                }
+            }
+        }
+        catch (Exception)
+        {
+        }
+
+        return "Macintosh HD";
+    }
 }

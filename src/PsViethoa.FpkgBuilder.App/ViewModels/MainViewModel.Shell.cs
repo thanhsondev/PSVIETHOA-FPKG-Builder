@@ -45,8 +45,24 @@ public partial class MainViewModel
 
     public bool IsSidebarCompact => SidebarCollapsed || SidebarNarrow;
 
-    /// <summary>Hệ số phóng thanh bên theo cửa sổ (1 ở 1380×900, 0,9 khi nhỏ / thấp, tối đa 1,3): kéo cửa sổ to thì thanh bên và nút to theo.</summary>
+    /// <summary>
+    /// Hệ số phóng thanh bên đang dùng: theo cỡ người dùng chọn (Nhỏ 0,85 · Vừa 1 · Lớn 1,15) hoặc theo cửa sổ
+    /// (<see cref="AutoSidebarScale"/>) — xem <see cref="UpdateSidebarScale"/>.
+    /// </summary>
     [ObservableProperty] private double _sidebarScale = 1;
+
+    /// <summary>Hệ số theo cửa sổ (1 ở 1380×900, 0,9 khi nhỏ / thấp, tối đa 1,3) do MainWindow tính; chỉ dùng ở cỡ "Theo cửa sổ".</summary>
+    [ObservableProperty] private double _autoSidebarScale = 1;
+
+    partial void OnAutoSidebarScaleChanged(double value) => UpdateSidebarScale();
+
+    private void UpdateSidebarScale() => SidebarScale = SidebarSizeMode switch
+    {
+        SidebarSizeMode.Small => 0.85,
+        SidebarSizeMode.Large => 1.15,
+        SidebarSizeMode.Auto => AutoSidebarScale,
+        _ => 1,
+    };
 
     /// <summary>Bề rộng thanh bên ở hệ số 1 (lưới hai cột, chữ 13,5).</summary>
     private const double SidebarBaseWidth = 316;
@@ -61,8 +77,19 @@ public partial class MainViewModel
 
     public double SidebarWidth => IsSidebarCompact ? 76 : Math.Round(SidebarUserWidth ?? SidebarBaseWidth * SidebarScale);
 
-    /// <summary>Thanh bên đang hẹp: mỗi công cụ một hàng.</summary>
-    public bool SidebarSingleColumn => !IsSidebarCompact && SidebarWidth / Math.Max(0.5, SidebarScale) < SingleColumnBelow;
+    /// <summary>Lưới công cụ một cột: kiểu "Một cột", hoặc kiểu "Tự động" khi thanh bên hẹp.</summary>
+    public bool SidebarSingleColumn => !IsSidebarCompact && SidebarLayoutMode switch
+    {
+        SidebarLayoutMode.Single => true,
+        SidebarLayoutMode.Grid => false,
+        _ => SidebarWidth / Math.Max(0.5, SidebarScale) < SingleColumnBelow,
+    };
+
+    /// <summary>Thanh bên mở rộng hiện lưới công cụ (một / hai cột).</summary>
+    public bool ShowNavGrid => !IsSidebarCompact && SidebarLayoutMode != SidebarLayoutMode.List;
+
+    /// <summary>Thanh bên mở rộng hiện danh sách chi tiết như 3.0 (biểu tượng, tên, dòng phụ, số thứ tự).</summary>
+    public bool ShowNavList => !IsSidebarCompact && SidebarLayoutMode == SidebarLayoutMode.List;
 
     /// <summary>Kéo mép phải thanh bên.</summary>
     public void ResizeSidebar(double width) => SidebarUserWidth = Math.Round(Math.Clamp(width, SidebarMinWidth, SidebarMaxWidth));
@@ -74,12 +101,15 @@ public partial class MainViewModel
     {
         _settings.SidebarUserWidth = value;
         OnPropertyChanged(nameof(SidebarWidth));
+        OnPropertyChanged(nameof(HasCustomSidebarWidth));
         UpdateNavColumns();
     }
 
     private void UpdateNavColumns()
     {
         OnPropertyChanged(nameof(SidebarSingleColumn));
+        OnPropertyChanged(nameof(ShowNavGrid));
+        OnPropertyChanged(nameof(ShowNavList));
         if (NavGroups == null)
         {
             return;
@@ -260,6 +290,7 @@ public partial class MainViewModel
 
         SidebarCollapsed = _settings.SidebarCollapsed;
         SidebarUserWidth = _settings.SidebarUserWidth is { } savedWidth ? Math.Clamp(savedWidth, SidebarMinWidth, SidebarMaxWidth) : null;
+        LoadAppearance();
         UpdateNavColumns();
     }
 
@@ -275,6 +306,8 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(IsSidebarCompact));
         OnPropertyChanged(nameof(SidebarWidth));
         OnPropertyChanged(nameof(SidebarContentScale));
+        OnPropertyChanged(nameof(ShowSystemHost));
+        UpdateNavColumns();
     }
 
     partial void OnSidebarNarrowChanged(bool value)
@@ -282,6 +315,8 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(IsSidebarCompact));
         OnPropertyChanged(nameof(SidebarWidth));
         OnPropertyChanged(nameof(SidebarContentScale));
+        OnPropertyChanged(nameof(ShowSystemHost));
+        UpdateNavColumns();
     }
 
     partial void OnCurrentPageChanged(AppPage value)

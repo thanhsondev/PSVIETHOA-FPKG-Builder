@@ -628,7 +628,7 @@ public sealed partial class FtpViewModel : ObservableObject
 
         try
         {
-            foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady))
+            foreach (var drive in PsViethoa.FpkgBuilder.Core.Services.DiskSpaceAdvisor.AllDrives().Where(d => d.IsReady))
             {
                 var root = drive.RootDirectory.FullName;
                 var interesting = OperatingSystem.IsWindows()

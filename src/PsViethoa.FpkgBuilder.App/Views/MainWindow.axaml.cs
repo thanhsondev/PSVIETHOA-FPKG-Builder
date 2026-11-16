@@ -163,7 +163,7 @@ public partial class MainWindow : Window
         {
             ViewModel.SidebarNarrow = width < NarrowSidebarWidth;
             // Thanh bên co giãn theo cửa sổ (như Studio 2.1.0): 1× ở cỡ thiết kế 1380×900, cửa sổ nhỏ / thấp co tới 0,9×, màn lớn tới 1,3×.
-            ViewModel.SidebarScale = Math.Round(Math.Clamp(Math.Min(width / 1380.0, height / 900.0), 0.9, 1.3), 2);
+            ViewModel.AutoSidebarScale = Math.Round(Math.Clamp(Math.Min(width / 1380.0, height / 900.0), 0.9, 1.3), 2);
         }
     }
 
@@ -484,21 +484,22 @@ public partial class MainWindow : Window
                 await ViewModel.Save.StartCommand.ExecuteAsync(null);
                 await Task.Delay(TimeSpan.FromSeconds(1.5));
             }
-            if (Environment.GetEnvironmentVariable("PSVIETHOA_SHOW_HELP") == "1")
+            if (Environment.GetEnvironmentVariable("PSVIETHOA_SHOW_HELP") == "1" || Environment.GetEnvironmentVariable("PSVIETHOA_SHOW_APPEARANCE") == "1")
             {
-                // Chụp cửa sổ Hướng dẫn thay vì cửa sổ chính.
-                var help = new HelpWindow();
+                // Chụp cửa sổ Hướng dẫn (PSVIETHOA_SHOW_HELP) hoặc Giao diện (PSVIETHOA_SHOW_APPEARANCE) thay vì cửa sổ chính.
+                var appearance = Environment.GetEnvironmentVariable("PSVIETHOA_SHOW_APPEARANCE") == "1";
+                Window help = appearance ? new AppearanceWindow { DataContext = ViewModel } : new HelpWindow();
                 help.Show(this);
                 await Task.Delay(TimeSpan.FromSeconds(1.5));
                 if (Environment.GetEnvironmentVariable("PSVIETHOA_SCROLL") is { } helpScroll)
                 {
-                    if (helpScroll == "end")
+                    if (help is HelpWindow helpWindow && helpScroll == "end")
                     {
-                        help.ScrollToEnd();
+                        helpWindow.ScrollToEnd();
                     }
-                    else if (double.TryParse(helpScroll, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var helpOffset))
+                    else if (help is HelpWindow scrolled && double.TryParse(helpScroll, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var helpOffset))
                     {
-                        help.ScrollTo(helpOffset);
+                        scrolled.ScrollTo(helpOffset);
                     }
 
                     await Task.Delay(300);
@@ -633,6 +634,18 @@ public partial class MainWindow : Window
     {
         var help = new HelpWindow();
         help.ShowDialog(this);
+    }
+
+    /// <summary>Cửa sổ Giao diện (nút bảng màu ở chân thanh bên): theme, thanh bên, hiệu ứng — áp dụng ngay khi chọn.</summary>
+    public void ShowAppearance()
+    {
+        if (ViewModel == null)
+        {
+            return;
+        }
+
+        var window = new AppearanceWindow { DataContext = ViewModel };
+        window.ShowDialog(this);
     }
 
     protected override void OnKeyDown(KeyEventArgs e)

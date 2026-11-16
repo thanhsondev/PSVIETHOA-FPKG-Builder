@@ -12,7 +12,14 @@ public sealed partial class SidebarView : UserControl
     public SidebarView()
     {
         AvaloniaXamlLoader.Load(this);
+        if (OperatingSystem.IsMacOS())
+        {
+            // Phím tắt hiện theo hệ: macOS dùng ⌘K (Ctrl+K vẫn chạy).
+            this.FindControl<TextBlock>("SearchShortcut")!.Text = "⌘K";
+        }
+
         this.FindControl<Button>("HelpButton")!.Click += (_, _) => (TopLevel.GetTopLevel(this) as MainWindow)?.ShowHelp();
+        this.FindControl<Button>("AppearanceButton")!.Click += (_, _) => (TopLevel.GetTopLevel(this) as MainWindow)?.ShowAppearance();
         var search = this.FindControl<TextBox>("NavSearch")!;
         search.KeyDown += (_, e) =>
         {
@@ -53,7 +60,7 @@ public sealed partial class SidebarView : UserControl
     /// nền rặng thông phía sau. Theme sáng: thanh bên sáng theo trang ("ngày tuyết" — lớp xmasday, style trong Shell.axaml). Tắt thì trả
     /// lại dải màu gốc (thanh bên luôn tối).
     /// </summary>
-    internal void SetFestive(bool on, bool day)
+    internal void SetFestive(bool on, bool day, bool snowCaps = true)
     {
         var root = this.FindControl<Border>("SidebarRoot")!;
         _rootBackground ??= root.Background;
@@ -62,6 +69,7 @@ public sealed partial class SidebarView : UserControl
         root.BorderBrush = !on ? _rootBorder : new SolidColorBrush(Color.Parse(day ? "#C9DFD3" : "#1E3D2B"));
         Classes.Set("xmas", on);
         Classes.Set("xmasday", on && day);
+        Classes.Set("xmascaps", on && snowCaps);   // tuyết đọng trên nút (tắt được trong cửa sổ Giao diện)
         this.FindControl<Avalonia.Controls.Shapes.Ellipse>("SidebarGlow")!.IsVisible = !on;
         this.FindControl<Control>("Hat")!.IsVisible = on;
         this.FindControl<TextBlock>("XmasGreeting")!.IsVisible = on;
