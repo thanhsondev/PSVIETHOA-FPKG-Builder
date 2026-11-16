@@ -5,6 +5,7 @@
              xmlns:c="using:PsViethoa.FpkgBuilder.App.Controls"
              xmlns:conv="using:PsViethoa.FpkgBuilder.App.Converters"
              xmlns:l="using:PsViethoa.FpkgBuilder.App.Localization"
+             xmlns:xmas="using:PsViethoa.FpkgBuilder.App.Xmas"
              x:Class="PsViethoa.FpkgBuilder.App.Views.SidebarView"
              x:DataType="vm:MainViewModel">
 
@@ -12,15 +13,18 @@
         <!-- Một ô công cụ của lưới: biểu tượng + tên, viền mảnh; đang mở thì tô màu hệ máy + vạch sáng bên trái. -->
         <DataTemplate x:Key="NavCellTemplate" x:DataType="shell:NavItem">
             <RadioButton Classes="nav navcell" GroupName="nav" IsChecked="{Binding IsSelected, Mode=TwoWay}" ToolTip.Tip="{Binding Tip}" AutomationProperties.Name="{Binding Title}">
-                <Panel Height="42">
-                    <Border Classes="navcellbg" CornerRadius="10" BorderThickness="1" />
-                    <Border Classes="navhover" CornerRadius="10" Background="#0FFFFFFF" />
-                    <Border Classes="navsel" CornerRadius="10" Background="{Binding SelectedBrush}" BorderBrush="{Binding AccentBrush}" BorderThickness="1" />
-                    <Border Classes="navrail" Width="3.5" Height="20" CornerRadius="2" HorizontalAlignment="Left" Margin="-1,0,0,0" Background="{Binding AccentBrush}" BoxShadow="{Binding RailGlow}" />
-                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="10,0,6,0">
+                <Panel Height="30">
+                    <Border Classes="navcellbg" CornerRadius="8" BorderThickness="1" />
+                    <Border Classes="navhover" CornerRadius="8" Background="#0FFFFFFF" />
+                    <Border Classes="navsel" CornerRadius="8" Background="{Binding SelectedBrush}" BorderBrush="{Binding AccentBrush}" BorderThickness="1" />
+                    <!-- Giáng sinh: ô đang chọn sáng hơn (thay cho viền) + tuyết đọng mép trên (ảnh tĩnh dùng chung theo cỡ) -->
+                    <Border Classes="navselsnow" CornerRadius="8" />
+                    <xmas:SnowCap Classes="navsnow" VerticalAlignment="Top" Margin="0,-5,0,0" />
+                    <Border Classes="navrail" Width="3" Height="16" CornerRadius="2" HorizontalAlignment="Left" Margin="-1,0,0,0" Background="{Binding AccentBrush}" BoxShadow="{Binding RailGlow}" />
+                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="9,0,5,0">
                         <PathIcon Classes="navglyph" Data="{Binding Icon}" VerticalAlignment="Center" IsVisible="{Binding !IsSelected}" />
                         <PathIcon Classes="navglyph" Data="{Binding Icon}" Foreground="{Binding AccentBrush}" VerticalAlignment="Center" IsVisible="{Binding IsSelected}" />
-                        <TextBlock Grid.Column="1" Classes="navtitle" Text="{Binding Title}" Margin="9,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Grid.Column="1" Classes="navtitle" Text="{Binding Title}" Margin="8,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                         <Ellipse Grid.Column="2" Classes="busydot" Width="7" Height="7" Fill="{Binding AccentBrush}" VerticalAlignment="Center" Margin="6,0,0,0" IsVisible="{Binding IsBusy}" />
                     </Grid>
                 </Panel>
@@ -29,7 +33,9 @@
     </UserControl.Resources>
 
     <!-- Thanh bên luôn tối ở cả hai theme. Lớp nền: dải màu đứng + quầng sáng logo + hạt sáng mờ. -->
-    <Border BorderBrush="#1A2440" BorderThickness="0,0,1,0" ClipToBounds="True">
+    <!-- Giáng sinh (MainWindow.Xmas): theme tối → nền xanh thông hơi trong để thấy nền rặng thông phía sau; theme sáng → lớp "xmasday"
+         trên UserControl đổi thanh bên sang sáng (nền xanh băng, chữ tối, ô trắng viền xanh nhạt — style trong Shell.axaml). -->
+    <Border Name="SidebarRoot" BorderBrush="#1A2440" BorderThickness="0,0,1,0" ClipToBounds="True">
         <Border.Background>
             <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
                 <GradientStop Offset="0" Color="#0E1630" />
@@ -39,7 +45,7 @@
         </Border.Background>
         <Panel>
             <!-- Quầng sáng sau logo -->
-            <Ellipse Width="300" Height="220" Margin="-110,-120,0,0" HorizontalAlignment="Left" VerticalAlignment="Top" Opacity="0.55" IsHitTestVisible="False">
+            <Ellipse Name="SidebarGlow" Width="300" Height="220" Margin="-110,-120,0,0" HorizontalAlignment="Left" VerticalAlignment="Top" Opacity="0.55" IsHitTestVisible="False">
                 <Ellipse.Fill>
                     <RadialGradientBrush>
                         <GradientStop Offset="0" Color="#552563EB" />
@@ -49,18 +55,18 @@
                 </Ellipse.Fill>
             </Ellipse>
 
-            <!-- Co giãn theo cửa sổ: SidebarContentScale = 1 ở 1400 px, tối đa 1,4 (MainWindow.UpdateHeaderDensity). -->
+            <!-- Co giãn theo cửa sổ: SidebarContentScale = 1 ở 1380×900, 0,9 khi nhỏ, tối đa 1,3 (MainWindow.UpdateHeaderDensity). -->
             <LayoutTransformControl>
                 <LayoutTransformControl.LayoutTransform>
                     <ScaleTransform ScaleX="{Binding SidebarContentScale}" ScaleY="{Binding SidebarContentScale}" />
                 </LayoutTransformControl.LayoutTransform>
-            <DockPanel Margin="14,16,14,14">
+            <DockPanel Margin="12,12,12,10">
 
                 <!-- ===== Logo + tên ===== -->
-                <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto" Margin="2,0,0,16">
+                <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto" Margin="2,0,0,10">
                     <!-- Logo PSVH của psviethoa.com (bản chữ VH trắng cho nền tối), quầng sáng nhẹ phía sau cho biểu tượng xanh nổi lên -->
                     <Panel Name="Logo" Width="{Binding IsSidebarCompact, Converter={x:Static conv:AppConverters.LogoWidth}}" VerticalAlignment="Center" ToolTip.Tip="PSVIETHOA — psviethoa.com">
-                        <Ellipse Margin="-10,-12" Opacity="0.55" IsHitTestVisible="False">
+                        <Ellipse Classes="sidelogoglow" Margin="-10,-12" Opacity="0.55" IsHitTestVisible="False">
                             <Ellipse.Fill>
                                 <RadialGradientBrush>
                                     <GradientStop Offset="0" Color="#663B82F6" />
@@ -68,32 +74,80 @@
                                 </RadialGradientBrush>
                             </Ellipse.Fill>
                         </Ellipse>
-                        <Image Source="avares://PsViethoa.FpkgBuilder.App/Assets/logo-dark.png" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="HighQuality" />
+                        <Image Classes="sidelogodark" Source="avares://PsViethoa.FpkgBuilder.App/Assets/logo-dark.png" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="HighQuality" />
+                        <!-- Bản chữ VH tối (cùng kích thước) cho thanh bên sáng của Giáng sinh theme sáng -->
+                        <Image Classes="sidelogolight" Source="avares://PsViethoa.FpkgBuilder.App/Assets/logo-light.png" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="HighQuality" />
+                        <!-- Giáng sinh: mũ Noel đội lên góc trên bên trái chữ "P" của logo. Toạ độ thiết kế theo ảnh logo ở bề rộng 84
+                             (1024×569 → 84×46,7; đỉnh chữ P ở (21,8; 1,8)); Viewbox phóng cùng tỉ lệ với ảnh nên thanh bên thu gọn (46) vẫn khớp. -->
+                        <Viewbox Name="Hat" Stretch="Uniform" VerticalAlignment="Center" ClipToBounds="False" IsHitTestVisible="False" IsVisible="False">
+                            <Panel Width="84" Height="46.7" ClipToBounds="False">
+                                <xmas:SantaHat HorizontalAlignment="Left" VerticalAlignment="Top" Margin="13,-20.5,0,0" />
+                            </Panel>
+                        </Viewbox>
                     </Panel>
                     <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Spacing="1" IsVisible="{Binding !IsSidebarCompact}">
-                        <TextBlock Text="PSVIETHOA" FontSize="15.5" FontWeight="Black" LetterSpacing="0.6" Foreground="#F8FAFC" />
+                        <TextBlock Classes="sidebrand" Text="PSVIETHOA" FontSize="15.5" FontWeight="Black" LetterSpacing="0.6" />
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock Text="{l:T Shell.Product}" FontSize="11.5" FontWeight="SemiBold" Foreground="#7DD3FC" />
-                            <Border Background="#1A7DD3FC" BorderBrush="#337DD3FC" BorderThickness="1" CornerRadius="5" Padding="5,0">
-                                <TextBlock Text="{Binding HeaderVersion}" FontSize="10.5" FontWeight="Bold" Foreground="#BAE6FD" />
+                            <TextBlock Classes="sideproduct" Text="{l:T Shell.Product}" FontSize="11.5" FontWeight="SemiBold" />
+                            <Border Classes="sideversion" BorderThickness="1" CornerRadius="5" Padding="5,0">
+                                <TextBlock Text="{Binding HeaderVersion}" FontSize="10.5" FontWeight="Bold" />
                             </Border>
                         </StackPanel>
+                        <TextBlock Name="XmasGreeting" Text="{l:T Xmas.Greeting}" FontSize="10.5" FontWeight="SemiBold" Margin="0,2,0,0" IsVisible="False" TextTrimming="CharacterEllipsis">
+                            <TextBlock.Foreground>
+                                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                                    <GradientStop Offset="0" Color="#F87171" />
+                                    <GradientStop Offset="0.5" Color="#FBBF24" />
+                                    <GradientStop Offset="1" Color="#4ADE80" />
+                                </LinearGradientBrush>
+                            </TextBlock.Foreground>
+                        </TextBlock>
                     </StackPanel>
                 </Grid>
 
                 <!-- ===== Tìm công cụ (Ctrl+K) ===== -->
-                <Border DockPanel.Dock="Top" Classes="navsearch" Margin="0,0,0,12" IsVisible="{Binding !IsSidebarCompact}">
+                <Border DockPanel.Dock="Top" Classes="navsearch" Margin="0,0,0,6" IsVisible="{Binding !IsSidebarCompact}">
                     <Grid ColumnDefinitions="Auto,*,Auto">
-                        <PathIcon Data="{StaticResource IconFilter}" Width="15" Height="15" Foreground="#7D8DA8" Margin="12,0,0,0" VerticalAlignment="Center" />
+                        <xmas:SnowCap Grid.ColumnSpan="3" Classes="navsnow" Radius="9" VerticalAlignment="Top" Margin="0,-6,0,0" />
+                        <PathIcon Classes="sidesearchicon" Data="{StaticResource IconFilter}" Width="15" Height="15" Margin="12,0,0,0" VerticalAlignment="Center" />
                         <TextBox Grid.Column="1" Name="NavSearch" Classes="navsearch" Text="{Binding NavFilter, Mode=TwoWay}" Watermark="{l:T Shell.Search}" />
                         <Border Grid.Column="2" Classes="kbd" Margin="0,0,8,0" VerticalAlignment="Center"><TextBlock Text="Ctrl K" /></Border>
                     </Grid>
                 </Border>
 
                 <!-- ===== Chân: ngôn ngữ, theme, cập nhật, hướng dẫn, thu gọn ===== -->
-                <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,10,0,0">
-                    <Border Height="1" Background="#1A2440" Margin="0,0,0,2" />
-                    <Border Background="#0F1729" BorderBrush="#1E2A45" BorderThickness="1" CornerRadius="10" Padding="3" IsVisible="{Binding !IsSidebarCompact}" ToolTip.Tip="{l:T Header.LanguageTip}">
+                <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,6,0,0">
+                    <Border Classes="sideline" Height="1" Margin="0,0,0,2" />
+                    <!-- Ủng hộ nhóm (chỉ có ở bản GitHub): tiếng Việt → psviethoa.com/donate (logo PSVH trên ô trắng), tiếng Anh → Ko-fi (cốc Ko-fi).
+                         Nhãn, tooltip, biểu tượng và link đổi ngay khi bấm Tiếng Việt / English. -->
+                    <Button Name="DonateButton" Classes="kofi" Command="{Binding OpenDonateCommand}" ToolTip.Tip="{l:T Donate.Tip}" AutomationProperties.Name="{l:T Donate.Button}" IsVisible="{Binding !IsSidebarCompact}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Panel VerticalAlignment="Center">
+                                <Border Width="22" Height="22" CornerRadius="6" Background="#FFFFFF" Padding="1.5" IsVisible="{Binding LanguageVi}">
+                                    <Image Source="avares://PsViethoa.FpkgBuilder.App/Assets/psviethoa-donate.png" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="HighQuality" />
+                                </Border>
+                                <Image Source="avares://PsViethoa.FpkgBuilder.App/Assets/kofi.png" Width="22" Height="18" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="HighQuality" IsVisible="{Binding LanguageEn}" />
+                            </Panel>
+                            <TextBlock Text="{l:T Donate.Button}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Button>
+                    <!-- Giáng sinh: bật/tắt hiệu ứng, nhạc nền (lăn chuột trên nút Nhạc = chỉnh âm lượng) -->
+                    <Grid ColumnDefinitions="Auto,6,Auto,10,*" IsVisible="{Binding !IsSidebarCompact}">
+                        <Button Name="XmasToggle" Classes="side xmas" ToolTip.Tip="{l:T Xmas.ToggleTip}" AutomationProperties.Name="{l:T Xmas.Toggle}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <PathIcon Data="{StaticResource IconXmasTree}" />
+                                <TextBlock Text="{l:T Xmas.Toggle}" />
+                            </StackPanel>
+                        </Button>
+                        <Button Grid.Column="2" Name="MusicToggle" Classes="side xmas" AutomationProperties.Name="{l:T Xmas.Music}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <PathIcon Data="{StaticResource IconMusic}" />
+                                <TextBlock Text="{l:T Xmas.Music}" />
+                            </StackPanel>
+                        </Button>
+                        <Slider Grid.Column="4" Name="MusicVolume" Minimum="0" Maximum="1" SmallChange="0.05" LargeChange="0.1" VerticalAlignment="Center" Margin="0,-6" ToolTip.Tip="{l:T Xmas.Volume}" AutomationProperties.Name="{l:T Xmas.Volume}" />
+                    </Grid>
+                    <Border Classes="sidelangbox" BorderThickness="1" CornerRadius="8" Padding="2" IsVisible="{Binding !IsSidebarCompact}" ToolTip.Tip="{l:T Header.LanguageTip}">
                         <Grid ColumnDefinitions="*,3,*">
                             <RadioButton Classes="sidelang" Theme="{StaticResource SegmentRadio}" GroupName="sidelang" Content="Tiếng Việt" IsChecked="{Binding LanguageVi, Mode=TwoWay}" />
                             <RadioButton Grid.Column="2" Classes="sidelang" Theme="{StaticResource SegmentRadio}" GroupName="sidelang" Content="English" IsChecked="{Binding LanguageEn, Mode=TwoWay}" />
@@ -119,28 +173,39 @@
                             <PathIcon Data="{StaticResource IconCollapse}" />
                         </Button>
                     </UniformGrid>
+                    <Button Classes="kofi" IsVisible="{Binding IsSidebarCompact}" Command="{Binding OpenDonateCommand}" ToolTip.Tip="{l:T Donate.Button}" AutomationProperties.Name="{l:T Donate.Button}" Padding="0">
+                        <Panel>
+                            <Border Width="22" Height="22" CornerRadius="6" Background="#FFFFFF" Padding="1.5" IsVisible="{Binding LanguageVi}">
+                                <Image Source="avares://PsViethoa.FpkgBuilder.App/Assets/psviethoa-donate.png" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="HighQuality" />
+                            </Border>
+                            <Image Source="avares://PsViethoa.FpkgBuilder.App/Assets/kofi.png" Width="22" Height="18" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="HighQuality" IsVisible="{Binding LanguageEn}" />
+                        </Panel>
+                    </Button>
                     <Button Classes="side" IsVisible="{Binding IsSidebarCompact}" Command="{Binding ToggleSidebarCommand}" ToolTip.Tip="{l:T Shell.Expand}">
                         <PathIcon Data="{StaticResource IconExpand}" />
                     </Button>
                 </StackPanel>
 
+                <!-- Giáng sinh: làng tuyết cuối thanh bên, chỉ hiện khi danh sách công cụ còn chỗ (MainWindow.FitVillage) -->
+                <Border Name="VillageHost" DockPanel.Dock="Bottom" Height="150" Margin="-12,6,-12,-2" IsVisible="False" IsHitTestVisible="False" />
+
                 <!-- ===== Nhóm và mục: lưới hai cột như PSVIETHOA STUDIO; thu gọn thì chỉ còn biểu tượng ===== -->
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,10,0">
+                <ScrollViewer Name="NavScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,10,0">
                     <Panel>
                         <ItemsControl ItemsSource="{Binding NavGroups}" IsVisible="{Binding !IsSidebarCompact}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="shell:NavGroup">
-                                    <StackPanel Margin="0,0,0,12" IsVisible="{Binding HasVisibleItems}">
-                                        <Grid ColumnDefinitions="Auto,Auto,Auto,*" Margin="2,0,2,8">
-                                            <c:PlatformBadge Platform="{Binding Platform}" Size="22" IsBusy="{Binding IsBusy}" />
-                                            <c:PlatformBadge Grid.Column="1" Platform="{Binding SecondPlatform}" Size="22" Margin="5,0,0,0" IsVisible="{Binding HasSecondPlatform}" />
+                                    <StackPanel IsVisible="{Binding HasVisibleItems}">
+                                        <Grid ColumnDefinitions="Auto,Auto,Auto,*" Margin="2,2,2,3">
+                                            <c:PlatformBadge Platform="{Binding Platform}" Size="18" IsBusy="{Binding IsBusy}" />
+                                            <c:PlatformBadge Grid.Column="1" Platform="{Binding SecondPlatform}" Size="18" Margin="4,0,0,0" IsVisible="{Binding HasSecondPlatform}" />
                                             <TextBlock Grid.Column="2" Classes="navgroup" Text="{Binding Title}" Foreground="{Binding AccentBrush}" Margin="9,0,10,0" />
-                                            <Border Grid.Column="3" Height="1" VerticalAlignment="Center" Background="#1A2440" />
+                                            <Border Grid.Column="3" Classes="sideline" Height="1" VerticalAlignment="Center" />
                                         </Grid>
                                         <ItemsControl ItemsSource="{Binding Rows}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate x:DataType="shell:NavRow">
-                                                    <Grid ColumnDefinitions="*,6,*" Margin="0,0,0,6">
+                                                    <Grid ColumnDefinitions="*,4,*" Margin="0,0,0,4">
                                                         <ContentControl Grid.ColumnSpan="{Binding FirstSpan}" Content="{Binding First}" ContentTemplate="{StaticResource NavCellTemplate}" />
                                                         <ContentControl Grid.Column="2" Content="{Binding Second}" ContentTemplate="{StaticResource NavCellTemplate}" IsVisible="{Binding HasSecond}" />
                                                     </Grid>

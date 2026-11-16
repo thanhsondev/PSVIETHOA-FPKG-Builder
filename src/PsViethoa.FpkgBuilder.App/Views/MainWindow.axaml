@@ -9,7 +9,7 @@
         x:Class="PsViethoa.FpkgBuilder.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="{Binding WindowTitle}"
-        Icon="avares://PsViethoa.FpkgBuilder.App/Assets/icon-256.png"
+        Icon="avares://PsViethoa.FpkgBuilder.App/Assets/app.ico"
         Width="1380" Height="900" MinWidth="980" MinHeight="640"
         WindowStartupLocation="CenterScreen"
         DragDrop.AllowDrop="True">
@@ -65,6 +65,9 @@
     </Window.Styles>
 
     <Panel>
+        <!-- Giáng sinh (MainWindow.Xmas): nền xanh thông + trăng + rặng thông phủ tuyết, nằm SAU mọi thứ (không nhận chuột) -->
+        <Panel Name="XmasBackHost" IsHitTestVisible="False" IsVisible="False" />
+
         <Grid ColumnDefinitions="Auto,*">
 
             <!-- ============ THANH BÊN (3.0.0): PS5 FPKG · PS4 PKG · Kết nối PS5 · Save game ============ -->
@@ -81,6 +84,8 @@
             <!-- ============ ĐẦU TRANG: huy hiệu hệ máy · nhóm · số thứ tự, tiêu đề, mô tả ============ -->
             <Border Grid.Row="0" Padding="26,18,26,4">
                 <Grid ColumnDefinitions="*,16,Auto">
+                    <!-- Giáng sinh: quả châu treo ở vùng tiêu đề trang, nằm sau chữ -->
+                    <Panel Name="OrnamentHost" Grid.ColumnSpan="3" ZIndex="-1" HorizontalAlignment="Right" VerticalAlignment="Top" Width="250" Height="92" Margin="0,-22,260,0" IsHitTestVisible="False" IsVisible="False" />
                     <StackPanel Name="PageHeaderText" Spacing="3">
                         <StackPanel Orientation="Horizontal" Spacing="9">
                             <c:PlatformBadge Name="PageBadge" Platform="{Binding PagePlatform}" Size="20" Interactive="False" VerticalAlignment="Center" />
@@ -1194,6 +1199,9 @@
             </Border>
         </Grid>
         </Grid>
+
+        <!-- Giáng sinh: tuyết rơi, dây đèn mép trên, ông già Noel bay ngang — lớp trên cùng nhưng không nhận chuột -->
+        <Panel Name="XmasFrontHost" IsHitTestVisible="False" IsVisible="False" />
 
         <!-- Lớp phủ khi kéo–thả -->
         <Border Name="DropOverlay" IsVisible="False" Background="{DynamicResource ScrimBrush}" IsHitTestVisible="False">

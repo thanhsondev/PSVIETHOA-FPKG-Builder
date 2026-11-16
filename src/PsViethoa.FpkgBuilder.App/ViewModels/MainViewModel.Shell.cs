@@ -45,7 +45,7 @@ public partial class MainViewModel
 
     public bool IsSidebarCompact => SidebarCollapsed || SidebarNarrow;
 
-    /// <summary>Hệ số phóng thanh bên theo bề rộng cửa sổ (1 ở 1400 px, tối đa 1,4): kéo cửa sổ to thì thanh bên và nút to theo.</summary>
+    /// <summary>Hệ số phóng thanh bên theo cửa sổ (1 ở 1380×900, 0,9 khi nhỏ / thấp, tối đa 1,3): kéo cửa sổ to thì thanh bên và nút to theo.</summary>
     [ObservableProperty] private double _sidebarScale = 1;
 
     /// <summary>Bề rộng thanh bên ở hệ số 1 (lưới hai cột, chữ 13,5).</summary>

@@ -162,8 +162,8 @@ public partial class MainWindow : Window
         if (ViewModel != null)
         {
             ViewModel.SidebarNarrow = width < NarrowSidebarWidth;
-            // Thanh bên co giãn theo cửa sổ: 1× ở 1400 px, to dần tới 1,4× (cửa sổ ~1960 px trở lên).
-            ViewModel.SidebarScale = Math.Round(Math.Clamp(Math.Min(width / 1400.0, height / 900.0 * 1.25), 1.0, 1.4), 2);
+            // Thanh bên co giãn theo cửa sổ (như Studio 2.1.0): 1× ở cỡ thiết kế 1380×900, cửa sổ nhỏ / thấp co tới 0,9×, màn lớn tới 1,3×.
+            ViewModel.SidebarScale = Math.Round(Math.Clamp(Math.Min(width / 1380.0, height / 900.0), 0.9, 1.3), 2);
         }
     }
 
@@ -361,6 +361,9 @@ public partial class MainWindow : Window
         {
             _ = AutoBuildAndExitAsync(autoBuild);
         }
+
+        // Giáng sinh: trang trí + nhạc nền (MainWindow.Xmas.cs).
+        InitXmas();
     }
 
     private async Task AutoBuildAndExitAsync(string prefix)
@@ -540,12 +543,35 @@ public partial class MainWindow : Window
         }
     }
 
+    private bool _logScrollPending;
+
+    /// <summary>
+    /// Tự cuộn nhật ký: hoãn sang lượt Background của Dispatcher và gộp nhiều dòng log liên tiếp thành MỘT lần cuộn. Gọi ScrollIntoView
+    /// ngay trong sự kiện thêm dòng (lúc danh sách đang tạo phần tử) có thể làm VirtualizingStackPanel ném lỗi / cuộn sai khi log dồn dập.
+    /// </summary>
     private void OnLogAppended(object? sender, EventArgs e)
     {
-        if (ViewModel is { AutoScrollLog: true } && LogList.ItemCount > 0)
+        if (_logScrollPending || ViewModel is not { AutoScrollLog: true })
         {
-            LogList.ScrollIntoView(LogList.ItemCount - 1);
+            return;
         }
+
+        _logScrollPending = true;
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            _logScrollPending = false;
+            try
+            {
+                if (ViewModel is { AutoScrollLog: true } && LogList.ItemCount > 0)
+                {
+                    LogList.ScrollIntoView(LogList.ItemCount - 1);
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugLog.Write("Log scroll: " + ex.Message);
+            }
+        }, Avalonia.Threading.DispatcherPriority.Background);
     }
 
     private void OnFocusFieldRequested(object? sender, string field)
