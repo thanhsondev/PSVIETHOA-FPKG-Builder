@@ -248,7 +248,10 @@ public sealed class AppSettings
 
 public static class SettingsService
 {
-    public static string Directory => JsonFileStore.AppDataDirectory(AppInfo.DataFolderName);
+    /// <summary>Thư mục dữ liệu; biến môi trường PSVIETHOA_FPKG_SETTINGS (một thư mục) tách cài đặt khi chạy thử / kiểm thử giao diện.</summary>
+    public static string Directory => Environment.GetEnvironmentVariable("PSVIETHOA_FPKG_SETTINGS") is { Length: > 0 } custom
+        ? custom
+        : JsonFileStore.AppDataDirectory(AppInfo.DataFolderName);
 
     public static string Path => System.IO.Path.Combine(Directory, "settings.json");
 
