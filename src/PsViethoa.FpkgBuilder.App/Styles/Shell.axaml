@@ -155,6 +155,7 @@
         <Setter Property="Margin" Value="0" />
     </Style>
     <Style Selector="RadioButton.navcell Border.navcellbg">
+        <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Background" Value="#0F1729" />
         <Setter Property="BorderBrush" Value="#1E2A45" />
         <Setter Property="Transitions">
@@ -168,11 +169,11 @@
     </Style>
     <!-- Thanh bên gọn như Studio 2.1.0: ô 33 px, chữ 13, biểu tượng 15 -->
     <Style Selector="RadioButton.navcell PathIcon.navglyph">
-        <Setter Property="Width" Value="15" />
-        <Setter Property="Height" Value="15" />
+        <Setter Property="Width" Value="17" />
+        <Setter Property="Height" Value="17" />
     </Style>
     <Style Selector="RadioButton.navcell TextBlock.navtitle">
-        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontSize" Value="14" />
     </Style>
     <Style Selector="TextBlock.navgroup">
         <Setter Property="FontSize" Value="11" />

@@ -13,8 +13,8 @@
         <!-- Một ô công cụ của lưới: biểu tượng + tên, viền mảnh; đang mở thì tô màu hệ máy + vạch sáng bên trái. -->
         <DataTemplate x:Key="NavCellTemplate" x:DataType="shell:NavItem">
             <RadioButton Classes="nav navcell" GroupName="nav" IsChecked="{Binding IsSelected, Mode=TwoWay}" ToolTip.Tip="{Binding Tip}" AutomationProperties.Name="{Binding Title}">
-                <Panel Height="30">
-                    <Border Classes="navcellbg" CornerRadius="8" BorderThickness="1" />
+                <Panel Height="34">
+                    <Border Classes="navcellbg" CornerRadius="8" />
                     <Border Classes="navhover" CornerRadius="8" Background="#0FFFFFFF" />
                     <Border Classes="navsel" CornerRadius="8" Background="{Binding SelectedBrush}" BorderBrush="{Binding AccentBrush}" BorderThickness="1" />
                     <!-- Giáng sinh: ô đang chọn sáng hơn (thay cho viền) + tuyết đọng mép trên (ảnh tĩnh dùng chung theo cỡ) -->
