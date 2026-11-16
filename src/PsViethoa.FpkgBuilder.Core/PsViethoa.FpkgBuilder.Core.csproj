@@ -27,6 +27,10 @@
     <!-- Payload PS5 cho trang Resign Save (Garlic SaveMgr của earthonion), chỉ gửi tới máy khi người dùng bấm "Nạp ELF" -->
     <EmbeddedResource Include="$(MSBuildThisFileDirectory)../../libs/garlic-savemgr/garlic-savemgr.elf" LogicalName="PsViethoa.FpkgBuilder.Core.GarlicSaveMgr.elf" />
     <!-- ZSTD PS5 (beta): runtime AMPR chạy trên PS5, ghi vào fakelib/libSceAmpr.sprx của game — nguyên byte, GPL-3.0-or-later (libs/ampr) -->
+    <!-- libScePubTools.dll (Oodle gốc của Publishing Tools, chỉ Windows x64) nhúng vào exe: không cần tệp rời cạnh exe nữa.
+         PublishingToolsLocator giải nó ra thư mục dữ liệu ở lần đầu cần dùng. -->
+    <EmbeddedResource Include="$(MSBuildThisFileDirectory)../../libs/libScePubTools.dll" LogicalName="PsViethoa.FpkgBuilder.Core.LibScePubTools.dll"
+                      Condition="Exists('$(MSBuildThisFileDirectory)../../libs/libScePubTools.dll') And ('$(RuntimeIdentifier)' == 'win-x64' Or ('$(RuntimeIdentifier)' == '' And '$(OS)' == 'Windows_NT'))" />
     <EmbeddedResource Include="$(MSBuildThisFileDirectory)../../libs/ampr/ampr-emu-ng-0.4.1/libSceAmpr.sprx" LogicalName="PsViethoa.FpkgBuilder.Core.AmprEmuNg.sprx" />
     <EmbeddedResource Include="$(MSBuildThisFileDirectory)../../libs/ampr/ampr_emu-0.4.2.1/libSceAmpr.sprx" LogicalName="PsViethoa.FpkgBuilder.Core.AmprEmu.sprx" />
   </ItemGroup>
