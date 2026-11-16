@@ -20,12 +20,12 @@
 </div>
 
 <p align="center">
-  <img src="screenshots/vi-ps5-done.png" width="49%" alt="Gói PS5 đã tạo và kiểm tra thành công" />
-  <img src="screenshots/vi-ps4-patch-done.png" width="49%" alt="Đóng update PS4 thành công" />
+  <img src="screenshots/vi-ps5-done-xmas.png" width="49%" alt="Gói PS5 đã tạo và kiểm tra thành công" />
+  <img src="screenshots/vi-ps4-patch-done-xmas.png" width="49%" alt="Đóng update PS4 thành công" />
 </p>
 <p align="center">
-  <img src="screenshots/vi-remote-pkg.png" width="49%" alt="FPKG trên PS5" />
-  <img src="screenshots/vi-save.png" width="49%" alt="Hàng đợi Resign Save" />
+  <img src="screenshots/vi-remote-pkg-xmas.png" width="49%" alt="FPKG trên PS5" />
+  <img src="screenshots/vi-save-xmas.png" width="49%" alt="Hàng đợi Resign Save" />
 </p>
 
 <div align="center">
@@ -145,7 +145,7 @@ Mọi ảnh dưới đây là lần chạy thật của bản này trên Mac App
 
 | Đã tạo và kiểm tra thành công | Nhật ký (cuộn xuống) |
 |---|---|
-| ![](screenshots/vi-ps5-done.png) | ![](screenshots/vi-ps5-done-log.png) |
+| ![](screenshots/vi-ps5-done-xmas.png) | ![](screenshots/vi-ps5-done-log-xmas.png) |
 
 Gói 1,6 GB (1.706.966.020 byte), qua đủ 6 bước kiểm tra gói. CLI, giao diện và bản 2.2.7 cho ra cùng kích thước.
 
@@ -153,7 +153,7 @@ Gói 1,6 GB (1.706.966.020 byte), qua đủ 6 bước kiểm tra gói. CLI, giao
 
 | Đóng Update (từ update 1.51 đã xả + PKG base) | Gộp Base + Update |
 |---|---|
-| ![](screenshots/vi-ps4-patch-done.png) | ![](screenshots/en-ps4-merge-done.png) |
+| ![](screenshots/vi-ps4-patch-done-xmas.png) | ![](screenshots/en-ps4-merge-done-xmas.png) |
 
 | Tác vụ | Kết quả | Thời gian |
 |---|---|---|
@@ -203,23 +203,23 @@ libs/                               thành phần bên thứ ba, chỉ thay nguy
 
 | PS5 — Tạo gói xong (tiếng Anh) | PS4 — xem trước game (tiếng Anh) |
 |---|---|
-| ![](screenshots/en-ps5-done.png) | ![](screenshots/en-ps4-extract.png) |
+| ![](screenshots/en-ps5-done-xmas.png) | ![](screenshots/en-ps4-extract-xmas.png) |
 
 | PS4 — sửa param.sfo | FTP PS5 (tiếng Anh) |
 |---|---|
-| ![](screenshots/vi-ps4-patch-sfo.png) | ![](screenshots/en-ftp.png) |
+| ![](screenshots/vi-ps4-patch-sfo-xmas.png) | ![](screenshots/en-ftp-xmas.png) |
 
 | Resign save xong (tiếng Anh) | Giao diện sáng |
 |---|---|
-| ![](screenshots/en-save-done.png) | ![](screenshots/en-light.png) |
+| ![](screenshots/en-save-done-xmas.png) | ![](screenshots/en-light-xmas.png) |
 
 | FPKG trên PS5 | FTP PS5 |
 |---|---|
-| ![](screenshots/vi-remote-pkg.png) | ![](screenshots/vi-ftp.png) |
+| ![](screenshots/vi-remote-pkg-xmas.png) | ![](screenshots/vi-ftp-xmas.png) |
 
 | Hướng dẫn — ghi công |
 |---|
-| ![](screenshots/en-help-credits.png) |
+| ![](screenshots/en-help-credits-xmas.png) |
 
 ## Ghi công & giấy phép
 
