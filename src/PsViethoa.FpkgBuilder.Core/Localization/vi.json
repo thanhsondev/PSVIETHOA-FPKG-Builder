@@ -383,7 +383,6 @@
   "Extract.FolderPlan.In": "trong {0}",
   "Extract.FolderPlan.Pending": "Mở gói xong sẽ tự tạo thư mục \"<Tên game> <PPSAxxxxx>\" {0}.",
   "Extract.FolderPlan.Ready": "Sẽ tạo thư mục \"{0}\" {1}.",
-  "Drive.Capacity": "{0} trống / {1}",
   "Drive.Free": "{0} trống",
   "Drive.NextToPackage": "Cạnh tệp gói",
   "Drive.NextToPackage.Tip": "Tạo thư mục \"<Tên game> <PPSAxxxxx>\" ngay cạnh tệp .pkg",

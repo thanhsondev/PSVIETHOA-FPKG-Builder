@@ -3,11 +3,11 @@
              xmlns:vm="using:PsViethoa.FpkgBuilder.App.ViewModels"
              x:Class="PsViethoa.FpkgBuilder.App.Controls.DriveTile"
              x:DataType="vm:DriveChoice">
-    <!-- Chip ổ đĩa kiểu "This PC" của Windows Explorer: icon ổ cứng, "DATA (D:)", thanh mức đầy, "169 GB trống / 1,8 TB". -->
-    <Grid ColumnDefinitions="Auto,*" MinWidth="168">
-        <Canvas Width="36" Height="28" VerticalAlignment="Center" Margin="0,0,9,0">
+    <!-- Chip ổ đĩa gọn: icon ổ cứng (kiểu This PC) + "C:" + một dòng dung lượng trống. -->
+    <Grid ColumnDefinitions="Auto,Auto">
+        <Canvas Width="34" Height="26" VerticalAlignment="Center" Margin="0,0,8,0">
             <!-- thân ổ: mặt trên sáng, cạnh trước đậm, đèn xanh -->
-            <Border Canvas.Left="1" Canvas.Top="8" Width="34" Height="15" CornerRadius="3" BorderBrush="#6B7280" BorderThickness="0.8">
+            <Border Canvas.Left="1" Canvas.Top="7" Width="32" Height="14" CornerRadius="3" BorderBrush="#6B7280" BorderThickness="0.8">
                 <Border.Background>
                     <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
                         <GradientStop Color="#F4F5F7" Offset="0" />
@@ -16,19 +16,17 @@
                     </LinearGradientBrush>
                 </Border.Background>
             </Border>
-            <Rectangle Canvas.Left="3.5" Canvas.Top="17.5" Width="29" Height="3.4" RadiusX="1.2" RadiusY="1.2" Fill="#3F4753" />
-            <Ellipse Canvas.Left="28" Canvas.Top="17.8" Width="3.2" Height="2.8" Fill="#34D399" />
+            <Rectangle Canvas.Left="3.5" Canvas.Top="15.8" Width="27" Height="3.2" RadiusX="1.2" RadiusY="1.2" Fill="#3F4753" />
+            <Ellipse Canvas.Left="26" Canvas.Top="16" Width="3" Height="2.7" Fill="#34D399" />
             <!-- dấu ✓ khi đang chọn -->
-            <Border Canvas.Left="22" Canvas.Top="0" Width="14" Height="14" CornerRadius="7" Background="{DynamicResource AccentBrush}"
-                    IsVisible="{Binding IsSelected}" BorderBrush="White" BorderThickness="1.2">
-                <PathIcon Width="8" Height="8" Foreground="White" Data="{StaticResource IconCheck}" />
+            <Border Canvas.Left="21" Canvas.Top="0" Width="13" Height="13" CornerRadius="6.5" Background="{DynamicResource AccentBrush}"
+                    IsVisible="{Binding IsSelected}" BorderBrush="White" BorderThickness="1.1">
+                <PathIcon Width="7" Height="7" Foreground="White" Data="{StaticResource IconCheck}" />
             </Border>
         </Canvas>
-        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
-            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="12.5" TextTrimming="CharacterEllipsis" MaxWidth="170" />
-            <ProgressBar Height="7" MinHeight="7" MinWidth="128" Maximum="100" Value="{Binding UsedPercent}"
-                         Foreground="{Binding UsageBrush}" Background="#3394A3B8" CornerRadius="0" />
-            <TextBlock Text="{Binding Capacity}" FontSize="11" Opacity="0.75" />
+        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+            <TextBlock Text="{Binding Letter}" FontWeight="Bold" FontSize="13.5" />
+            <TextBlock Text="{Binding Detail}" FontSize="11.5" Opacity="0.8" />
         </StackPanel>
     </Grid>
 </UserControl>

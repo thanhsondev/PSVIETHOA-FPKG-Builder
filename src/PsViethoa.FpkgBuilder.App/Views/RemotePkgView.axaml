@@ -67,8 +67,8 @@
         </Style>
         <!-- Chip ổ đĩa (một dòng, gọn) -->
         <Style Selector="Button.drive">
-            <Setter Property="Padding" Value="9,6" />
-            <Setter Property="MinHeight" Value="52" />
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="MinHeight" Value="44" />
             <Setter Property="Margin" Value="0,0,6,0" />
             <Setter Property="Background" Value="{DynamicResource MutedBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
