@@ -89,8 +89,10 @@
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="3*" MinWidth="380" />
             <ColumnDefinition Width="18" />
-            <ColumnDefinition Width="2*" MinWidth="300" MaxWidth="440" />
+            <ColumnDefinition Width="2*" MinWidth="300" />
         </Grid.ColumnDefinitions>
+        <!-- Kéo khe giữa hai cột để đổi bề rộng -->
+        <GridSplitter Grid.Column="1" Grid.RowSpan="99" Classes="colsplit" ResizeDirection="Columns" />
 
         <!-- ~~~ CỘT TRÁI: HÀNG CHỜ ~~~ -->
         <Border Grid.Column="0" Classes="card" Padding="0" ClipToBounds="True">

@@ -12,9 +12,6 @@
     <ProjectReference Include="../PsViethoa.FpkgBuilder.Core/PsViethoa.FpkgBuilder.Core.csproj" />
   </ItemGroup>
 
-  <!-- libScePubTools.dll (Oodle gốc) chỉ có ý nghĩa trên Windows x64 -->
-  <ItemGroup Condition="$(RuntimeIdentifier.StartsWith('win')) Or ('$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Windows')))">
-    <None Include="$(MSBuildThisFileDirectory)../../libs/libScePubTools.dll" Link="libScePubTools.dll" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
+  <!-- libScePubTools.dll được nhúng trong PsViethoa.FpkgBuilder.Core (bản Windows x64), không còn chép tệp rời. -->
 
 </Project>

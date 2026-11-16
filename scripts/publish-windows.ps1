@@ -21,8 +21,7 @@ dotnet publish "$Root\src\PsViethoa.FpkgBuilder.Cli\PsViethoa.FpkgBuilder.Cli.cs
   -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
   -p:PublishReadyToRun=true -p:DebugType=none -o "$Out\fpkg-cli"
 
-Copy-Item "$Root\libs\libScePubTools.dll" "$Out\app\" -ErrorAction SilentlyContinue
-Copy-Item "$Root\libs\libScePubTools.dll" "$Out\fpkg-cli\" -ErrorAction SilentlyContinue
+# libScePubTools.dll đã nhúng trong exe (PsViethoa.FpkgBuilder.Core), không cần chép tệp rời.
 Get-ChildItem $Out -Recurse -Include *.pdb, LibProsperoPkg.xml | Remove-Item -Force
 Rename-Item "$Out\app\PsViethoa.FpkgBuilder.App.exe" "$AppName.exe"
 

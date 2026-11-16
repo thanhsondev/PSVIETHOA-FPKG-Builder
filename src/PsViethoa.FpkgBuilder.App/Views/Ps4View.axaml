@@ -139,6 +139,8 @@
                 <ColumnDefinition Width="16" />
                 <ColumnDefinition Width="320" />
             </Grid.ColumnDefinitions>
+            <!-- Kéo khe giữa hai cột để đổi bề rộng -->
+            <GridSplitter Grid.Column="1" Grid.RowSpan="99" Classes="colsplit" ResizeDirection="Columns" />
 
             <!-- ============ THIẾT LẬP ============ -->
             <Border Classes="card" Padding="18,14,10,14">

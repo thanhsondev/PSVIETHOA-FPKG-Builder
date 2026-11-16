@@ -27,8 +27,7 @@ dotnet publish "$ROOT/src/PsViethoa.FpkgBuilder.Cli/PsViethoa.FpkgBuilder.Cli.cs
   -o "$OUT/fpkg-cli"
 
 # Oodle gốc (tuỳ chọn, chỉ Windows) đặt cạnh ứng dụng để chế độ "Tự động" dùng được.
-cp "$ROOT/libs/libScePubTools.dll" "$OUT/app/" 2>/dev/null || true
-cp "$ROOT/libs/libScePubTools.dll" "$OUT/fpkg-cli/" 2>/dev/null || true
+# libScePubTools.dll đã nhúng trong exe (PsViethoa.FpkgBuilder.Core), không cần chép tệp rời.
 
 # Driver Dokan (LGPL/MIT, bộ cài MSI nguyên bản của dự án Dokany) kèm theo để ứng dụng tự cài khi người dùng bấm
 # "Bật gắn ảnh trực tiếp": ảnh .exfat/.ffpfsc được gắn thành ổ ảo thay vì giải nén. Tải một lần vào .cache/, kiểm SHA-256.

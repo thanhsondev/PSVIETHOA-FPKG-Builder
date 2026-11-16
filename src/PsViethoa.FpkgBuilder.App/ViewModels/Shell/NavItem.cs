@@ -249,13 +249,28 @@ public sealed partial class NavGroup : ObservableObject
     /// <summary>Nhóm còn mục để hiện (ô tìm công cụ có thể lọc hết).</summary>
     [ObservableProperty] private bool _hasVisibleItems = true;
 
+    private bool _singleColumn;
+
+    /// <summary>Thanh bên kéo hẹp → mỗi mục một hàng; kéo rộng → lưới hai cột.</summary>
+    public void SetSingleColumn(bool single)
+    {
+        if (_singleColumn == single)
+        {
+            return;
+        }
+
+        _singleColumn = single;
+        RebuildRows();
+    }
+
     public void RebuildRows()
     {
         var listed = Items.Where(item => item.IsListed).ToList();
         var rows = new List<NavRow>();
-        for (var i = 0; i < listed.Count; i += 2)
+        var step = _singleColumn ? 1 : 2;
+        for (var i = 0; i < listed.Count; i += step)
         {
-            rows.Add(new NavRow(listed[i], i + 1 < listed.Count ? listed[i + 1] : null));
+            rows.Add(new NavRow(listed[i], !_singleColumn && i + 1 < listed.Count ? listed[i + 1] : null));
         }
 
         Rows = rows;

@@ -170,6 +170,8 @@
                 <ColumnDefinition Width="18" />
                 <ColumnDefinition Width="*" MinWidth="380" />
             </Grid.ColumnDefinitions>
+            <!-- Kéo khe giữa hai cột để đổi bề rộng -->
+            <GridSplitter Grid.Column="1" Grid.RowSpan="99" Classes="colsplit" ResizeDirection="Columns" />
 
             <!-- ============ TRÁI: NGUỒN + TUỲ CHỌN ============ -->
             <Border Classes="card" Padding="20,18,8,18">

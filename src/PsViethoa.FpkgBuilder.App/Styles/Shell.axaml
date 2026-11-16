@@ -150,6 +150,26 @@
         </Style.Animations>
     </Style>
 
+    <!-- ===== Khe kéo giữa hai cột của trang (GridSplitter.colsplit): trong suốt, rê chuột / đang kéo thì hiện vạch xanh mờ ===== -->
+    <Style Selector="GridSplitter.colsplit">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="MinWidth" Value="8" />
+        <Setter Property="Cursor" Value="SizeWestEast" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Background="Transparent">
+                    <Border Name="PART_Line" Width="3" CornerRadius="2" HorizontalAlignment="Center" Margin="0,8" Background="{TemplateBinding Background}" />
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="GridSplitter.colsplit:pointerover">
+        <Setter Property="Background" Value="#5522C55E" />
+    </Style>
+    <Style Selector="GridSplitter.colsplit:pressed">
+        <Setter Property="Background" Value="#9922C55E" />
+    </Style>
+
     <!-- ===== Lưới công cụ hai cột (3.0.1, như PSVIETHOA STUDIO) ===== -->
     <Style Selector="RadioButton.navcell">
         <Setter Property="Margin" Value="0" />

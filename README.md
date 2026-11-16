@@ -139,32 +139,27 @@ fpkg-cli zstd-unpack "/games/PPSA12345-zstd" --output "/games/PPSA12345-app"
 
 ## Tested on real games
 
-Every screenshot below is a real run of this build on an Apple-Silicon Mac (macOS 27, bundled Wine), with the owner's own dumps.
+Every screenshot is a real run of this build on a Windows 11 PC with a PS5 on the local network (ftpsrv).
 
-**PS5 — Plants vs. Zombies Replanted (`PPSA29802`, 1.9 GB, 160 files), Sony SDK path**
+**PS5 — JUDGE EYES: Remastered (`PPSA01852`), Sony SDK path**
 
 | Built and verified | Build log (scroll down) |
 |---|---|
 | ![](docs/screenshots/en-ps5-done-xmas.png) | ![](docs/screenshots/en-ps5-done-log-xmas.png) |
 
-1.6 GB package (1,706,966,020 bytes), all six package checks passed. The CLI, the GUI and 2.2.7 produce the same size.
+**PS4 — NINJA GAIDEN Σ (`CUSA25891`, base 1.00 + update 1.04)**
 
-**PS4 — Plants vs. Zombies Replanted (`CUSA55613`, base 1.00 + update 1.51), orbis-pub-cmd through Wine**
-
-| Build Update (from the extracted 1.51 update + the base PKG) | Merge Base + Update |
+| Build Update (from the extracted 1.04 update + the base PKG) | Merge Base + Update |
 |---|---|
 | ![](docs/screenshots/vi-ps4-patch-done-xmas.png) | ![](docs/screenshots/en-ps4-merge-done-xmas.png) |
 
 | Job | Result | Time |
 |---|---|---|
-| PS5 FPKG, Sony SDK | `PPSA29802` → 1.6 GB package, verified | 47–52 s |
-| PS4 Extract PKG | 1.75 GB base → 351 files (156 MB update → 34 files) | 7 s |
-| PS4 Build Update | 161,873,920-byte update PKG, same content as the original 1.51 update | 12 s |
-| PS4 Build Base | 1,748,697,088-byte base PKG | 15 s |
-| PS4 Merge Base + Update | one 1,748,697,088-byte base PKG with 1.51 inside (APP_VER 01.00, VERSION 01.51) | 27 s |
-| PS5 FPKG, built-in engine, Standard | 21.3 GB game → 8.86 GiB (2.1 measurement) | 2 min 13 s |
-
-The extracted files match the originals apart from the files the publishing tool regenerates, and the source PKGs keep their SHA-256. FTP and save resigning were tested against a local FTP server and sample saves (no console was connected for these screenshots).
+| PS5 FPKG, Sony SDK | `PPSA01852` 281 MB → 159 MB package (166,705,408 bytes), verified | 13 s |
+| PS4 Build Update | 40,304,640-byte update PKG, same size as the original 1.04 update | 3 s |
+| PS4 Merge Base + Update | one 4,378,263,552-byte base PKG with 1.04 inside | 30 s |
+| FPKG on PS5 | 42 installed FPKGs listed with titles; Hades (`PPSA03355`, 3,073 files) opened over FTP, `eboot.bin` extracted | 0.5 s · 0.4 s · 0.4 s |
+| Resign Save | PRAGMATA (`PPSA02530`), 16 saves | 16 succeeded |
 
 ## Build from source
 

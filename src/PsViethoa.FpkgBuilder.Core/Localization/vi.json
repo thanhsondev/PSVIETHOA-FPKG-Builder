@@ -1231,6 +1231,7 @@
   "Common.Log": "Nhật ký",
   "Shell.Product": "FPKG Builder",
   "Shell.Version": "Phiên bản {0}",
+  "Shell.ResizeTip": "Kéo để đổi bề rộng thanh bên (hẹp → một cột, rộng → hai cột) · nháy đúp để về tự động",
   "Shell.Collapse": "Thu gọn thanh bên (chỉ còn biểu tượng)",
   "Shell.Expand": "Mở rộng thanh bên",
   "Shell.Credits": "© PSVIETHOA — Nguyễn Thanh Sơn & Ngô Phi Phương",
