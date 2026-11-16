@@ -20,12 +20,12 @@
 </div>
 
 <p align="center">
-  <img src="docs/screenshots/en-ps5-done.png" width="49%" alt="PS5 FPKG built and verified" />
-  <img src="docs/screenshots/en-ps4-merge-done.png" width="49%" alt="PS4 base + update merged" />
+  <img src="docs/screenshots/en-ps5-done-xmas.png" width="49%" alt="PS5 FPKG built and verified" />
+  <img src="docs/screenshots/en-ps4-merge-done-xmas.png" width="49%" alt="PS4 base + update merged" />
 </p>
 <p align="center">
-  <img src="docs/screenshots/en-remote-pkg.png" width="49%" alt="FPKG on PS5" />
-  <img src="docs/screenshots/en-save-done.png" width="49%" alt="Saves resigned" />
+  <img src="docs/screenshots/en-remote-pkg-xmas.png" width="49%" alt="FPKG on PS5" />
+  <img src="docs/screenshots/en-save-done-xmas.png" width="49%" alt="Saves resigned" />
 </p>
 
 <div align="center">
@@ -145,7 +145,7 @@ Every screenshot below is a real run of this build on an Apple-Silicon Mac (macO
 
 | Built and verified | Build log (scroll down) |
 |---|---|
-| ![](docs/screenshots/en-ps5-done.png) | ![](docs/screenshots/en-ps5-done-log.png) |
+| ![](docs/screenshots/en-ps5-done-xmas.png) | ![](docs/screenshots/en-ps5-done-log-xmas.png) |
 
 1.6 GB package (1,706,966,020 bytes), all six package checks passed. The CLI, the GUI and 2.2.7 produce the same size.
 
@@ -153,7 +153,7 @@ Every screenshot below is a real run of this build on an Apple-Silicon Mac (macO
 
 | Build Update (from the extracted 1.51 update + the base PKG) | Merge Base + Update |
 |---|---|
-| ![](docs/screenshots/vi-ps4-patch-done.png) | ![](docs/screenshots/en-ps4-merge-done.png) |
+| ![](docs/screenshots/vi-ps4-patch-done-xmas.png) | ![](docs/screenshots/en-ps4-merge-done-xmas.png) |
 
 | Job | Result | Time |
 |---|---|---|
@@ -203,23 +203,23 @@ libs/                               third-party, replaced only as a whole:
 
 | PS5 — Build PKG done (Vietnamese) | PS4 — game preview |
 |---|---|
-| ![](docs/screenshots/vi-ps5-done.png) | ![](docs/screenshots/en-ps4-extract.png) |
+| ![](docs/screenshots/vi-ps5-done-xmas.png) | ![](docs/screenshots/en-ps4-extract-xmas.png) |
 
 | PS4 — param.sfo editor (Vietnamese) | PS5 FTP (Vietnamese) |
 |---|---|
-| ![](docs/screenshots/vi-ps4-patch-sfo.png) | ![](docs/screenshots/vi-ftp.png) |
+| ![](docs/screenshots/vi-ps4-patch-sfo-xmas.png) | ![](docs/screenshots/vi-ftp-xmas.png) |
 
 | Resign Save queue (Vietnamese) | Light theme |
 |---|---|
-| ![](docs/screenshots/vi-save.png) | ![](docs/screenshots/en-light.png) |
+| ![](docs/screenshots/vi-save-xmas.png) | ![](docs/screenshots/en-light-xmas.png) |
 
 | FPKG on PS5 (Vietnamese) | PS5 FTP |
 |---|---|
-| ![](docs/screenshots/vi-remote-pkg.png) | ![](docs/screenshots/en-ftp.png) |
+| ![](docs/screenshots/vi-remote-pkg-xmas.png) | ![](docs/screenshots/en-ftp-xmas.png) |
 
 | Help — credits |
 |---|
-| ![](docs/screenshots/en-help-credits.png) |
+| ![](docs/screenshots/en-help-credits-xmas.png) |
 
 ## Credits & license
 
