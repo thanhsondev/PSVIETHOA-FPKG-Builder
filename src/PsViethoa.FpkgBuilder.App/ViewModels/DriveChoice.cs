@@ -82,6 +82,23 @@ public sealed partial class DriveChoice : ObservableObject
             }
         }
 
+        // Thử giao diện máy nhiều ổ: PSVIETHOA_FAKE_DRIVES=N thêm N ổ ảo (chỉ dùng khi chạy thử).
+        if (int.TryParse(Environment.GetEnvironmentVariable("PSVIETHOA_FAKE_DRIVES"), out var fake) && fake > 0)
+        {
+            var rnd = new Random(7);
+            var used = list.Select(d => d.Letter).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            for (char ch = 'E'; ch <= 'Z' && fake > 0; ch++)
+            {
+                if (used.Contains(ch + ":")) continue;
+                var root = Path.Combine(Path.GetTempPath(), "psvh-fake-drives", ch.ToString());
+                Directory.CreateDirectory(root);
+                long freeBytes = (long)(rnd.Next(20, 3800) * 1e9);
+                var freeText = Formatters.Size(freeBytes);
+                list.Add(new DriveChoice { Root = root, Letter = ch + ":", Free = freeText, FreeBytes = freeBytes, Detail = Loc.F("Drive.Free", freeText), Tip = root + " (ổ ảo để thử giao diện)" });
+                fake--;
+            }
+        }
+
         return list;
     });
 }

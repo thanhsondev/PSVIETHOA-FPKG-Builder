@@ -67,9 +67,9 @@
         </Style>
         <!-- Chip ổ đĩa (một dòng, gọn) -->
         <Style Selector="Button.drive">
-            <Setter Property="Padding" Value="10,5" />
-            <Setter Property="MinHeight" Value="44" />
-            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="Padding" Value="9,4" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Margin" Value="0,0,6,6" />
             <Setter Property="Background" Value="{DynamicResource MutedBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
@@ -289,11 +289,11 @@
 
         <!-- ============ TRÍCH VÀO + TIẾN ĐỘ + NHẬT KÝ ============ -->
         <StackPanel Grid.Row="2" Name="BottomPanel" Margin="0,12,0,0" Spacing="8">
-            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
+            <Grid ColumnDefinitions="Auto,*">
                 <TextBlock Classes="caps" Text="{l:T Remote.Out.Label}" VerticalAlignment="Center" Margin="0,0,10,0" />
                 <ItemsControl Grid.Column="1" ItemsSource="{Binding Drives}" IsEnabled="{Binding IsIdle}" VerticalAlignment="Center">
                     <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                        <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:DriveChoice">
@@ -304,14 +304,16 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-                <TextBox Grid.Column="2" MinWidth="200" Text="{Binding OutputFolder, Mode=TwoWay}" IsEnabled="{Binding CanEditOutput}" ToolTip.Tip="{Binding OutputPlanText}" />
-                <Button Grid.Column="3" Margin="8,0,0,0" MinHeight="36" Command="{Binding BrowseOutputCommand}" IsEnabled="{Binding IsIdle}" ToolTip.Tip="{l:T Remote.Out.Pick}">
+            </Grid>
+            <Grid ColumnDefinitions="*,Auto,Auto">
+                <TextBox Grid.Column="0" MinWidth="200" Text="{Binding OutputFolder, Mode=TwoWay}" IsEnabled="{Binding CanEditOutput}" ToolTip.Tip="{Binding OutputPlanText}" />
+                <Button Grid.Column="1" Margin="8,0,0,0" MinHeight="36" Command="{Binding BrowseOutputCommand}" IsEnabled="{Binding IsIdle}" ToolTip.Tip="{l:T Remote.Out.Pick}">
                     <StackPanel Classes="btn">
                         <PathIcon Data="{StaticResource IconFolder}" />
                         <TextBlock Text="{l:T Remote.Out.PickShort}" />
                     </StackPanel>
                 </Button>
-                <CheckBox Grid.Column="4" Margin="12,0,0,0" VerticalAlignment="Center" IsChecked="{Binding AutoFolder, Mode=TwoWay}" IsEnabled="{Binding IsIdle}" ToolTip.Tip="{l:T Remote.Out.AutoTip}">
+                <CheckBox Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center" IsChecked="{Binding AutoFolder, Mode=TwoWay}" IsEnabled="{Binding IsIdle}" ToolTip.Tip="{l:T Remote.Out.AutoTip}">
                     <TextBlock Text="{l:T Remote.Out.Auto}" FontSize="12.5" />
                 </CheckBox>
             </Grid>
