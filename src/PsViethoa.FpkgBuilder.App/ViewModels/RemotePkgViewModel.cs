@@ -57,7 +57,8 @@ public sealed partial class RemotePkgViewModel : ObservableObject
         _host = last?.Host ?? string.Empty;
         _port = (last?.Port ?? Ps5Ftp.DefaultPort).ToString(CultureInfo.InvariantCulture);
         _autoFolder = settings.RemotePkgAutoFolder;
-        _baseFolder = settings.RemotePkgBaseFolder ?? string.Empty;
+        // Ổ gốc đã lưu mà giờ không còn (rút ổ USB / SSD rời) → quay về Màn hình nền thay vì giữ đường dẫn chết.
+        _baseFolder = settings.RemotePkgBaseFolder is { Length: > 0 } savedBase && Directory.Exists(savedBase) ? savedBase : string.Empty;
         _outputFolder = settings.RemotePkgOutputFolder ?? string.Empty;
         _filterDebounce = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(300) };
         _filterDebounce.Tick += (_, _) =>
@@ -592,7 +593,7 @@ public sealed partial class RemotePkgViewModel : ObservableObject
     public bool CanEditOutput => !AutoFolder && !IsBusy;
 
     /// <summary>Ổ / thư mục gốc; chưa chọn thì Màn hình nền.</summary>
-    public string BaseFolder => _baseFolder.Length > 0 ? _baseFolder : Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+    public string BaseFolder => _baseFolder.Length > 0 && Directory.Exists(_baseFolder) ? _baseFolder : Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
 
     private string GameFolder(RemoteGameRow row) => GameFolderName.For(row.Game.Title.Length > 0 ? row.Game.Title : row.Title, row.TitleId);
 

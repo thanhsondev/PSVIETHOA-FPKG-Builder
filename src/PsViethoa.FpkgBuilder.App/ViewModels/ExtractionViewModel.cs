@@ -119,7 +119,8 @@ public sealed partial class ExtractionViewModel : ObservableObject
         _packagePath = settings.ExtractPackagePath ?? string.Empty;
         _outputFolder = settings.ExtractOutputFolder ?? string.Empty;
         _autoOutputFolder = settings.ExtractOutputAuto;
-        _baseFolder = settings.ExtractBaseFolder ?? string.Empty;
+        // Ổ gốc đã lưu mà giờ không còn (rút ổ USB / SSD rời) → quay về "Cạnh tệp gói" thay vì giữ đường dẫn chết.
+        _baseFolder = settings.ExtractBaseFolder is { Length: > 0 } savedBase && Directory.Exists(savedBase) ? savedBase : string.Empty;
         _ = LoadDrivesAsync();
         Loc.Current.LanguageChanged += (_, _) => OnLanguageChanged();
         AppDomain.CurrentDomain.ProcessExit += (_, _) => Shutdown();
