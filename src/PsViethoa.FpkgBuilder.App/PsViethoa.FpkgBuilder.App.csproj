@@ -11,10 +11,17 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <UseAppHost>true</UseAppHost>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- Xmas/XmasMusic.cs gọi Media Foundation qua con trỏ hàm (giải mp3 → WAV trên Windows) -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
-    <AvaloniaResource Include="Assets/**" Exclude="Assets/AppIcon.iconset/**;Assets/AppIcon.icns;Assets/app.ico;Assets/icon-1024.png;Assets/Fonts/OFL.txt" />
+    <AvaloniaResource Include="Assets/**" Exclude="Assets/AppIcon.iconset/**;Assets/AppIcon.icns;Assets/icon-1024.png;Assets/Fonts/OFL.txt;Assets/xmas.mp3;Assets/classic/**" />
+    <!-- Icon cửa sổ dùng app.ico (nhiều cỡ, Windows chọn đúng cỡ nên thanh tiêu đề / taskbar nét). Bộ icon cũ (trước mùa Noel) giữ ở
+         Assets/classic; tắt Noel thì cửa sổ dùng lại classic/app.ico -->
+    <AvaloniaResource Include="Assets/classic/app.ico" />
+    <!-- Nhạc nền Giáng sinh: nhúng thẳng vào assembly, XmasMusic đọc bằng GetManifestResourceStream -->
+    <EmbeddedResource Include="Assets/xmas.mp3" LogicalName="PsViethoa.Xmas.mp3" />
   </ItemGroup>
 
   <ItemGroup>
@@ -24,6 +31,8 @@
     <PackageReference Include="Avalonia.Fonts.Inter" Version="$(AvaloniaVersion)" />
     <PackageReference Include="Avalonia.Diagnostics" Version="$(AvaloniaVersion)" Condition="'$(Configuration)' == 'Debug'" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <!-- Bộ hình Giáng sinh vẽ bằng Skia (cùng phiên bản Avalonia.Skia đang kéo theo) thay cho System.Drawing chỉ có trên Windows -->
+    <PackageReference Include="SkiaSharp" Version="2.88.9" />
   </ItemGroup>
 
   <ItemGroup>

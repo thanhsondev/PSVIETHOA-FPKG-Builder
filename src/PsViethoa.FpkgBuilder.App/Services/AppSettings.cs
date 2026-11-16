@@ -244,6 +244,15 @@ public sealed class AppSettings
 
     public DateTime? LastUpdateCheckUtc { get; set; }
 
+    /// <summary>Giao diện Giáng sinh (nền xanh thông, dây đèn, tuyết, xe tuần lộc, mũ Noel…) — nút "Noel" ở thanh bên.</summary>
+    public bool XmasTheme { get; set; } = true;
+
+    /// <summary>Nhạc nền Giáng sinh tự phát khi mở app — nút "Nhạc" ở thanh bên.</summary>
+    public bool XmasMusic { get; set; } = true;
+
+    /// <summary>Âm lượng nhạc nền (0..1, âm lượng riêng của app).</summary>
+    public double XmasVolume { get; set; } = 0.35;
+
 }
 
 public static class SettingsService
