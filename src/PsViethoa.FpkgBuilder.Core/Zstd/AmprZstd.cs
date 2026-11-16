@@ -115,14 +115,17 @@ public static partial class AmprZstd
 
     public enum RuntimeKind { None, Ng, AmprEmu, Other }
 
-    public const string NgVersion = "ampr-emu-ng 0.3.4";
+    public const string NgVersion = "ampr-emu-ng 0.4.1";
     public const string ReleaseVersion = "ampr_emu 0.4.2.1";
-    private const string NgSha256 = "7D1BB260F954B755ED687733E52CCFA38C31440A9B88A6FBBA5B3B75E08BFA26";
+    private const string NgSha256 = "9C7C41B3216BC4F877D67E3C2E5C9C8F9FFABDD5065F4F3FE0DD98FA7228386F";
     private const string ReleaseSha256 = "69E6C4D5E4F5FB83C9E01815DB5861C4C75734ACBF4595CAFA50D4C218116D1A";
     /// <summary>Các bản ampr-emu-ng cũ hơn (ps5-dump-forge runtime.rs) — vẫn nhận là runtime đọc gói zstd.</summary>
     /// <summary>Tên các bản ampr-emu-ng cũ (theo bảng pin của ps5-dump-forge vendor/ampr-emu-ng/README.md).</summary>
     private static readonly Dictionary<string, string> OlderNgNames = new()
     {
+        ["8320EB65C16565F42031B9D88B15A447039F0FD7E5694FAF5F1CB84CAFDBA218"] = "ampr-emu-ng 0.4.0",
+        ["998F2029B250D954725F864B57F2EEE72AEFBFB88054A3F1C3DF550D4D6C8261"] = "ampr-emu-ng 0.3.5",
+        ["7D1BB260F954B755ED687733E52CCFA38C31440A9B88A6FBBA5B3B75E08BFA26"] = "ampr-emu-ng 0.3.4",
         ["1C1051F91BC7CBA19B15362B2B832114B53A4C3D6193F50C90FDF1AE5D78D268"] = "ampr-emu-ng 0.3.3",
         ["9A8F553A68D4E6E6BE11BD9F8D5519B5FAA68560761881966ABFF1DD65BF19F7"] = "ampr-emu-ng 0.3.2",
         ["BDD93CE2FBCC2D0986B16D77604CC0770D994CCC124B9051BA9F53AEAC39F56F"] = "ampr-emu-ng 0.3.1",
@@ -134,7 +137,7 @@ public static partial class AmprZstd
     };
 
     private static byte[]? ngRuntime, releaseRuntime;
-    /// <summary>ampr-emu-ng 0.3.4 (đọc gói zstd + LZ4), nhúng trong dll.</summary>
+    /// <summary>ampr-emu-ng 0.4.1 (đọc gói zstd + LZ4, FPKG thử nghiệm), nhúng trong dll.</summary>
     public static byte[] NgRuntime => ngRuntime ??= LoadRuntime("PsViethoa.FpkgBuilder.Core.AmprEmuNg.sprx", NgSha256);
     /// <summary>ampr_emu 0.4.2.1 gốc — thay lại khi giải zstd.</summary>
     public static byte[] ReleaseRuntime => releaseRuntime ??= LoadRuntime("PsViethoa.FpkgBuilder.Core.AmprEmu.sprx", ReleaseSha256);
