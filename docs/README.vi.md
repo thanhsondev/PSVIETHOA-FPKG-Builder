@@ -139,32 +139,27 @@ fpkg-cli zstd-unpack "/games/PPSA12345-zstd" --output "/games/PPSA12345-app"
 
 ## Đã test với game thật
 
-Mọi ảnh dưới đây là lần chạy thật của bản này trên Mac Apple Silicon (macOS 27, Wine kèm theo), với chính bản dump của chủ dự án.
+Mọi ảnh là lần chạy thật của bản này trên PC Windows 11, PS5 nối cùng mạng nội bộ (ftpsrv).
 
-**PS5 — Plants vs. Zombies Replanted (`PPSA29802`, 1,9 GB, 160 tệp), đóng gói bằng SDK Sony**
+**PS5 — JUDGE EYES: Remastered (`PPSA01852`), đóng gói bằng SDK Sony**
 
 | Đã tạo và kiểm tra thành công | Nhật ký (cuộn xuống) |
 |---|---|
 | ![](screenshots/vi-ps5-done-xmas.png) | ![](screenshots/vi-ps5-done-log-xmas.png) |
 
-Gói 1,6 GB (1.706.966.020 byte), qua đủ 6 bước kiểm tra gói. CLI, giao diện và bản 2.2.7 cho ra cùng kích thước.
+**PS4 — NINJA GAIDEN Σ (`CUSA25891`, base 1.00 + update 1.04)**
 
-**PS4 — Plants vs. Zombies Replanted (`CUSA55613`, base 1.00 + update 1.51), orbis-pub-cmd qua Wine**
-
-| Đóng Update (từ update 1.51 đã xả + PKG base) | Gộp Base + Update |
+| Đóng Update (từ update 1.04 đã xả + PKG base) | Gộp Base + Update |
 |---|---|
 | ![](screenshots/vi-ps4-patch-done-xmas.png) | ![](screenshots/en-ps4-merge-done-xmas.png) |
 
 | Tác vụ | Kết quả | Thời gian |
 |---|---|---|
-| FPKG PS5, SDK Sony | `PPSA29802` → gói 1,6 GB, đã kiểm tra | 47–52 giây |
-| Xả PKG PS4 | base 1,75 GB → 351 tệp (update 156 MB → 34 tệp) | 7 giây |
-| Đóng Update PS4 | PKG update 161.873.920 byte, nội dung giống update 1.51 gốc | 12 giây |
-| Đóng Base PS4 | PKG base 1.748.697.088 byte | 15 giây |
-| Gộp Base + Update PS4 | một PKG base 1.748.697.088 byte đã chứa 1.51 (APP_VER 01.00, VERSION 01.51) | 27 giây |
-| FPKG PS5, engine tích hợp, Tiêu chuẩn | game 21,3 GB → 8,86 GiB (số đo từ bản 2.1) | 2 phút 13 giây |
-
-Các tệp xả ra giống bản gốc, trừ những tệp công cụ đóng gói tự tạo lại; các PKG nguồn giữ nguyên SHA-256. FTP và resign save được thử với máy chủ FTP chạy trên máy và save mẫu (khi chụp các ảnh này không nối PS5).
+| FPKG PS5, SDK Sony | `PPSA01852` 281 MB → gói 159 MB (166.705.408 byte), đã kiểm tra | 13 giây |
+| Đóng Update PS4 | PKG update 40.304.640 byte, cùng kích thước update 1.04 gốc | 3 giây |
+| Gộp Base + Update PS4 | một PKG base 4.378.263.552 byte đã chứa 1.04 | 30 giây |
+| FPKG trên PS5 | liệt kê 42 FPKG đã cài kèm tên game; mở Hades (`PPSA03355`, 3.073 tệp) qua FTP, trích `eboot.bin` | 0,5 · 0,4 · 0,4 giây |
+| Resign Save | PRAGMATA (`PPSA02530`), 16 save | 16 thành công |
 
 ## Build từ mã nguồn
 
