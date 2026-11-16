@@ -41,10 +41,28 @@ public partial class QueueView : UserControl
             current.CollectionChanged += OnLogChanged;
         }
 
-        Avalonia.Threading.Dispatcher.UIThread.Post(ScrollLogToEnd, Avalonia.Threading.DispatcherPriority.Background);
+        QueueScrollToEnd();
     }
 
-    private void OnLogChanged(object? sender, NotifyCollectionChangedEventArgs e) => ScrollLogToEnd();
+    private bool _scrollQueued;
+
+    /// <summary>Dòng nhật ký mới: hoãn cuộn sang mức Background và gộp nhiều dòng tới liền nhau thành một lần cuộn.</summary>
+    private void OnLogChanged(object? sender, NotifyCollectionChangedEventArgs e) => QueueScrollToEnd();
+
+    private void QueueScrollToEnd()
+    {
+        if (_scrollQueued)
+        {
+            return;
+        }
+
+        _scrollQueued = true;
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            _scrollQueued = false;
+            ScrollLogToEnd();
+        }, Avalonia.Threading.DispatcherPriority.Background);
+    }
 
     private QueueViewModel? ViewModel => DataContext as QueueViewModel;
 

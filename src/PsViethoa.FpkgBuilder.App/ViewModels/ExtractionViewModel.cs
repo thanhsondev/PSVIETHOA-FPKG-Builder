@@ -119,6 +119,8 @@ public sealed partial class ExtractionViewModel : ObservableObject
         _packagePath = settings.ExtractPackagePath ?? string.Empty;
         _outputFolder = settings.ExtractOutputFolder ?? string.Empty;
         _autoOutputFolder = settings.ExtractOutputAuto;
+        _baseFolder = settings.ExtractBaseFolder ?? string.Empty;
+        _ = LoadDrivesAsync();
         Loc.Current.LanguageChanged += (_, _) => OnLanguageChanged();
         AppDomain.CurrentDomain.ProcessExit += (_, _) => Shutdown();
         ShowEmpty();
@@ -536,6 +538,7 @@ public sealed partial class ExtractionViewModel : ObservableObject
             _loadedPath = path;
             _settings.ExtractPackagePath = path;
             SuggestOutputFolder(path);
+            NotifyFolderTexts();
             RenderInfo();
             IconImage = await Task.Run(() => LoadBitmap(info.IconBytes), cancellationToken);
             Log(LogLevel.Info, Loc.F("Extract.Inspected", path));
@@ -641,21 +644,13 @@ public sealed partial class ExtractionViewModel : ObservableObject
         }
     }
 
-    /// <summary>Gợi ý thư mục xuất mặc định cho một gói: "&lt;tên gói&gt;-extract" cạnh tệp .pkg (rỗng nếu không xác định được).</summary>
-    private static string DefaultOutputFor(string packagePath)
-    {
-        try
-        {
-            var directory = Path.GetDirectoryName(packagePath);
-            return string.IsNullOrEmpty(directory) ? string.Empty : Path.Combine(directory, Path.GetFileNameWithoutExtension(packagePath) + "-extract");
-        }
-        catch (Exception)
-        {
-            return string.Empty;
-        }
-    }
+    /// <summary>
+    /// Gợi ý thư mục xuất cho một gói: "&lt;gốc&gt;/&lt;Tên game&gt; &lt;PPSAxxxxx&gt;" (gốc = ổ / thư mục đã chọn, trống = cạnh tệp .pkg);
+    /// chưa đọc được tên game thì "&lt;tên gói&gt;-extract". Rỗng nếu không xác định được.
+    /// </summary>
+    private string DefaultOutputFor(string packagePath) => AutoOutputFor(packagePath);
 
-    /// <summary>Thư mục xuất luôn tự đặt theo gói ("&lt;gói&gt;-extract" cạnh tệp .pkg); mặc định bật.</summary>
+    /// <summary>Tự tạo thư mục "&lt;Tên game&gt; &lt;PPSAxxxxx&gt;" trong ổ / thư mục gốc đã chọn; mặc định bật.</summary>
     [ObservableProperty] private bool _autoOutputFolder = true;
 
     /// <summary>Ô thư mục xuất chỉ sửa tay được khi tắt "Tự đặt theo gói" (và không bận).</summary>
@@ -665,13 +660,14 @@ public sealed partial class ExtractionViewModel : ObservableObject
     {
         _settings.ExtractOutputAuto = value;
         OnPropertyChanged(nameof(CanEditOutput));
+        NotifyFolderTexts();
         if (value)
         {
             SuggestOutputFolder(_loadedPath ?? PackagePath.Trim());
         }
     }
 
-    /// <summary>Khi "Tự đặt theo gói" đang bật, thư mục xuất luôn là "&lt;gói&gt;-extract" cạnh tệp .pkg hiện tại.</summary>
+    /// <summary>Khi "Tự tạo thư mục" đang bật, thư mục xuất luôn là "&lt;gốc&gt;/&lt;Tên game&gt; &lt;ID&gt;" của gói hiện tại.</summary>
     private void SuggestOutputFolder(string packagePath)
     {
         if (!AutoOutputFolder)
@@ -726,6 +722,7 @@ public sealed partial class ExtractionViewModel : ObservableObject
         reader?.Dispose();
         _info = null;
         _loadedPath = null;
+        NotifyFolderTexts();
         _decryptedTempHint = null;
         foreach (var item in _allItems)
         {
@@ -888,6 +885,7 @@ public sealed partial class ExtractionViewModel : ObservableObject
 
         Recount();
         RefreshFreeSpace();
+        RefreshFolderLanguage();
         NotifyPreview();
     }
 
@@ -1271,10 +1269,31 @@ public sealed partial class ExtractionViewModel : ObservableObject
         var current = OutputFolder.Trim();
         var initial = Directory.Exists(current) ? current : Path.GetDirectoryName(current);
         var folder = await _dialogs.PickFolderAsync(Loc.T("Extract.PickOutput"), initial);
-        if (folder != null)
+        if (folder == null)
         {
-            // Người dùng tự chọn thư mục → tắt "Tự đặt theo gói" để không bị ghi đè khi mở gói khác.
-            AutoOutputFolder = false;
+            return;
+        }
+
+        if (AutoOutputFolder)
+        {
+            // Đang tự tạo thư mục: thư mục chọn là gốc, "<Tên game> <PPSAxxxxx>" tạo bên trong. Chọn trúng đúng thư mục game đó
+            // thì dùng thư mục cha làm gốc (không lồng hai lần).
+            var picked = folder.Length > 1 ? folder.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) : folder;
+            if (GameFolderName.Length > 0 && string.Equals(Path.GetFileName(picked), GameFolderName, StringComparison.OrdinalIgnoreCase))
+            {
+                picked = Path.GetDirectoryName(picked) ?? picked;
+            }
+
+            if (OperatingSystem.IsWindows() && picked.Length == 2 && picked[1] == ':')
+            {
+                picked += Path.DirectorySeparatorChar;
+            }
+
+            UseBaseFolder(picked);
+        }
+        else
+        {
+            // Tắt tự tạo: xả thẳng vào đúng thư mục chọn.
             OutputFolder = folder;
         }
     }

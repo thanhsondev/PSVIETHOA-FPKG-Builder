@@ -244,6 +244,18 @@ public sealed class AppSettings
 
     public DateTime? LastUpdateCheckUtc { get; set; }
 
+    /// <summary>Giải nén gói: ổ / thư mục gốc để tự tạo "&lt;Tên game&gt; &lt;PPSAxxxxx&gt;" bên trong; trống = cạnh tệp .pkg.</summary>
+    public string ExtractBaseFolder { get; set; } = string.Empty;
+
+    /// <summary>FPKG trên PS5: ổ / thư mục gốc để trích tệp về; trống = Màn hình nền.</summary>
+    public string RemotePkgBaseFolder { get; set; } = string.Empty;
+
+    /// <summary>FPKG trên PS5: tự tạo thư mục "&lt;Tên game&gt; &lt;PPSAxxxxx&gt;" trong thư mục gốc (mặc định bật).</summary>
+    public bool RemotePkgAutoFolder { get; set; } = true;
+
+    /// <summary>FPKG trên PS5: thư mục gõ tay khi tắt tự tạo thư mục.</summary>
+    public string RemotePkgOutputFolder { get; set; } = string.Empty;
+
 }
 
 public static class SettingsService

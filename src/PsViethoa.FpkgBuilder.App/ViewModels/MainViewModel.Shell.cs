@@ -29,6 +29,9 @@ public partial class MainViewModel
     /// <summary>Trang FTP PS5.</summary>
     public FtpViewModel Ftp { get; private set; } = null!;
 
+    /// <summary>Trang FPKG trên PS5: quét gói đã cài, mở gói qua FTP và trích tệp về PC.</summary>
+    public RemotePkgViewModel RemotePkg { get; private set; } = null!;
+
     /// <summary>Trang Resign save PS4 / PS5.</summary>
     public SaveViewModel Save { get; private set; } = null!;
 
@@ -99,6 +102,8 @@ public partial class MainViewModel
 
     public bool IsFtpPage => CurrentPage == AppPage.Ftp;
 
+    public bool IsRemotePkgPage => CurrentPage == AppPage.RemotePkg;
+
     public bool IsZstdPage => CurrentPage is AppPage.ZstdPack or AppPage.ZstdUnpack or AppPage.ZstdPatch;
 
     /// <summary>Vá ZSTD (thêm bản Việt hoá vào game đã đóng) chỉ có trong giao diện tiếng Việt.</summary>
@@ -135,6 +140,7 @@ public partial class MainViewModel
     {
         Ps4 = new Ps4ViewModel(_settings, _dialogs);
         Ftp = new FtpViewModel(_settings, _dialogs);
+        RemotePkg = new RemotePkgViewModel(_settings, _dialogs);
         Zstd = new ZstdViewModel(_settings, _dialogs);
         Save = new SaveViewModel(_settings, _dialogs);
 
@@ -165,7 +171,8 @@ public partial class MainViewModel
             new NavGroup(Platform.Ftp, "Nav.Group.Connect",
             [
                 new NavItem(AppPage.Ftp, Platform.Ftp, 13, "Nav.Ftp", "Nav.Ftp.Sub", "Nav.Ftp.Tip", "IconLan"),
-                new NavItem(AppPage.SaveResign, Platform.Save, 14, "Nav.SaveResign", "Nav.SaveResign.Sub", "Nav.SaveResign.Tip", "IconSave"),
+                new NavItem(AppPage.RemotePkg, Platform.Ftp, 14, "Nav.RemotePkg", "Nav.RemotePkg.Sub", "Nav.RemotePkg.Tip", "IconFolderDownload"),
+                new NavItem(AppPage.SaveResign, Platform.Save, 15, "Nav.SaveResign", "Nav.SaveResign.Sub", "Nav.SaveResign.Tip", "IconSave"),
             ], Platform.Save),
         ];
 
@@ -181,6 +188,7 @@ public partial class MainViewModel
         Queue.PropertyChanged += OnShellSourceChanged;
         Ps4.PropertyChanged += OnShellSourceChanged;
         Ftp.PropertyChanged += OnShellSourceChanged;
+        RemotePkg.PropertyChanged += OnShellSourceChanged;
         Zstd.PropertyChanged += OnShellSourceChanged;
         Save.PropertyChanged += OnShellSourceChanged;
         ApplyPageSelection();
@@ -348,6 +356,7 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(IsPs5Page));
         OnPropertyChanged(nameof(IsPs4Page));
         OnPropertyChanged(nameof(IsFtpPage));
+        OnPropertyChanged(nameof(IsRemotePkgPage));
         OnPropertyChanged(nameof(IsZstdPage));
         OnPropertyChanged(nameof(IsSavePage));
         RaisePs5Visibility();
@@ -388,12 +397,12 @@ public partial class MainViewModel
             OnPropertyChanged(nameof(PageAccentBrush));
         }
 
-        if (sender is Ps4ViewModel or FtpViewModel or SaveViewModel or ZstdViewModel && e.PropertyName == "StatusText")
+        if (sender is Ps4ViewModel or FtpViewModel or RemotePkgViewModel or SaveViewModel or ZstdViewModel && e.PropertyName == "StatusText")
         {
             OnPropertyChanged(nameof(FooterStatusText));
         }
 
-        if (sender is ZstdViewModel && e.PropertyName == nameof(ZstdViewModel.IsBusy))
+        if (sender is ZstdViewModel or RemotePkgViewModel && e.PropertyName == nameof(ZstdViewModel.IsBusy))
         {
             UpdateBusyBadges();
         }
@@ -428,6 +437,7 @@ public partial class MainViewModel
                     AppPage.Ps5Queue => Queue.IsBusy,
                     AppPage.Ps4Extract or AppPage.Ps4Base or AppPage.Ps4Patch or AppPage.Ps4Dlc or AppPage.Ps4Merge => Ps4.IsBusy && Ps4.BusyMode == Ps4ModeOf(item.Page),
                     AppPage.Ftp => Ftp.IsBusy,
+                    AppPage.RemotePkg => RemotePkg.IsBusy,
                     AppPage.ZstdPack => Zstd.IsBusy && Zstd.Mode == ZstdMode.Pack,
                     AppPage.ZstdUnpack => Zstd.IsBusy && Zstd.Mode == ZstdMode.Unpack,
                     AppPage.ZstdPatch => Zstd.IsBusy && Zstd.Mode == ZstdMode.Patch,

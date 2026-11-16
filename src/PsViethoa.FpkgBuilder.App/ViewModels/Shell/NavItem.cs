@@ -21,6 +21,7 @@ public enum AppPage
     Ps4Merge,
     Ftp,
     SaveResign,
+    RemotePkg,
 }
 
 /// <summary>Hệ máy / nhóm chức năng: quyết định huy hiệu, màu nhấn và nhãn nhóm trên thanh bên.</summary>

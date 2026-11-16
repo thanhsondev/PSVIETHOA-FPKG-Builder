@@ -166,6 +166,67 @@ public sealed class PackageReader : IDisposable
         }
     }
 
+    /// <summary>
+    /// Mở gói từ một nguồn tua được bất kỳ thay cho tệp cục bộ — vd app.pkg trên PS5 đọc từng đoạn qua FTP
+    /// (<see cref="Ftp.FtpRangeStream"/>). <paramref name="openStream"/> được gọi nhiều lần: một lần đọc header, rồi mỗi kênh giải nén
+    /// NAPS một luồng riêng (luồng không cần an toàn đa luồng, được đóng khi reader Dispose). Chỉ gói FIH debug PLAINTEXT_NOAUTH:
+    /// gói Native cần giải mã cả lớp ngoài ra tệp tạm nên phải chép gói về máy trước.
+    /// </summary>
+    public static PackageReader Open(Func<Stream> openStream, string displayPath, int channels, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(openStream);
+        long offset;
+        long size;
+        int superblockIndex;
+        var fih = new byte[OuterBlockSize];
+        using (var stream = openStream())
+        {
+            var type = ProsperoPkgReader.DetectType(stream);
+            switch (type)
+            {
+                case ProsperoPkgType.FullDebug:
+                    break;
+                case ProsperoPkgType.FullRetail:
+                    throw new NotSupportedException(Loc.T("Extract.RetailBlocked"));
+                case ProsperoPkgType.Meta:
+                    throw new NotSupportedException(Loc.T("Extract.MetaBlocked"));
+                default:
+                    throw new InvalidDataException(Loc.T("Extract.NotPkg"));
+            }
+
+            stream.Position = 0;
+            var summary = PackageVerifier.ReadFihSummary(stream);
+            if (!string.Equals(summary.Marker, PackageVerifier.PlaintextMarker, StringComparison.Ordinal))
+            {
+                throw new NotSupportedException(Loc.T("Remote.NativeBlocked"));
+            }
+
+            stream.Position = 0;
+            var map = ProsperoPackageArchive.Inspect(stream);
+            offset = (long)map.OuterPfsOffset;
+            size = (long)map.OuterPfsSize;
+            superblockIndex = (int)map.OuterSuperblockIndex;
+            stream.Position = 0;
+            stream.ReadExactly(fih, 0, (int)Math.Min(fih.Length, stream.Length));
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        NapsImageReader? image = null;
+        try
+        {
+            image = new NapsImageReader(() => new OwnedWindowStream(openStream(), offset, size), superblockIndex, Math.Clamp(channels, 1, 8));
+            cancellationToken.ThrowIfCancellationRequested();
+            var superblock = LocateSuperblock(image, fih);
+            var pfs = new PfsReader(image, 0, null, null, null, superblock, encryptedDataAlreadyDecrypted: true);
+            return new PackageReader(displayPath, null, PackageImageMode.PlaintextNoAuth, image, pfs, superblock);
+        }
+        catch (Exception)
+        {
+            image?.Dispose();
+            throw;
+        }
+    }
+
     /// <summary>Đọc toàn bộ một tệp vào bộ nhớ (dùng cho xem trước/kiểm thử; không dùng với tệp lớn).</summary>
     public byte[] ReadAllBytes(PackageEntry entry)
     {

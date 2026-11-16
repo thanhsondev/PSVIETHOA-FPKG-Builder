@@ -1466,6 +1466,7 @@ public sealed partial class MainViewModel : ObservableObject
     public string FooterStatusText =>
         IsPs4Page ? Ps4.StatusText
         : IsFtpPage ? Ftp.StatusText
+        : IsRemotePkgPage ? RemotePkg.StatusText
         : IsZstdPage ? Zstd.StatusText
         : IsSavePage ? Save.StatusText
         : IsQueueMode && !string.IsNullOrWhiteSpace(Queue.HeadlineText) ? Queue.HeadlineText
@@ -3173,6 +3174,7 @@ public sealed partial class MainViewModel : ObservableObject
             SaveSettings();
             Extraction.Shutdown();
             Queue.Shutdown();
+            RemotePkg.Shutdown();
             return true;
         }
 
@@ -3192,6 +3194,7 @@ public sealed partial class MainViewModel : ObservableObject
         SaveSettings();
         Extraction.Shutdown();
         Queue.Shutdown();
+        RemotePkg.Shutdown();
         return true;
     }
 

@@ -1176,6 +1176,9 @@
             <Panel Grid.Row="1" Name="FtpPage" IsVisible="{Binding IsFtpPage}">
                 <views:FtpView DataContext="{Binding Ftp}" />
             </Panel>
+            <Panel Grid.Row="1" Name="RemotePkgPage" IsVisible="{Binding IsRemotePkgPage}">
+                <views:RemotePkgView DataContext="{Binding RemotePkg}" />
+            </Panel>
             <Panel Grid.Row="1" Name="SavePage" IsVisible="{Binding IsSavePage}">
                 <views:SaveView DataContext="{Binding Save}" />
             </Panel>
