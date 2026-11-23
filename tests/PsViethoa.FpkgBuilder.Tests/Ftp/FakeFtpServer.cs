@@ -18,6 +18,12 @@ public enum FakeFeat
 
     /// <summary>Liệt kê SIZE, REST STREAM, MDTM, MFMT, UTF8.</summary>
     Full,
+
+    /// <summary>
+    /// Như ftpsrv của ps5-payload-dev v0.21.1–v0.22: FEAT chỉ có "MLSD KILL MTRW SELF" (không SIZE/REST dù có hỗ trợ), và MLSD
+    /// BỎ QUA đối số, luôn liệt kê thư mục hiện hành (cmd.c: opendir(env-&gt;cwd)). Đây là máy chủ của issue #16.
+    /// </summary>
+    FtpsrvMlsd,
 }
 
 /// <summary>
@@ -58,6 +64,9 @@ internal sealed class FakeFtpServer : IAsyncDisposable
     public int Port { get; }
 
     public FakeFeat Feat { get; set; } = FakeFeat.NotImplemented;
+
+    /// <summary>Lời chào (nhiều dòng thì nối bằng CRLF, dòng cuối "220 ").</summary>
+    public string Greeting { get; set; } = "220 PSVIETHOA fake ftpsrv ready.";
 
     /// <summary>Mật khẩu bắt buộc; null = nhận mọi mật khẩu (như ftpsrv).</summary>
     public string? Password { get; set; }
@@ -235,7 +244,7 @@ internal sealed class FakeFtpServer : IAsyncDisposable
             using var reader = new StreamReader(stream, Utf8, false, 4096, leaveOpen: true);
             try
             {
-                await ReplyAsync("220 PSVIETHOA fake ftpsrv ready.", ct);
+                await ReplyAsync(server.Greeting, ct);
                 while (!ct.IsCancellationRequested)
                 {
                     var line = await reader.ReadLineAsync(ct);
@@ -309,6 +318,7 @@ internal sealed class FakeFtpServer : IAsyncDisposable
                     {
                         FakeFeat.Empty => "211-Features:\r\n211 End",
                         FakeFeat.Full => "211-Features:\r\n SIZE\r\n REST STREAM\r\n MDTM\r\n MFMT\r\n UTF8\r\n211 End",
+                        FakeFeat.FtpsrvMlsd => "211-Features:\r\n MLSD\r\n KILL\r\n MTRW\r\n SELF\r\n211 End",
                         _ => "502 Command not implemented.",
                     }, ct);
                     return true;
@@ -518,6 +528,9 @@ internal sealed class FakeFtpServer : IAsyncDisposable
                 case "NLST":
                     await ListAsync(argument, ct);
                     return true;
+                case "MLSD":
+                    await MlsdAsync(argument, ct);
+                    return true;
                 case "RETR":
                     await RetrieveAsync(argument, ct);
                     return true;
@@ -645,6 +658,48 @@ internal sealed class FakeFtpServer : IAsyncDisposable
             await dataStream.WriteAsync(Utf8.GetBytes(string.Concat(rows.Select(r => r + "\r\n"))), ct);
             CloseGracefully(data);
             await ReplyAsync("226 Transfer complete.", ct);
+        }
+
+        /// <summary>
+        /// MLSD theo định dạng ftpsrv ("type=dir;size=4096;modify=YYYYMMDDHHMMSS; tên", có cả "." và ".."). Ở chế độ
+        /// <see cref="FakeFeat.FtpsrvMlsd"/> đối số bị bỏ qua như máy chủ thật.
+        /// </summary>
+        private async Task MlsdAsync(string argument, CancellationToken ct)
+        {
+            var real = Resolve(server.Feat == FakeFeat.FtpsrvMlsd ? "" : argument.Trim()).Real;
+            if (!Directory.Exists(real))
+            {
+                ClosePasv();
+                await ReplyAsync("550 No such directory.", ct);
+                return;
+            }
+
+            using var data = await AcceptDataAsync(ct);
+            if (data == null)
+            {
+                await ReplyAsync("425 Can't open data connection.", ct);
+                return;
+            }
+
+            await ReplyAsync("150 Opening data transfer", ct);
+            static string Stamp(DateTime utc) => utc.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+            var rows = new List<string>
+            {
+                $"type=dir;size=4096;modify={Stamp(Directory.GetLastWriteTimeUtc(real))}; .",
+                $"type=dir;size=4096;modify={Stamp(Directory.GetLastWriteTimeUtc(real))}; ..",
+            };
+            foreach (var entry in Directory.EnumerateFileSystemEntries(real).Order(StringComparer.Ordinal))
+            {
+                var name = Path.GetFileName(entry);
+                rows.Add(Directory.Exists(entry)
+                    ? $"type=dir;size=4096;modify={Stamp(Directory.GetLastWriteTimeUtc(entry))}; {name}"
+                    : $"type=file;size={new FileInfo(entry).Length.ToString(CultureInfo.InvariantCulture)};modify={Stamp(File.GetLastWriteTimeUtc(entry))}; {name}");
+            }
+
+            var dataStream = data.GetStream();
+            await dataStream.WriteAsync(Utf8.GetBytes(string.Concat(rows.Select(r => r + "\r\n"))), ct);
+            CloseGracefully(data);
+            await ReplyAsync("226 Transfer complete", ct);
         }
 
         /// <summary>Đóng kênh dữ liệu êm (FIN) để client nhận đủ mọi byte đã gửi.</summary>
