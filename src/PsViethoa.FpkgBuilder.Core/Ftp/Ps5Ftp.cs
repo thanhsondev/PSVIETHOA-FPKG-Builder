@@ -182,6 +182,20 @@ public sealed class Ps5Ftp : IDisposable
         {
             features.AddRange(["SIZE", "REST STREAM"]);
         }
+        else if (Welcome.Contains("ftpsrv", StringComparison.OrdinalIgnoreCase))
+        {
+            // ftpsrv của ps5-payload-dev chỉ quảng bá "MLSD KILL MTRW SELF" nhưng mọi bản đều có SIZE và REST: thiếu chúng thì quét
+            // FPKG báo nhầm "không hỗ trợ REST" và tải chia đoạn bị tắt.
+            if (!Has("SIZE"))
+            {
+                features.Add("SIZE");
+            }
+
+            if (!Has("REST"))
+            {
+                features.Add("REST STREAM");
+            }
+        }
     }
 
     public void Disconnect()
@@ -526,8 +540,13 @@ public sealed class Ps5Ftp : IDisposable
     public async Task<IReadOnlyList<FtpEntry>> ListAsync(string path, CancellationToken ct = default)
     {
         var dir = NormalizeDir(path);
+        // CWD vào thư mục rồi gửi MLSD/LIST KHÔNG đối số (như FileZilla). ftpsrv của ps5-payload-dev (v0.21–v0.22) quảng bá MLSD
+        // nhưng MLSD của nó bỏ qua đối số và luôn liệt kê thư mục hiện hành: gửi "MLSD /user/app" nhận về danh sách của "/"
+        // (issue #16: bấm thư mục nào cũng hiện gốc, quét FPKG ra 0 game). CWD còn tránh tên có dấu cách hay bắt đầu bằng '-'.
+        // Thư mục không có thì CWD trả 550 và lỗi đó được ném ra, không liệt kê nhầm thư mục hiện hành.
+        await ChangeDirectoryAsync(dir, ct).ConfigureAwait(false);
         // LIST thường: có máy chủ đọc "LIST -a" thành tên tệp. ftpsrv đã liệt kê cả tệp bắt đầu bằng dấu chấm.
-        var lines = await ReadLinesAsync(SupportsMlsd ? "MLSD " + dir : "LIST " + dir, ct).ConfigureAwait(false);
+        var lines = await ReadLinesAsync(SupportsMlsd ? "MLSD" : "LIST", ct).ConfigureAwait(false);
 
         var list = new List<FtpEntry>();
         foreach (var line in lines)

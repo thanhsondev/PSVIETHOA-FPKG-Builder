@@ -154,7 +154,94 @@ public sealed class Ps5FtpClientTests
         Assert.Equal("inner.txt", inner.Name);
         Assert.Equal("/Folder A/inner.txt", inner.FullPath);
         Assert.Equal(77, inner.Size);
-        Assert.Equal(1, box.Server.CountCommands("LIST", "/Folder A"));
+        // CWD vào thư mục rồi LIST không đối số (issue #16: không tin máy chủ đọc đúng đối số của lệnh liệt kê).
+        Assert.Equal(1, box.Server.CountCommands("CWD", "/Folder A"));
+        Assert.Equal(0, box.Server.CountCommands("LIST", "/Folder A"));
+    }
+
+    /// <summary>Lời chào thật của ftpsrv ps5-payload-dev v0.22.</summary>
+    private const string FtpsrvGreeting =
+        "220-Welcome to ftpsrv.elf running on pid 82\r\n220-Version: v0.22 (built Nov 10 2026 10:00:00)\r\n220 Service is ready";
+
+    [Fact]
+    public async Task List_OnFtpsrvWhoseMlsdIgnoresItsArgument_ListsTheRequestedFolder()
+    {
+        // Issue #16: ftpsrv v0.21–v0.22 quảng bá MLSD nhưng "MLSD <đường dẫn>" luôn trả thư mục hiện hành, nên bấm vào thư mục nào
+        // cũng hiện lại "/" và đường dẫn cứ dài ra (/app_temp0/app_tmp/app_tmp/...).
+        await using var box = new FtpSandbox();
+        box.Server.Feat = FakeFeat.FtpsrvMlsd;
+        box.Server.Greeting = FtpsrvGreeting;
+        box.ServerFile("/adm/readme.txt", FtpTestData.Bytes(5, 1));
+        box.ServerFile("/user/app/PPSA01234/app.pkg", FtpTestData.Bytes(300, 2));
+        box.ServerFile("/user/app/PPSA01234/sce_sys/param.json", "{}"u8.ToArray());
+        box.ServerFile("/data/my folder/-dash.bin", FtpTestData.Bytes(9, 3));
+        using var client = await box.ConnectAsync();
+        Assert.True(client.SupportsMlsd);
+
+        var root = await client.ListAsync("/", box.Token);
+        Assert.Equal(new[] { "adm", "data", "user" }, root.Select(e => e.Name).Order(StringComparer.Ordinal));
+
+        // Đi xuống từng cấp như người dùng bấm đúp: mỗi cấp phải là nội dung của chính nó, không phải "/".
+        var user = Assert.Single(await client.ListAsync("/user", box.Token));
+        Assert.Equal(("app", "/user/app", FtpEntryKind.Directory), (user.Name, user.FullPath, user.Kind));
+        var game = Assert.Single(await client.ListAsync(user.FullPath + "/", box.Token));
+        Assert.Equal("/user/app/PPSA01234", game.FullPath);
+        var files = await client.ListAsync(game.FullPath, box.Token);
+        var pkg = Assert.Single(files, e => e.Name == "app.pkg");
+        Assert.Equal((FtpEntryKind.File, 300L, "/user/app/PPSA01234/app.pkg"), (pkg.Kind, pkg.Size, pkg.FullPath));
+        Assert.True(Assert.Single(files, e => e.Name == "sce_sys").IsDirectory);
+        Assert.NotNull(pkg.Modified);
+
+        // Tên có dấu cách / bắt đầu bằng '-' vẫn đúng; đi ngược lên cấp trên cũng đúng.
+        var odd = Assert.Single(await client.ListAsync("/data/my folder", box.Token));
+        Assert.Equal(("-dash.bin", 9L), (odd.Name, odd.Size));
+        Assert.Equal("my folder", Assert.Single(await client.ListAsync(Ps5Ftp.Parent("/data/my folder"), box.Token)).Name);
+        Assert.Equal(3, (await client.ListAsync(Ps5Ftp.Parent("/data"), box.Token)).Count);
+
+        // Mọi lệnh liệt kê là MLSD trần: không gửi đường dẫn để máy chủ bỏ qua.
+        Assert.Equal(0, box.Server.Commands.Count(c => c.StartsWith("MLSD ", StringComparison.Ordinal)));
+        Assert.Equal(0, box.Server.CountCommands("LIST"));
+    }
+
+    [Fact]
+    public async Task List_OfAMissingFolderOnFtpsrv_ThrowsInsteadOfListingTheCurrentFolder()
+    {
+        await using var box = new FtpSandbox();
+        box.Server.Feat = FakeFeat.FtpsrvMlsd;
+        box.Server.Greeting = FtpsrvGreeting;
+        box.ServerFile("/adm/readme.txt", FtpTestData.Bytes(5, 1));
+        using var client = await box.ConnectAsync();
+
+        var ex = await Assert.ThrowsAsync<FtpException>(() => client.ListAsync("/user/app", box.Token));
+        Assert.Equal(550, ex.Code);
+        Assert.Equal("readme.txt", Assert.Single(await client.ListAsync("/adm", box.Token)).Name);
+    }
+
+    [Fact]
+    public async Task Connect_ToFtpsrvWithItsShortFeatList_StillAssumesSizeAndRest()
+    {
+        await using var box = new FtpSandbox();
+        box.Server.Feat = FakeFeat.FtpsrvMlsd;
+        box.Server.Greeting = FtpsrvGreeting;
+        using var client = await box.ConnectAsync();
+
+        Assert.StartsWith("220-Welcome to ftpsrv.elf", client.Welcome, StringComparison.Ordinal);
+        Assert.Equal(new[] { "MLSD", "KILL", "MTRW", "SELF", "SIZE", "REST STREAM" }, client.Features);
+        Assert.True(client.SupportsSize);
+        Assert.True(client.SupportsRest);
+    }
+
+    [Fact]
+    public async Task Connect_ToAnotherServerWithoutRest_DoesNotInventRest()
+    {
+        await using var box = new FtpSandbox();
+        box.Server.Feat = FakeFeat.FtpsrvMlsd;
+        box.Server.Greeting = "220 Some other FTP server";
+        using var client = await box.ConnectAsync();
+
+        Assert.Equal(new[] { "MLSD", "KILL", "MTRW", "SELF" }, client.Features);
+        Assert.False(client.SupportsRest);
+        Assert.False(client.SupportsSize);
     }
 
     [Fact]
