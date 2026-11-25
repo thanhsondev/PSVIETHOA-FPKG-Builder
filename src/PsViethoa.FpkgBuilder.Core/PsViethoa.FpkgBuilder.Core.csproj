@@ -40,7 +40,7 @@
          RID (Core) khi publish App -r win-x64, nên bản Windows build trên macOS / Linux trước đây không có DLL này. -->
     <EmbeddedResource Include="$(MSBuildThisFileDirectory)../../libs/libScePubTools.dll" LogicalName="PsViethoa.FpkgBuilder.Core.LibScePubTools.dll"
                       Condition="Exists('$(MSBuildThisFileDirectory)../../libs/libScePubTools.dll') And ('$(EmbedPubTools)' == 'true' Or '$(RuntimeIdentifier)' == 'win-x64' Or ('$(RuntimeIdentifier)' == '' And '$(OS)' == 'Windows_NT'))" />
-    <EmbeddedResource Include="$(MSBuildThisFileDirectory)../../libs/ampr/ampr-emu-ng-0.4.1/libSceAmpr.sprx" LogicalName="PsViethoa.FpkgBuilder.Core.AmprEmuNg.sprx" />
+    <EmbeddedResource Include="$(MSBuildThisFileDirectory)../../libs/ampr/ampr-emu-ng-0.5.0/libSceAmpr.sprx" LogicalName="PsViethoa.FpkgBuilder.Core.AmprEmuNg.sprx" />
     <EmbeddedResource Include="$(MSBuildThisFileDirectory)../../libs/ampr/ampr_emu-0.4.2.1/libSceAmpr.sprx" LogicalName="PsViethoa.FpkgBuilder.Core.AmprEmu.sprx" />
   </ItemGroup>
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **ZSTD PS5: ampr-emu-ng 0.5.0 runtime** (was 0.4.1), the same runtime as PSVIETHOA STUDIO 2.1.0: up to 20% faster pack reads, a smaller module and a 30–40% faster index load; fixes Final Fantasy XVI, Marvel's Avengers, Demon Slayer Hinokami, GTA V and saves in games backported to FW 4.xx. The pack format is unchanged — existing packed games keep working, and *Pack ZSTD* / *Patch ZSTD* now install 0.5.0 (0.4.1 is still recognised as a ZSTD runtime). 0.5.0 no longer serves `mmap` of packed files (no game is known to need it).
+- **FTP PS5 with ftpsrv v0.21–v0.22** (#16): folder browsing and the *FPKG on PS5* scan list with CWD + a bare MLSD/LIST, because these ftpsrv builds ignore the MLSD argument (the scan found "0 PS5 FPKG").
+
 ## 3.2.0 — 2026-11-16
 
 The Christmas update from Ngô Phi Phương, ported from PSVIETHOA STUDIO: a Christmas theme with background music, a new *FPKG on PS5* page, drive chips that create the `<Game> <PPSAxxxxx>` folder, a System panel and the ampr-emu-ng 0.4.1 runtime. On top of it, a new **Appearance** window (theme, sidebar size and style, every effect can be turned off — issue #12) and fixes for HiDPI screens and macOS. Package building (Sony SDK and built-in engine) is unchanged.
