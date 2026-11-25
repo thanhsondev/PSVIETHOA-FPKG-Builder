@@ -42,7 +42,7 @@
 |---|---|---|
 | <img src="https://img.shields.io/badge/PS5-FPKG-3B82F6" /> | **Build PKG · Build Update PKG · Extract PKG · Queue** | PS5 FPKG (FIH debug) from an app folder, an `.exfat`, `.ffpfsc` / `.ffpfs` (exFAT or PFS) or `.ffpkg` image or a `.gp5` project — through **Sony's Publishing Tools 2.79** (default) or Drakmor's **LibProsperoPkg** engine. Delta updates against an installed base, package inspection / extraction, parallel build queue. *Sony SDK toolkit `sdk-fpkg279-fix15`, with the 2.2.7 fixes kept.* |
 | <img src="https://img.shields.io/badge/PS4-PKG-6366F1" /> | **Extract PKG · Build Base · Build Update · Build DLC · Merge Base + Update** | PS4 fake PKGs with **orbis-pub-cmd 3.87** (CyB1K patch) and **LibOrbisPkg**, following the PSVIETHOA STUDIO workflow. Live preview of the game (icon, title, Content ID, version), `param.sfo` editor, per-file extraction. |
-| <img src="https://img.shields.io/badge/ZSTD-PS5-22C55E" /> | **Pack ZSTD · Unpack ZSTD · Patch ZSTD** *(beta)* | ps5-dump-forge ZSTD packs with the **ampr-emu-ng 0.4.1** runtime: the game shrinks to about half, unpacks byte-exact, and translations can be patched into a packed game without unpacking it (Vietnamese UI). |
+| <img src="https://img.shields.io/badge/ZSTD-PS5-22C55E" /> | **Pack ZSTD · Unpack ZSTD · Patch ZSTD** *(beta)* | ps5-dump-forge ZSTD packs with the **ampr-emu-ng 0.5.0** runtime: the game shrinks to about half, unpacks byte-exact, and translations can be patched into a packed game without unpacking it (Vietnamese UI). |
 | <img src="https://img.shields.io/badge/PS5-FPKG%20on%20PS5-14B8A6" /> | **FPKG on PS5** | Scans the FPKGs installed on the PS5 over FTP (title, icon, version, drive), opens a package in place and extracts only the files you pick — nothing is copied in full, nothing is written to the console. |
 | <img src="https://img.shields.io/badge/PS5-FTP-14B8A6" /> | **PS5 FTP** | Two-pane file manager for the PS5's FTP server (ftpsrv, etaHEN…): drag files between the panes or from Finder / Explorer, multi-connection transfers with resume, rename / delete / new folder, saved consoles. |
 | <img src="https://img.shields.io/badge/SAVE-Resign-F59E0B" /> | **Resign Save** | Re-own PS4 / PS5 saves to your Account ID. Decrypted saves are fixed right on the computer; encrypted ones go through **garlic-savemgr** on the PS5 (the app loads it for you). |
@@ -58,7 +58,7 @@
 - **Resizable sidebar** — drag its right edge (narrow → one column, wide → two; double-click for automatic).
 - **Appearance window** — light / dark theme, sidebar size (Small / Medium / Large / Fit window) and style (the detailed list of 3.0 by default, two columns or one column), and every effect can be turned off one by one.
 - **Fixes** — Christmas art no longer drawn too large on Retina / HiDPI screens, a macOS startup crash, drive chips on macOS and Linux.
-- **ZSTD PS5** — ampr-emu-ng **0.4.1** runtime.
+- **ZSTD PS5** — ampr-emu-ng **0.5.0** runtime.
 - **Support us** — Ko-fi / psviethoa.com button in the sidebar.
 
 ## What's new in 3.1
@@ -193,7 +193,7 @@ libs/                               third-party, replaced only as a whole:
   LibOrbisPkg/                        PS4 PKG / PFS / SFO (Maxton, LGPL-3.0, source included)
   orbis-pub/                          PS4 Fake PKG Tools 3.87 (CyB1K), original + fast engine
   garlic-savemgr/                     PS5 save payload (earthonion), source included
-  ampr/                               ampr-emu-ng 0.4.1 + ampr_emu 0.4.2.1 runtimes for ZSTD packs (GPL-3.0-or-later)
+  ampr/                               ampr-emu-ng 0.5.0 + ampr_emu 0.4.2.1 runtimes for ZSTD packs (GPL-3.0-or-later)
 ```
 </details>
 
